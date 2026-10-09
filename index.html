@@ -409,7 +409,7 @@ input:checked+.sw-sl:before{transform:translateX(20px);}
           </div>
         </div>
         <div class="desc-info" id="descinfo"></div>
-        <div class="desc-nota">* El 10% automático no aplica a cajas cerradas. Desc. especial sí.</div>
+        <div class="desc-nota">* Ni el 10% automático ni el desc. especial 10% aplican a cajas cerradas. El 5% especial sí.</div>
       </div>
       <div class="fpago-wrap">
         <div class="fpago-lbl">💳 Forma de pago</div>
@@ -533,7 +533,7 @@ input:checked+.sw-sl:before{transform:translateX(20px);}
           </div>
         </div>
         <div class="desc-info" id="nvDescInfo"></div>
-        <div class="desc-nota">* El 10% automático no aplica a cajas cerradas. Desc. especial sí.</div>
+        <div class="desc-nota">* Ni el 10% automático ni el desc. especial 10% aplican a cajas cerradas. El 5% especial sí.</div>
       </div>
       <div class="fpago-wrap">
         <div class="fpago-lbl">💳 Forma de pago</div>
@@ -653,7 +653,7 @@ function calcFinal(t,n,tMin){
   var tCaja=t-tMin,d10=tMin>=100000&&n>=20&&!vip;
   var bMin=d10?tMin*0.9:tMin;
   if(descEsp>0) bMin=bMin*(1-descEsp/100);
-  var bCaja=descEsp>0?tCaja*(1-descEsp/100):tCaja;
+  var bCaja=(descEsp>0&&descEsp!==10)?tCaja*(1-descEsp/100):tCaja;
   return {d10:d10,tCaja:tCaja,bMin:bMin,bCaja:bCaja,final:bCaja+bMin,tMin:tMin};
 }
 
@@ -830,7 +830,7 @@ function abrirRes(){
   for(var i=0;i<P.length;i++){
     var p=P[i],e=ped[String(p.codigo)];if(!e||!e.cant) continue; hay=true;
     var pr=precio(p,e.modo),sub=pr*e.cant,esCaj=esCaja(e.modo);
-    var subF=sub;if(esCaj){if(descEsp>0) subF*=(1-descEsp/100);}else{if(f.d10) subF*=0.9;if(descEsp>0) subF*=(1-descEsp/100);}
+    var subF=sub;if(esCaj){if(descEsp>0&&descEsp!==10) subF*=(1-descEsp/100);}else{if(f.d10) subF*=0.9;if(descEsp>0) subF*=(1-descEsp/100);}
     var tc=esCaj?"tcaj":e.modo==="mayorista"?"tmay":"tmin";
     var tl=esCaj?"x"+p.unidadesCaja+"u":e.modo==="mayorista"?"VIP":"Min.";
     var dv=document.createElement("div");dv.className="item";
@@ -1394,7 +1394,7 @@ function nvCalcFinal(t,n,tMin){
   var tCaja=t-tMin,d10=tMin>=100000&&n>=20&&!nvVip;
   var bMin=d10?tMin*0.9:tMin;
   if(nvDescEsp>0) bMin=bMin*(1-nvDescEsp/100);
-  var bCaja=nvDescEsp>0?tCaja*(1-nvDescEsp/100):tCaja;
+  var bCaja=(nvDescEsp>0&&nvDescEsp!==10)?tCaja*(1-nvDescEsp/100):tCaja;
   return {d10:d10,tCaja:tCaja,bMin:bMin,bCaja:bCaja,final:bCaja+bMin,tMin:tMin};
 }
 
@@ -1538,7 +1538,7 @@ function nvAbrirResumen(){
   for(var i=0;i<P.length;i++){
     var p=P[i],e=nvPed[String(p.codigo)];if(!e||!e.cant) continue; hay=true;
     var pr=precio(p,e.modo),sub=pr*e.cant,esCaj=esCaja(e.modo);
-    var subF=sub;if(esCaj){if(nvDescEsp>0) subF*=(1-nvDescEsp/100);}else{if(f.d10) subF*=0.9;if(nvDescEsp>0) subF*=(1-nvDescEsp/100);}
+    var subF=sub;if(esCaj){if(nvDescEsp>0&&nvDescEsp!==10) subF*=(1-nvDescEsp/100);}else{if(f.d10) subF*=0.9;if(nvDescEsp>0) subF*=(1-nvDescEsp/100);}
     var tc=esCaj?"tcaj":e.modo==="mayorista"?"tmay":"tmin";
     var tl=esCaj?"x"+p.unidadesCaja+"u":e.modo==="mayorista"?"VIP":"Min.";
     var dv=document.createElement("div");dv.className="item";
@@ -1733,7 +1733,7 @@ document.addEventListener("DOMContentLoaded", function(){
     var r=nvCalcT(),t=r.t,n=r.n,tMin=r.tMin,f=nvCalcFinal(t,n,tMin);
     if(n===0){toast("No hay productos");return;}
     var items=[],subtotal=t,bultos=0,kg=0;
-    for(var i=0;i<P.length;i++){var p=P[i],e=nvPed[String(p.codigo)];if(!e||!e.cant) continue;var pr=precio(p,e.modo);var subF=pr;if(esCaja(e.modo)){if(nvDescEsp>0) subF*=(1-nvDescEsp/100);}else{if(f.d10) subF*=0.9;if(nvDescEsp>0) subF*=(1-nvDescEsp/100);}bultos+=e.cant;items.push({codigo:String(p.codigo),nombre:p.nombre,peso:"",cantidad:e.cant,precioUnit:subF,kg:0});}
+    for(var i=0;i<P.length;i++){var p=P[i],e=nvPed[String(p.codigo)];if(!e||!e.cant) continue;var pr=precio(p,e.modo);var subF=pr;if(esCaja(e.modo)){if(nvDescEsp>0&&nvDescEsp!==10) subF*=(1-nvDescEsp/100);}else{if(f.d10) subF*=0.9;if(nvDescEsp>0) subF*=(1-nvDescEsp/100);}bultos+=e.cant;items.push({codigo:String(p.codigo),nombre:p.nombre,peso:"",cantidad:e.cant,precioUnit:subF,kg:0});}
     for(var lk in nvPedLac){var le=nvPedLac[lk];if(!le||!le.cant) continue;var idx=parseInt(lk.replace("lac-",""));var lp=LAC[idx];var subF2=lp.precioMay;if(nvDescEsp>0) subF2*=(1-nvDescEsp/100);bultos+=le.cant;items.push({codigo:"LAC",nombre:lp.nombre,peso:"Lacteos",cantidad:le.cant,precioUnit:subF2,kg:0});}
     var descLinea="";
     if(f.d10&&nvDescEsp>0) descLinea="10% off + "+nvDescEsp+"% especial";
