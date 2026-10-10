@@ -80,6 +80,9 @@ details.ped li{margin:3px 0}
 .var{font-weight:600;font-size:12px;margin-left:4px}.var.up{color:var(--danger)}.var.down{color:var(--ok)}
 .hbtn{background:none;border:0;padding:2px 0;color:var(--accent);font:inherit;font-size:13px;font-weight:600;cursor:pointer;text-decoration:underline}
 .hist{margin-top:6px;border-top:1px solid var(--line);padding-top:6px;font-size:13px}.hist div{display:flex;gap:10px;justify-content:space-between;padding:2px 0}.hist span:first-child{color:var(--muted)}
+.btn.wa{background:#1f9d55;border-color:#1f9d55;color:#fff}
+.hbtn.del{color:var(--muted);margin-left:12px}
+.delq{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:6px;font-size:13px}
 </style>
 </head>
 <body>
@@ -104,7 +107,7 @@ details.ped li{margin:3px 0}
 
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-import { getFirestore, collection, doc, onSnapshot, addDoc, deleteDoc, query, orderBy, limit, writeBatch } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { getFirestore, collection, doc, onSnapshot, addDoc, deleteDoc, setDoc, arrayUnion, arrayRemove, query, orderBy, limit, writeBatch } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 const app = initializeApp({
   apiKey: "AIzaSyC5voDKO_imN8QqRRpjMQdwV7QILrJw40g",
   authDomain: "frioteka-preventista.firebaseapp.com",
@@ -118,6 +121,12 @@ const db = getFirestore(app);
 const PROV = "pp_proveedores", PED = "pp_pedidos", META = doc(db, "pp_meta", "info");
 let meta = null, provs = {};
 window.FB = {
+  onOcultos(cb){ onSnapshot(collection(db, "pp_ocultos"), snap => { const m = {}; snap.forEach(d => { m[d.id] = (d.data()||{}).ids || []; }); cb(m); }, ()=>{}); },
+  ocultar(prov, id){ return setDoc(doc(db, "pp_ocultos", prov), { ids: arrayUnion(id) }, { merge: true }); },
+  mostrar(prov, id){ return setDoc(doc(db, "pp_ocultos", prov), { ids: arrayRemove(id) }, { merge: true }); },
+  mostrarTodos(prov){ return setDoc(doc(db, "pp_ocultos", prov), { ids: [] }); },
+  onTelefonos(cb){ onSnapshot(collection(db, "pp_telefonos"), snap => { const m = {}; snap.forEach(d => { m[d.id] = (d.data()||{}).tel || ""; }); cb(m); }, ()=>{}); },
+  setTel(id, tel){ return setDoc(doc(db, "pp_telefonos", id), { tel }); },
   onProveedores(cb, err){
     onSnapshot(META, s => { meta = s.exists() ? s.data() : null; cb(provs, meta); }, ()=>{});
     onSnapshot(collection(db, PROV), snap => { const m = {}; snap.forEach(d => { const x = d.data(); if (x && x.nombre) m[d.id] = x; }); provs = m; cb(provs, meta); }, err);
@@ -143,7 +152,7 @@ window.dispatchEvent(new Event("fb-ready"));
 </script>
 <script>
 (function(){
-  var S={view:"lista",prov:null,q:"",provs:{},pedidos:[],draft:{},extras:[],nota:"",ready:false,canSave:true,names:{},delAsk:null,histOpen:{}};
+  var S={tels:{},ocultos:{},delProd:null,verOcultos:false,view:"lista",prov:null,q:"",provs:{},pedidos:[],draft:{},extras:[],nota:"",ready:false,canSave:true,names:{},delAsk:null,histOpen:{}};
   var db=null,user=null,uid=null;
   var $=function(id){return document.getElementById(id)};
   var esc=function(s){return String(s==null?"":s).replace(/[&<>"']/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]})};
@@ -157,7 +166,8 @@ window.dispatchEvent(new Event("fb-ready"));
   function saveDraft(){if(S.prov)lsSet("borrador:"+S.prov,{draft:S.draft,extras:S.extras,nota:S.nota})}
   function loadDraft(id){var d=lsGet("borrador:"+id)||{};S.draft=d.draft||{};S.extras=d.extras||[];S.nota=d.nota||""}
 
-  function prods(){var p=S.provs[S.prov];return (p&&p.productos)||[]}
+  function ocultosDe(id){return S.ocultos[id]||[]}
+  function prods(){var p=S.provs[S.prov];var o=ocultosDe(S.prov);return ((p&&p.productos)||[]).filter(function(x){return o.indexOf(x.id)<0})}
   function sugerido(p){var d=S.draft[p.id]||{};var h=Number(p.habitual)||0;if(d.stock!==undefined&&d.stock!==""&&!isNaN(d.stock))return Math.max(0,Math.round((h-Number(d.stock))*100)/100);return h}
   function lineas(){var out=[];prods().forEach(function(p){var c=Number((S.draft[p.id]||{}).cant)||0;if(c>0)out.push({nombre:p.nombre,unidad:p.unidad||"",cant:c,precio:Number(p.precio)||0,cod:p.cod||""})});
     S.extras.forEach(function(e){if(e.nombre&&Number(e.cant)>0)out.push({nombre:e.nombre,unidad:"",cant:Number(e.cant),precio:0,cod:"",extra:true})});return out}
@@ -196,17 +206,19 @@ window.dispatchEvent(new Event("fb-ready"));
   function vProv(){
     var p=S.provs[S.prov];if(!p)return '<div class="empty">Ese proveedor ya no está en la lista.</div>';
     var h='<div class="bar"><button class="btn small" data-act="volver">‹ Proveedores</button></div><div><h2>'+esc(p.nombre)+'</h2><p class="sub">'+esc(p.rubro||"")+(p.nota?' · '+esc(p.nota):'')+'</p></div>';
-    var ps=p.productos||[];
+    var ps=prods();
     if(ps.length)h+='<div class="bar"><button class="btn small" data-act="habitual">Cargar lo habitual</button><button class="btn small" data-act="vaciar">Vaciar</button></div><p class="sub">Si contás lo que queda, anotalo en "Hay" y la sugerencia pide solo lo que falta.</p>';
     else h+='<div class="note">De este proveedor todavía no hay productos cargados. Agregalos a mano acá abajo.</div>';
     h+='<div class="list">';
     ps.forEach(function(x){var d=S.draft[x.id]||{};var c=Number(d.cant)||0;var sg=sugerido(x);
-      h+='<div class="prod'+(c>0?' on':'')+'" data-p="'+esc(x.id)+'"><div><div class="name">'+esc(x.nombre)+'</div><div class="meta num">'+(x.precio?money(x.precio)+(x.unidad?' por '+esc(x.unidad):''):'sin precio')+(function(){var v=variacion(x);return v&&Math.abs(v)>=0.005?'<span class="var '+(v>0?'up':'down')+'">'+pct(v)+'</span>':''})()+(x.fecha?' · última compra '+fecha(x.fecha):'')+(x.habitual?' · '+qty(x.habitual)+' '+esc(x.unidad||''):'')+'</div>'+((x.historial||[]).length?'<button class="hbtn" data-act="hist">'+(S.histOpen[x.id]?'Ocultar precios anteriores':'Ver precios anteriores ('+x.historial.length+')')+'</button>':'')+(S.histOpen[x.id]?histHTML(x):'')+'</div>'+
+      h+='<div class="prod'+(c>0?' on':'')+'" data-p="'+esc(x.id)+'"><div><div class="name">'+esc(x.nombre)+'</div><div class="meta num">'+(x.precio?money(x.precio)+(x.unidad?' por '+esc(x.unidad):''):'sin precio')+(function(){var v=variacion(x);return v&&Math.abs(v)>=0.005?'<span class="var '+(v>0?'up':'down')+'">'+pct(v)+'</span>':''})()+(x.fecha?' · última compra '+fecha(x.fecha):'')+(x.habitual?' · '+qty(x.habitual)+' '+esc(x.unidad||''):'')+'</div>'+((x.historial||[]).length?'<button class="hbtn" data-act="hist">'+(S.histOpen[x.id]?'Ocultar precios anteriores':'Ver precios anteriores ('+x.historial.length+')')+'</button>':'')+(S.histOpen[x.id]?histHTML(x):'')+(S.delProd===x.id?'<div class="delq"><span>¿Sacarlo de la lista de este proveedor?</span><button class="btn small danger" data-act="del-si">Sí, sacarlo</button><button class="btn small" data-act="del-no">No</button></div>':'<button class="hbtn del" data-act="del-prod">Sacar de la lista</button>')+'</div>'+
         '<div class="ctrl"><div class="step"><button data-act="menos" aria-label="Restar">−</button><input id="c-'+esc(x.id)+'" data-f="cant" type="number" inputmode="decimal" min="0" step="any" value="'+(c||"")+'" placeholder="0" aria-label="Cantidad a pedir"><button data-act="mas" aria-label="Sumar">+</button></div>'+
         '<label class="stock">Hay <input id="s-'+esc(x.id)+'" data-f="stock" type="number" inputmode="decimal" min="0" step="any" value="'+(d.stock===undefined?"":esc(d.stock))+'" aria-label="Cantidad que queda en stock"></label>'+
         (sg>0&&sg!==c?'<button class="chip num" data-act="sug">Sugerido '+qty(sg)+'</button>':'')+
         '<span class="sum num" data-sum>'+(c>0&&x.precio?money(c*x.precio):'')+'</span></div></div>'});
     S.extras.forEach(function(e,i){h+='<div class="prod on"><div class="ctrl"><span class="name" style="flex:1;min-width:0">'+esc(e.nombre)+' <span class="meta">× '+qty(Number(e.cant))+'</span></span><button class="btn small danger" data-act="quitar-extra" data-i="'+i+'">Quitar</button></div></div>'});
+    var oc=((p.productos)||[]).filter(function(x){return ocultosDe(S.prov).indexOf(x.id)>=0});
+    if(oc.length){h+='</div><div class="list"><div class="prod"><div class="ctrl"><span class="sub" style="flex:1">'+oc.length+(oc.length===1?' producto sacado':' productos sacados')+' de la lista</span><button class="hbtn" data-act="ver-ocultos">'+(S.verOcultos?'Ocultar':'Ver')+'</button></div>'+(S.verOcultos?oc.map(function(x){return '<div class="ctrl" data-o="'+esc(x.id)+'"><span style="flex:1;min-width:0">'+esc(x.nombre)+'</span><button class="btn small" data-act="restaurar">Volver a poner</button></div>'}).join(''):'')+'</div>'}
     h+='</div><div><p class="sub" style="margin-bottom:6px">Agregar un producto que no está en la lista</p><div class="field"><input id="ex-n" type="text" placeholder="Producto" autocomplete="off"><input id="ex-c" class="q" type="number" inputmode="decimal" min="0" step="any" placeholder="Cant."><button class="btn" data-act="add-extra">Agregar</button></div></div>';
     return h;
   }
@@ -219,8 +231,9 @@ window.dispatchEvent(new Event("fb-ready"));
     h+='<div class="list">';ls.forEach(function(l){h+='<div class="prod"><div class="ctrl"><span class="name" style="flex:1;min-width:0">'+esc(l.nombre)+'</span><span class="num">'+qty(l.cant)+' '+esc(l.unidad)+'</span><span class="sum num">'+(l.precio?money(l.cant*l.precio):'')+'</span></div></div>'});h+='</div>';
     h+='<div><p class="sub" style="margin-bottom:6px">Aclaración para el proveedor (opcional)</p><textarea id="nota" placeholder="Ej.: entregar el jueves a la mañana">'+esc(S.nota)+'</textarea></div>';
     h+='<div><p class="sub" style="margin-bottom:6px">Mensaje para mandar por WhatsApp</p><textarea class="msg" id="msg" readonly>'+esc(mensaje(ls))+'</textarea></div>';
-    h+='<div class="bar"><button class="btn primary" data-act="copiar">Copiar mensaje</button><button class="btn" data-act="guardar"'+(S.canSave?'':' disabled')+'>Guardar pedido</button></div>';
-    h+='<p class="sub">Copiá el mensaje, pegalo en el chat del proveedor y después tocá "Guardar pedido" para que quede en el historial.</p>';
+    h+='<div><p class="sub" style="margin-bottom:6px">WhatsApp del proveedor</p><div class="field"><input id="tel" type="tel" inputmode="tel" placeholder="Ej.: 3541 123456" autocomplete="off" value="'+esc(S.tels[S.prov]||"")+'"></div><p class="sub" style="margin-top:4px">Se guarda para la próxima vez. Si lo dejás vacío, WhatsApp te deja elegir el contacto.</p></div>';
+    h+='<div class="bar"><button class="btn primary wa" data-act="whatsapp">Enviar por WhatsApp</button><button class="btn" data-act="copiar">Copiar mensaje</button><button class="btn" data-act="guardar">Solo guardar</button></div>';
+    h+='<p class="sub">"Enviar por WhatsApp" abre el chat del proveedor con el pedido escrito y lo guarda en el historial. Solo falta tocar enviar en WhatsApp.</p>';
     if(!S.canSave)h+='<div class="note">Con tu usuario no se pueden guardar pedidos en el historial. El mensaje se puede copiar y mandar igual.</div>';
     return h;
   }
@@ -250,6 +263,12 @@ window.dispatchEvent(new Event("fb-ready"));
     else if(a==="volver"){S.view="lista";render()}
     else if(a==="editar"){S.view="prov";render()}
     else if(a==="mas"||a==="menos"){var cur=Number((S.draft[pid]||{}).cant)||0;setCant(pid,cur+(a==="mas"?1:-1));refreshRow(row,pid)}
+    else if(a==="del-prod"){S.delProd=pid;var y0=window.scrollY;render();window.scrollTo(0,y0)}
+    else if(a==="del-no"){S.delProd=null;var y1=window.scrollY;render();window.scrollTo(0,y1)}
+    else if(a==="del-si"){S.delProd=null;if(S.draft[pid]){delete S.draft[pid];saveDraft()}S.ocultos[S.prov]=ocultosDe(S.prov).concat([pid]);var y2=window.scrollY;render();window.scrollTo(0,y2);
+      window.FB.ocultar(S.prov,pid).then(function(){toast("Producto sacado de la lista")},function(){toast("No se pudo guardar. Revisá la conexión.")})}
+    else if(a==="ver-ocultos"){S.verOcultos=!S.verOcultos;var y3=window.scrollY;render();window.scrollTo(0,y3)}
+    else if(a==="restaurar"){var oid=b.closest("[data-o]").dataset.o;S.ocultos[S.prov]=ocultosDe(S.prov).filter(function(i){return i!==oid});render();window.FB.mostrar(S.prov,oid).then(function(){toast("Producto de nuevo en la lista")},function(){})}
     else if(a==="hist"){S.histOpen[pid]=!S.histOpen[pid];var y=window.scrollY;render();window.scrollTo(0,y)}
     else if(a==="sug"){var x=prods().filter(function(p){return p.id===pid})[0];setCant(pid,sugerido(x));refreshRow(row,pid)}
     else if(a==="habitual"){prods().forEach(function(x){setCant(x.id,sugerido(x))});render()}
@@ -260,6 +279,11 @@ window.dispatchEvent(new Event("fb-ready"));
     else if(a==="copiar"){var t=$("msg").value;var ok=function(){toast("Mensaje copiado")};var fb=function(){var m=$("msg");m.focus();m.select();toast("Mantené apretado el texto y elegí Copiar")};
       if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(t).then(ok,fb);else fb()}
     else if(a==="guardar"){guardar(b)}
+    else if(a==="whatsapp"){var raw=($("tel").value||"").trim(),num=raw.replace(/\D/g,"");
+      if(num){num=num.replace(/^0+/,"");if(num.indexOf("54")!==0){num=num.replace(/^(\d{2,4})15/,"$1");num="549"+num}else if(num.indexOf("549")!==0)num="549"+num.slice(2)}
+      if(raw!==(S.tels[S.prov]||"")){S.tels[S.prov]=raw;window.FB.setTel(S.prov,raw).catch(function(){})}
+      window.open("https://wa.me/"+num+"?text="+encodeURIComponent(mensaje(lineas())),"_blank");
+      guardar(b)}
     else if(a==="repetir"){var o=S.pedidos.filter(function(x){return x._id===b.dataset.id})[0];if(!o)return;if(!S.provs[o.prov]){toast("Ese proveedor ya no está en la lista");return}
       S.prov=o.prov;S.draft={};S.extras=[];S.nota="";var ps=prods();(o.items||[]).forEach(function(l){var m=ps.filter(function(p){return p.nombre===l.nombre})[0];if(m)S.draft[m.id]={cant:l.cant};else S.extras.push({nombre:l.nombre,cant:l.cant})});saveDraft();S.view="prov";render();window.scrollTo(0,0)}
     else if(a==="borrar"){S.delAsk=b.dataset.id;var open=b.closest("details");render();var d=document.querySelector('[data-act="borrar-si"]');if(d)d.closest("details").open=true}
@@ -292,6 +316,8 @@ window.dispatchEvent(new Event("fb-ready"));
       F.onProveedores(function(m,meta){S.provs=m;S.ready=true;aviso("");if(meta&&meta.actualizado)$("act").textContent="Precios actualizados al "+meta.actualizado;
         if(S.view==="lista"||(S.view==="prov"&&!document.querySelector("[data-p]")))render()},
         function(){S.ready=true;aviso("No se pudieron cargar los precios. Revisá la conexión y recargá la página.");render()});
+      F.onOcultos(function(m){S.ocultos=m;if(S.view==="prov")render()});
+      F.onTelefonos(function(m){S.tels=m});
       F.onPedidos(function(arr){S.pedidos=arr;if(S.view==="hist"||S.view==="lista")render()},function(){});
     };
     if(window.FB)go();else{window.addEventListener("fb-ready",go,{once:true});setTimeout(function(){if(!window.FB){S.ready=true;aviso("No hay conexión. Revisá internet y recargá la página.");render()}},12000)}
