@@ -969,7 +969,7 @@ function renderLac(){
     var div=document.createElement("div"); div.className="lac-prod"+(cant>0?" act":""); div.id="lprd-"+k;
     var inf=document.createElement("div"); inf.className="lac-info";
     var nom=document.createElement("div"); nom.className="lac-nom"; nom.textContent=p.nombre;
-    var det=document.createElement("div"); det.className="lac-det"; det.textContent=p.detalle||(p.unidBulto+" u/bulto");
+    var det=document.createElement("div"); det.className="lac-det"; det.textContent=(p.codigo?"Cód: "+p.codigo+" · ":"")+( p.detalle||(p.unidBulto+" u/bulto"));
     var pr2=document.createElement("div"); pr2.className="lac-precio"; pr2.textContent="May: "+fmt(p.precioMay)+" c/u";
     var bl=document.createElement("div"); bl.className="lac-bulto"; bl.textContent=p.unidBulto>1?"Bulto: "+fmt(p.precioMay*p.unidBulto):"Precio por pieza: "+fmt(p.precioMay);
     inf.appendChild(nom);inf.appendChild(det);inf.appendChild(pr2);inf.appendChild(bl);
@@ -1689,7 +1689,7 @@ function nvRenderLac(){
     var div=document.createElement("div"); div.className="lac-prod"+(cant>0?" act":""); div.id="nv-lprd-"+k;
     var inf=document.createElement("div"); inf.className="lac-info";
     var nom=document.createElement("div"); nom.className="lac-nom"; nom.textContent=p.nombre;
-    var det=document.createElement("div"); det.className="lac-det"; det.textContent=p.detalle||(p.unidBulto+" u/bulto");
+    var det=document.createElement("div"); det.className="lac-det"; det.textContent=(p.codigo?"Cód: "+p.codigo+" · ":"")+( p.detalle||(p.unidBulto+" u/bulto"));
     var pr2=document.createElement("div"); pr2.className="lac-precio"; pr2.textContent="May: "+fmt(p.precioMay)+" c/u";
     var bl=document.createElement("div"); bl.className="lac-bulto"; bl.textContent="Bulto: "+fmt(p.precioMay*p.unidBulto);
     inf.appendChild(nom);inf.appendChild(det);inf.appendChild(pr2);inf.appendChild(bl);
