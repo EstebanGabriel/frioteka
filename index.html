@@ -1303,7 +1303,7 @@ function renderListaCli(q){
       +(c.tel?'<div class="card-det">Tel: '+c.tel+'</div>':'')
       +(c.dir?'<div class="card-det">Dir: '+c.dir+'</div>':'')
       +(c.cuit?'<div class="card-det">CUIT: '+c.cuit+'</div>':'')
-      +(c.cc?'<div class="card-det" style="color:var(--azul);">Cta. Cte. - Saldo: '+fmt(c.saldo||0)+'</div>':'')
+      +(c.cc?(function(){var mv=pedidos.filter(function(p){return p.cliente===c.nombre&&p.fpago==="Cta. Corriente";});var deuda=mv.reduce(function(s,p){return s+p.total;},0);var pag=(c.pagosCC||[]).reduce(function(s,p){return s+p.monto;},0);var saldoCC=deuda-pag;return '<div class="card-det" style="color:'+(saldoCC>0?'var(--rojo)':'#16a34a')+';">Cta. Cte. · Compras: '+fmt(deuda)+' · Debe: '+fmt(saldoCC)+'</div>';})():'')
       +(tc>0?'<div class="card-det" style="color:var(--verde);">Total comprado: '+fmt(tc)+'</div>':'')
       +'<div class="card-acc"><button class="btn-sm b" data-i="'+ri+'">Editar</button><button class="btn-sm r" data-i="'+ri+'">Historial</button></div>';
     card.querySelector(".btn-sm.b").onclick=function(){abrirFormCli(parseInt(this.dataset.i));};
@@ -1320,7 +1320,7 @@ function renderCC(c){
     var mv=pedidos.filter(function(p){return p.cliente===cli.nombre&&p.fpago==="Cta. Corriente";});
     var deuda=mv.reduce(function(s,p){return s+p.total;},0);
     var pagos=(cli.pagosCC||[]).reduce(function(s,p){return s+p.monto;},0);
-    var saldo=(cli.saldo||0)+deuda-pagos;
+    var saldo=deuda-pagos;
     var cliId=encodeURIComponent(cli.nombre);
     h+='<div class="card"><div class="form-tit">'+cli.nombre+'</div>'
       +'<div class="cc-saldo"><div><div style="font-size:12px;color:var(--gris)">Saldo pendiente</div><div class="cc-val" style="color:'+(saldo>0?'var(--rojo)':'#16a34a')+'">'+fmt(saldo)+'</div></div>'
