@@ -60,6 +60,7 @@ input[type=date],input[type=time],input[type=text]{width:100%;min-width:0;font:5
 .primary{font:600 18px var(--body);padding:14px;border:0;border-radius:10px;background:var(--accent);color:var(--accent-ink);cursor:pointer}
 .primary:disabled{opacity:.55;cursor:default}
 .ghost{font:600 15px var(--body);padding:10px 12px;border:1px solid var(--line);border-radius:8px;background:transparent;color:var(--ink);cursor:pointer}
+.btn{display:block;text-align:center;text-decoration:none}
 .msg{font-size:15px;min-height:21px}
 .msg.err{color:var(--bad)} .msg.ok{color:var(--ok)}
 .note{font-size:14px;color:var(--muted)}
@@ -135,6 +136,7 @@ input[type=date],input[type=time],input[type=text]{width:100%;min-width:0;font:5
       <button class="primary" id="guardar" type="submit">Guardar salida</button>
       <button class="ghost" id="cancelar" type="button" hidden>Cancelar cambios</button>
       <div class="msg" id="msg" aria-live="polite"></div>
+      <a class="ghost btn" id="waSalida" hidden target="_blank" rel="noopener">Mandar esta salida por WhatsApp</a>
     </form>
   </section>
 
@@ -145,6 +147,12 @@ input[type=date],input[type=time],input[type=text]{width:100%;min-width:0;font:5
       <button type="button" data-p="todo" aria-pressed="false">Todo</button>
     </div>
     <div id="resumen"></div>
+    <div class="panel" id="exportar" hidden>
+      <h2>Mandar o guardar</h2>
+      <a class="primary btn" id="waResumen" target="_blank" rel="noopener">Mandar este resumen por WhatsApp</a>
+      <button class="ghost" id="excel" type="button">Descargar Excel con todas las salidas</button>
+      <p class="note" style="margin:0">El resumen va con el período elegido arriba. El Excel trae todas las salidas cargadas, una por fila.</p>
+    </div>
     <div class="panel">
       <h2>Costos para calcular</h2>
       <div class="row2">
@@ -236,7 +244,7 @@ function calc(){
   $('calc').textContent = p.join('  ·  ');
 }
 function limpiar(){
-  editId = null;
+  editId = null; $('waSalida').hidden = true;
   $('formTitulo').textContent = 'Nueva salida'; $('guardar').textContent = 'Guardar salida'; $('cancelar').hidden = true;
   $('fecha').value = hoy(); $('sale').value = ''; $('vuelve').value = ''; $('kmVuelve').value = ''; $('entregas').value = '1'; $('nota').value = '';
   setMotivo(null);
@@ -268,6 +276,7 @@ $('form').addEventListener('submit', async e => {
     const txt = (editId ? 'Cambios guardados: ' : 'Salida guardada: ') + dur(minutos(x)) + ', ' + nf(kms(x)) + ' km.';
     if(!salidas.some(s => s.id===ref.id)) salidas.push({id:ref.id, ...x}); else salidas = salidas.map(s => s.id===ref.id ? {id:ref.id, ...x} : s);
     limpiar(); msg(txt,'ok'); pintar();
+    $('waSalida').href = wa(txtSalida(x)); $('waSalida').hidden = false;
   }catch(err){
     msg('No se pudo guardar. Revisá que haya internet y probá de nuevo.','err');
   }
@@ -290,6 +299,9 @@ function pintarResumen(){
   const el = $('resumen');
   if(!cargado){ el.innerHTML = '<div class="panel"><div class="empty">Cargando salidas…</div></div>'; return; }
   const L = delPeriodo();
+  $('exportar').hidden = !salidas.length;
+  $('waResumen').hidden = !L.length;
+  if(L.length) $('waResumen').href = wa(txtResumen(L));
   if(!L.length){
     el.innerHTML = '<div class="panel"><div class="empty">' + (salidas.length ? 'No hay salidas en este período.' : 'Todavía no hay salidas cargadas. Con dos o tres semanas anotadas acá vas a ver las horas por semana, el costo por km y por salida, y cuántos viajes fueron por una sola entrega.') + '</div></div>';
     return;
@@ -336,6 +348,41 @@ function pintarResumen(){
   if(huecos > 0) h += '<div class="banner">Hay ' + nf(huecos) + ' km del cuentakilómetros sin anotar entre una salida y la siguiente. Si la camioneta se usa solo para reparto, son salidas que faltan cargar.</div>';
   el.innerHTML = h;
 }
+/* ---------- WhatsApp y Excel ---------- */
+const PER = {sem:'Esta semana', '4':'Últimas 4 semanas', todo:'Todas las salidas'};
+function wa(t){ return 'https://wa.me/?text=' + encodeURIComponent(t); }
+function diaCorto(f){ const d = parseF(f); return DIAS[d.getDay()] + ' ' + corta(f); }
+function txtSalida(x){
+  return '*Reparto FRIOTEKA*\n' + diaCorto(x.fecha) + ' · ' + x.sale + ' a ' + x.vuelve + ' (' + dur(minutos(x)) + ')\n'
+    + 'Km ' + nf(x.kmSale) + ' a ' + nf(x.kmVuelve) + ' (' + nf(kms(x)) + ' km)\n'
+    + (MOTIVO[x.motivo]||x.motivo) + ' · ' + x.entregas + (x.entregas===1?' entrega':' entregas')
+    + (x.nota ? '\nNota: ' + x.nota : '');
+}
+function txtResumen(L){
+  const tm = L.reduce((s,x) => s+minutos(x),0), tk = L.reduce((s,x) => s+kms(x),0), te = L.reduce((s,x) => s+x.entregas,0);
+  const unas = L.filter(x => x.entregas===1).length, nSem = new Set(L.map(x => lunes(x.fecha))).size;
+  const costo = tk*cfg.costoKm + (tm/60)*cfg.costoHora;
+  let t = '*Reparto FRIOTEKA · ' + PER[periodo] + '*\n'
+    + 'Del ' + corta(L[0].fecha) + ' al ' + corta(L[L.length-1].fecha) + '\n'
+    + L.length + (L.length===1?' salida':' salidas') + ' · ' + dur(tm) + ' · ' + nf(tk) + ' km · ' + te + ' entregas\n'
+    + 'Por semana: ' + dur(tm/nSem) + '\n'
+    + 'Viajes por una sola entrega: ' + unas + ' de ' + L.length + '\n';
+  if(cfg.costoKm || cfg.costoHora) t += 'Costo total: ' + money(costo) + ' · por salida: ' + money(costo/L.length) + (te ? ' · por entrega: ' + money(costo/te) : '') + '\n';
+  t += '\n' + L.map(x => '- ' + diaCorto(x.fecha) + ' ' + x.sale + '-' + x.vuelve + ' · ' + nf(kms(x)) + ' km · ' + (MOTIVO[x.motivo]||x.motivo) + ' · ' + x.entregas + ' ent.').join('\n');
+  return t;
+}
+$('excel').onclick = () => {
+  const q = v => '"' + String(v ?? '').replace(/"/g,'""') + '"';
+  const filas = [['Fecha','Día','Hora salida','Hora vuelta','Minutos','Km al salir','Km al volver','Km recorridos','Para qué fue','Entregas','Nota']]
+    .concat(ordenadas().map(x => [corta(x.fecha) + '/' + x.fecha.slice(0,4), DIAS[parseF(x.fecha).getDay()], x.sale, x.vuelve, minutos(x), x.kmSale, x.kmVuelve, kms(x), MOTIVO[x.motivo]||x.motivo, x.entregas, x.nota||'']));
+  const csv = '﻿' + filas.map(f => f.map(q).join(';')).join('\r\n');
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([csv], {type:'text/csv;charset=utf-8'}));
+  a.download = 'reparto-frioteka-' + hoy() + '.csv';
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+};
+
 function st(v, t){ return '<div class="stat"><b>' + esc(v) + '</b><small>' + esc(t) + '</small></div>'; }
 function kv(a, b){ return '<div class="kv"><span>' + esc(a) + '</span><b>' + esc(b) + '</b></div>'; }
 
@@ -356,7 +403,7 @@ $('historial').addEventListener('click', async e => {
   const b = e.target.closest('button'); if(!b) return;
   if(b.dataset.ed){
     const x = salidas.find(s => s.id===b.dataset.ed); if(!x) return;
-    editId = x.id; $('fecha').value = x.fecha; $('sale').value = x.sale; $('vuelve').value = x.vuelve; $('kmSale').value = nf(x.kmSale); $('kmVuelve').value = nf(x.kmVuelve);
+    editId = x.id; $('waSalida').hidden = true; $('fecha').value = x.fecha; $('sale').value = x.sale; $('vuelve').value = x.vuelve; $('kmSale').value = nf(x.kmSale); $('kmVuelve').value = nf(x.kmVuelve);
     $('entregas').value = x.entregas; $('nota').value = x.nota||''; setMotivo(x.motivo);
     $('formTitulo').textContent = 'Corregir salida del ' + corta(x.fecha); $('guardar').textContent = 'Guardar cambios'; $('cancelar').hidden = false;
     msg(''); calc(); tab('cargar'); window.scrollTo(0,0);
