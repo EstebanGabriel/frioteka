@@ -1595,10 +1595,8 @@ function confirmarPagoCC(){
   var fecha=hoy.toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit',year:'numeric'});
   cli.pagosCC.push({fecha:fecha,monto:monto,nota:nota||'Pago registrado'});
   window.guardarClientes();
-  document.getElementById('ccModal').style.display='none';
-  // Rerender
-  renderCC(document.getElementById('tabCC'));
-  alert('✅ Pago de '+fmt(monto)+' registrado para '+_ccModalCliente);
+  renderGestion();
+  toast('✅ Pago de '+fmt(monto)+' registrado para '+_ccModalCliente);
 }
 
 function renderNuevaVenta(c){
