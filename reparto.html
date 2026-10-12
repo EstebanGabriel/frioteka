@@ -1,0 +1,403 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="robots" content="noindex,nofollow">
+<meta name="theme-color" content="#1b7a43">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Reparto">
+<title>Reparto FRIOTEKA</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600&family=Barlow+Condensed:wght@600;700&display=swap">
+<style>
+/* Layout: una columna angosta pensada para el celular; arriba tres solapas (Cargar / Resumen / Historial); los numeros grandes van en tipografia condensada, como un cuentakilometros. */
+:root{
+  --bg:#eef5f0; --surface:#ffffff; --ink:#10261a; --muted:#587264; --line:#d2e1d7;
+  --accent:#1b7a43; --accent-ink:#ffffff; --accent-soft:#dbf0e2;
+  --warn:#a85b00; --warn-soft:#fbeed9; --bad:#b3261e; --ok:#1c7a4a;
+  --display:"Barlow Condensed","Arial Narrow",Arial,sans-serif;
+  --body:"Barlow","Segoe UI",system-ui,sans-serif;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#0b1710; --surface:#13241a; --ink:#e6f3ea; --muted:#8eab99; --line:#25402f;
+    --accent:#4fc47f; --accent-ink:#06170d; --accent-soft:#163a25;
+    --warn:#f0b35a; --warn-soft:#3a2b12; --bad:#ff8a80; --ok:#6fd3a0; color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0b1710; --surface:#13241a; --ink:#e6f3ea; --muted:#8eab99; --line:#25402f;
+  --accent:#4fc47f; --accent-ink:#06170d; --accent-soft:#163a25;
+  --warn:#f0b35a; --warn-soft:#3a2b12; --bad:#ff8a80; --ok:#6fd3a0; color-scheme:dark;
+}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+body{margin:0;padding-bottom:env(safe-area-inset-bottom,0px);background:var(--bg);color:var(--ink);font-family:var(--body);font-size:16px;line-height:1.4}
+.wrap{max-width:620px;margin:0 auto;padding-inline:16px;padding-block:0 48px;display:flex;flex-direction:column;gap:16px}
+header.top{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--bg);padding-block:14px 10px;display:flex;flex-direction:column;gap:10px}
+h1{font-family:var(--display);font-weight:700;font-size:28px;line-height:1;margin:0;letter-spacing:.01em;text-transform:uppercase}
+h1 span{color:var(--accent)}
+h2{font-family:var(--display);font-weight:600;font-size:20px;margin:0;text-transform:uppercase;letter-spacing:.03em;text-wrap:balance}
+.tabs{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
+.tabs button{font:600 15px var(--body);padding:10px 4px;border:1px solid var(--line);background:var(--surface);color:var(--muted);border-radius:8px;cursor:pointer}
+.tabs button[aria-selected="true"]{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+button:focus-visible,input:focus-visible,a:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+section{display:flex;flex-direction:column;gap:16px}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:16px;display:flex;flex-direction:column;gap:14px}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.field{display:flex;flex-direction:column;gap:5px;min-width:0}
+label,.lbl{font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
+input[type=date],input[type=time],input[type=text]{width:100%;min-width:0;font:500 18px var(--body);font-variant-numeric:tabular-nums;padding:11px 10px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink)}
+.seg{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
+.seg button,.step button{font:600 15px var(--body);border:1px solid var(--line);background:var(--bg);color:var(--ink);border-radius:8px;cursor:pointer}
+.seg button{padding:11px 4px;line-height:1.15}
+.seg button[aria-pressed="true"]{background:var(--accent-soft);border-color:var(--accent);color:var(--accent)}
+.step{display:grid;grid-template-columns:52px 1fr 52px;gap:6px}
+.step button{font-size:24px;line-height:1}
+.step input{text-align:center}
+.calc{font-family:var(--display);font-size:24px;font-weight:600;font-variant-numeric:tabular-nums;color:var(--accent);min-height:30px}
+.primary{font:600 18px var(--body);padding:14px;border:0;border-radius:10px;background:var(--accent);color:var(--accent-ink);cursor:pointer}
+.primary:disabled{opacity:.55;cursor:default}
+.ghost{font:600 15px var(--body);padding:10px 12px;border:1px solid var(--line);border-radius:8px;background:transparent;color:var(--ink);cursor:pointer}
+.msg{font-size:15px;min-height:21px}
+.msg.err{color:var(--bad)} .msg.ok{color:var(--ok)}
+.note{font-size:14px;color:var(--muted)}
+.banner{background:var(--warn-soft);color:var(--warn);border-radius:10px;padding:12px 14px;font-size:15px}
+.stats{display:grid;grid-template-columns:1fr 1fr;gap:14px 12px}
+.stat{min-width:0}
+.stat b{display:block;font-family:var(--display);font-weight:700;font-size:34px;line-height:1.05;font-variant-numeric:tabular-nums}
+.stat small{font-size:13px;color:var(--muted)}
+.kv{display:flex;justify-content:space-between;gap:12px;padding-block:8px;border-top:1px solid var(--line);font-size:15px}
+.kv:first-of-type{border-top:0}
+.kv b{font-variant-numeric:tabular-nums;white-space:nowrap}
+.week{display:grid;grid-template-columns:92px 1fr 64px;gap:10px;align-items:center;font-size:14px;font-variant-numeric:tabular-nums}
+.bar{height:14px;background:var(--accent-soft);border-radius:4px;overflow:hidden}
+.bar i{display:block;height:100%;background:var(--accent)}
+.week span:last-child{text-align:right;font-weight:600}
+.item{border-top:1px solid var(--line);padding-block:12px;display:flex;flex-direction:column;gap:6px}
+.item:first-child{border-top:0;padding-top:0}
+.item .hd{display:flex;justify-content:space-between;gap:10px;align-items:baseline}
+.item .hd b{font-family:var(--display);font-size:21px;font-weight:600;font-variant-numeric:tabular-nums}
+.item .meta{font-size:14px;color:var(--muted);font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
+.chip{display:inline-block;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;padding:3px 8px;border-radius:999px;background:var(--accent-soft);color:var(--accent);white-space:nowrap}
+.chip.one{background:var(--warn-soft);color:var(--warn)}
+.acts{display:flex;gap:8px;flex-wrap:wrap}
+.acts .ghost{padding:7px 12px;font-size:14px}
+.acts .del{color:var(--bad)}
+.empty{text-align:center;color:var(--muted);padding-block:18px;font-size:15px}
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <header class="top">
+    <h1>Reparto <span>Frioteka</span></h1>
+    <div class="tabs" role="tablist">
+      <button role="tab" id="tab-cargar" data-tab="cargar" aria-selected="true">Cargar</button>
+      <button role="tab" id="tab-resumen" data-tab="resumen" aria-selected="false">Resumen</button>
+      <button role="tab" id="tab-historial" data-tab="historial" aria-selected="false">Historial</button>
+    </div>
+  </header>
+
+  <div class="banner" id="sinDb" hidden>No se pudo conectar con la base de datos. Revisá que el celular tenga internet y volvé a abrir la página.</div>
+
+  <section id="p-cargar">
+    <form class="panel" id="form" novalidate>
+      <h2 id="formTitulo">Nueva salida</h2>
+      <div class="field"><label for="fecha">Fecha</label><input type="date" id="fecha" required></div>
+      <div class="row2">
+        <div class="field"><label for="sale">Hora de salida</label><input type="time" id="sale" required></div>
+        <div class="field"><label for="vuelve">Hora de vuelta</label><input type="time" id="vuelve" required></div>
+      </div>
+      <div class="row2">
+        <div class="field"><label for="kmSale">Km al salir</label><input type="text" inputmode="numeric" id="kmSale" placeholder="84.210" autocomplete="off"></div>
+        <div class="field"><label for="kmVuelve">Km al volver</label><input type="text" inputmode="numeric" id="kmVuelve" placeholder="84.238" autocomplete="off"></div>
+      </div>
+      <div class="field">
+        <span class="lbl" id="lblMotivo">Para qué fue</span>
+        <div class="seg" role="group" aria-labelledby="lblMotivo">
+          <button type="button" data-m="mayorista" aria-pressed="false">Mayorista</button>
+          <button type="button" data-m="reposicion" aria-pressed="false">Reposición San Martín</button>
+          <button type="button" data-m="ambas" aria-pressed="false">Las dos</button>
+        </div>
+      </div>
+      <div class="field">
+        <label for="entregas">Cuántas entregas hizo</label>
+        <div class="step">
+          <button type="button" id="menos" aria-label="Una entrega menos">−</button>
+          <input type="text" inputmode="numeric" id="entregas" value="1" autocomplete="off">
+          <button type="button" id="mas" aria-label="Una entrega más">+</button>
+        </div>
+      </div>
+      <div class="field"><label for="nota">Nota (opcional)</label><input type="text" id="nota" maxlength="140" placeholder="Cliente, zona, algo para acordarse" autocomplete="off"></div>
+      <div class="calc" id="calc" aria-live="polite"></div>
+      <button class="primary" id="guardar" type="submit">Guardar salida</button>
+      <button class="ghost" id="cancelar" type="button" hidden>Cancelar cambios</button>
+      <div class="msg" id="msg" aria-live="polite"></div>
+    </form>
+  </section>
+
+  <section id="p-resumen" hidden>
+    <div class="seg" id="periodos" role="group" aria-label="Período">
+      <button type="button" data-p="sem" aria-pressed="false">Esta semana</button>
+      <button type="button" data-p="4" aria-pressed="true">4 semanas</button>
+      <button type="button" data-p="todo" aria-pressed="false">Todo</button>
+    </div>
+    <div id="resumen"></div>
+    <div class="panel">
+      <h2>Costos para calcular</h2>
+      <div class="row2">
+        <div class="field"><label for="costoKm">Camioneta, $ por km</label><input type="text" inputmode="numeric" id="costoKm" placeholder="0" autocomplete="off"></div>
+        <div class="field"><label for="costoHora">Repartidor, $ por hora</label><input type="text" inputmode="numeric" id="costoHora" placeholder="0" autocomplete="off"></div>
+      </div>
+      <p class="note" style="margin:0">En el costo por km de la camioneta poné combustible más desgaste (cubiertas, service, seguro). Con estos dos valores sale el costo de cada salida y de cada entrega.</p>
+      <div class="msg" id="msgCfg" aria-live="polite"></div>
+    </div>
+  </section>
+
+  <section id="p-historial" hidden>
+    <div class="panel" id="historial"></div>
+  </section>
+</div>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+import { getFirestore, collection, doc, onSnapshot, setDoc, deleteDoc, query, limit } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+const app = initializeApp({
+  apiKey: "AIzaSyC5voDKO_imN8QqRRpjMQdwV7QILrJw40g",
+  authDomain: "frioteka-preventista.firebaseapp.com",
+  projectId: "frioteka-preventista",
+  storageBucket: "frioteka-preventista.firebasestorage.app",
+  messagingSenderId: "212598423220",
+  appId: "1:212598423220:web:aee51bc39626b3c08621e1"
+}, "reparto");
+const fs = getFirestore(app);
+// Colecciones propias de esta app (no tocan las de preventistas ni pedidos)
+const C = { salidas: "rp_salidas", config: "rp_config" };
+const docs = s => ({ docs: s.docs.map(d => ({ id: d.id, data: () => d.data() })) });
+window.RP = {
+  collection(name){
+    const col = collection(fs, C[name]);
+    return {
+      doc(id){ const r = id ? doc(col, id) : doc(col); return { id: r.id, set: o => setDoc(r, o), delete: () => deleteDoc(r) }; },
+      limit(n){ return { onSnapshot: (cb, err) => onSnapshot(query(col, limit(n)), s => cb(docs(s)), err) }; }
+    };
+  },
+  doc(path){
+    const [c, id] = path.split("/"); const r = doc(fs, C[c], id);
+    return { set: o => setDoc(r, o), onSnapshot: (cb, err) => onSnapshot(r, s => cb({ exists: s.exists(), data: () => s.data() }), err) };
+  }
+};
+window.dispatchEvent(new Event("rp-ready"));
+</script>
+<script>
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const nf = n => Math.round(n).toLocaleString('es-AR');
+const money = n => '$ ' + nf(n);
+const MOTIVO = {mayorista:'Mayorista', reposicion:'Reposición San Martín', ambas:'Mayorista + reposición'};
+
+let db = null, salidas = [], cfg = {costoKm:0, costoHora:0}, editId = null, motivo = null, periodo = '4', cargado = false;
+
+/* ---------- utilidades de fecha y numeros ---------- */
+function hoy(){ const d = new Date(); return iso(d); }
+function iso(d){ return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0'); }
+function parseF(s){ const [y,m,d] = s.split('-').map(Number); return new Date(y, m-1, d); }
+function lunes(s){ const d = parseF(s); d.setDate(d.getDate() - ((d.getDay()+6)%7)); return iso(d); }
+function corta(s){ const [,m,d] = s.split('-'); return Number(d) + '/' + Number(m); }
+const DIAS = ['dom','lun','mar','mié','jue','vie','sáb'];
+function mins(h){ if(!h) return NaN; const [a,b] = h.split(':').map(Number); return a*60+b; }
+function dur(m){ const h = Math.floor(m/60), r = Math.round(m%60); return h ? h + ' h ' + String(r).padStart(2,'0') + ' min' : r + ' min'; }
+function ent(v){ const s = String(v ?? '').replace(/\D/g,''); return s ? parseInt(s,10) : NaN; }
+function minutos(x){ return mins(x.vuelve) - mins(x.sale); }
+function kms(x){ return x.kmVuelve - x.kmSale; }
+
+/* ---------- solapas ---------- */
+function tab(t){
+  ['cargar','resumen','historial'].forEach(n => { $('p-'+n).hidden = n!==t; $('tab-'+n).setAttribute('aria-selected', n===t); });
+  try{ history.replaceState(null,'','#'+t); }catch(e){}
+}
+document.querySelectorAll('.tabs button').forEach(b => b.onclick = () => tab(b.dataset.tab));
+{ const h = location.hash.slice(1); if(['cargar','resumen','historial'].includes(h)) tab(h); }
+
+/* ---------- formulario ---------- */
+function setMotivo(m){ motivo = m; document.querySelectorAll('.seg button[data-m]').forEach(b => b.setAttribute('aria-pressed', b.dataset.m===m)); }
+document.querySelectorAll('.seg button[data-m]').forEach(b => b.onclick = () => setMotivo(b.dataset.m));
+$('menos').onclick = () => { const n = ent($('entregas').value); $('entregas').value = Math.max(0, (isNaN(n)?1:n) - 1); };
+$('mas').onclick = () => { const n = ent($('entregas').value); $('entregas').value = (isNaN(n)?0:n) + 1; };
+['kmSale','kmVuelve'].forEach(id => $(id).addEventListener('blur', () => { const n = ent($(id).value); if(!isNaN(n)) $(id).value = nf(n); }));
+['sale','vuelve','kmSale','kmVuelve'].forEach(id => $(id).addEventListener('input', calc));
+function calc(){
+  const m = mins($('vuelve').value) - mins($('sale').value), k = ent($('kmVuelve').value) - ent($('kmSale').value);
+  const p = [];
+  if(m > 0) p.push(dur(m));
+  if(k >= 0) p.push(nf(k) + ' km');
+  $('calc').textContent = p.join('  ·  ');
+}
+function limpiar(){
+  editId = null;
+  $('formTitulo').textContent = 'Nueva salida'; $('guardar').textContent = 'Guardar salida'; $('cancelar').hidden = true;
+  $('fecha').value = hoy(); $('sale').value = ''; $('vuelve').value = ''; $('kmVuelve').value = ''; $('entregas').value = '1'; $('nota').value = '';
+  setMotivo(null);
+  const ult = ordenadas().slice(-1)[0];
+  $('kmSale').value = ult ? nf(ult.kmVuelve) : '';
+  calc();
+}
+function msg(t, c){ $('msg').textContent = t; $('msg').className = 'msg ' + (c||''); }
+$('cancelar').onclick = () => { limpiar(); msg(''); };
+
+$('form').addEventListener('submit', async e => {
+  e.preventDefault();
+  const x = { fecha:$('fecha').value, sale:$('sale').value, vuelve:$('vuelve').value, kmSale:ent($('kmSale').value), kmVuelve:ent($('kmVuelve').value),
+              motivo, entregas:ent($('entregas').value), nota:$('nota').value.trim() };
+  if(!x.fecha) return msg('Falta la fecha.','err');
+  if(!x.sale || !x.vuelve) return msg('Faltan la hora de salida y la de vuelta.','err');
+  if(mins(x.vuelve) <= mins(x.sale)) return msg('La hora de vuelta tiene que ser posterior a la de salida.','err');
+  if(isNaN(x.kmSale) || isNaN(x.kmVuelve)) return msg('Faltan los kilómetros al salir y al volver.','err');
+  if(x.kmVuelve < x.kmSale) return msg('Los km al volver no pueden ser menos que al salir.','err');
+  if(x.kmVuelve - x.kmSale > 500) return msg('Son más de 500 km en una salida. Revisá los kilómetros.','err');
+  if(!x.motivo) return msg('Elegí para qué fue la salida.','err');
+  if(isNaN(x.entregas)) return msg('Falta la cantidad de entregas.','err');
+  if(!db) return msg('Sin conexión con la base de datos. Revisá internet y volvé a abrir la página.','err');
+  $('guardar').disabled = true; msg('Guardando…');
+  try{
+    const ref = editId ? db.collection('salidas').doc(editId) : db.collection('salidas').doc();
+    x.creado = (editId && salidas.find(s => s.id===editId)?.creado) || new Date().toISOString();
+    await ref.set(x);
+    const txt = (editId ? 'Cambios guardados: ' : 'Salida guardada: ') + dur(minutos(x)) + ', ' + nf(kms(x)) + ' km.';
+    if(!salidas.some(s => s.id===ref.id)) salidas.push({id:ref.id, ...x}); else salidas = salidas.map(s => s.id===ref.id ? {id:ref.id, ...x} : s);
+    limpiar(); msg(txt,'ok'); pintar();
+  }catch(err){
+    msg('No se pudo guardar. Revisá que haya internet y probá de nuevo.','err');
+  }
+  $('guardar').disabled = false;
+});
+
+/* ---------- datos ---------- */
+function ordenadas(){ return salidas.slice().sort((a,b) => (a.fecha+a.sale).localeCompare(b.fecha+b.sale)); }
+function delPeriodo(){
+  const all = ordenadas();
+  if(periodo==='todo') return all;
+  const desde = parseF(lunes(hoy())); if(periodo==='4') desde.setDate(desde.getDate() - 21);
+  const d = iso(desde);
+  return all.filter(x => x.fecha >= d);
+}
+
+function pintar(){ pintarResumen(); pintarHistorial(); }
+
+function pintarResumen(){
+  const el = $('resumen');
+  if(!cargado){ el.innerHTML = '<div class="panel"><div class="empty">Cargando salidas…</div></div>'; return; }
+  const L = delPeriodo();
+  if(!L.length){
+    el.innerHTML = '<div class="panel"><div class="empty">' + (salidas.length ? 'No hay salidas en este período.' : 'Todavía no hay salidas cargadas. Con dos o tres semanas anotadas acá vas a ver las horas por semana, el costo por km y por salida, y cuántos viajes fueron por una sola entrega.') + '</div></div>';
+    return;
+  }
+  const tm = L.reduce((s,x) => s+minutos(x),0), tk = L.reduce((s,x) => s+kms(x),0), te = L.reduce((s,x) => s+x.entregas,0);
+  const unas = L.filter(x => x.entregas===1), kmUna = unas.reduce((s,x) => s+kms(x),0), minUna = unas.reduce((s,x) => s+minutos(x),0);
+  const sem = {}; L.forEach(x => { const k = lunes(x.fecha); (sem[k] ||= {m:0,n:0,k:0}); sem[k].m += minutos(x); sem[k].n++; sem[k].k += kms(x); });
+  const semanas = Object.keys(sem).sort(), nSem = semanas.length, maxM = Math.max(...semanas.map(k => sem[k].m));
+  const costo = tk*cfg.costoKm + (tm/60)*cfg.costoHora, hayCosto = cfg.costoKm > 0 || cfg.costoHora > 0;
+
+  let huecos = 0; const all = ordenadas();
+  for(let i=1;i<all.length;i++){ if(L.includes(all[i]) && all[i].kmSale > all[i-1].kmVuelve) huecos += all[i].kmSale - all[i-1].kmVuelve; }
+
+  const por = {}; L.forEach(x => { (por[x.motivo] ||= {n:0,m:0,k:0}); por[x.motivo].n++; por[x.motivo].m += minutos(x); por[x.motivo].k += kms(x); });
+
+  let h = '<div class="panel"><div class="stats">'
+    + st(dur(tm/nSem), 'por semana en reparto')
+    + st(L.length, L.length===1 ? 'salida' : 'salidas')
+    + st(nf(tk) + ' km', 'recorridos')
+    + st(te, 'entregas en total')
+    + '</div></div>';
+
+  h += '<div class="panel"><h2>Viajes por una sola entrega</h2><div class="stats">'
+    + st(unas.length + ' de ' + L.length, Math.round(unas.length/L.length*100) + '% de las salidas')
+    + st(nf(kmUna) + ' km', dur(minUna) + ' en esos viajes')
+    + '</div></div>';
+
+  h += '<div class="panel"><h2>Costos</h2>';
+  if(hayCosto){
+    h += kv('Costo total del período', money(costo))
+      + kv('Costo por salida', money(costo/L.length))
+      + (te ? kv('Costo por entrega', money(costo/te)) : '')
+      + (tk ? kv('Costo por km, con repartidor', money(costo/tk)) : '')
+      + (unas.length ? kv('Gastado en viajes de una entrega', money(kmUna*cfg.costoKm + (minUna/60)*cfg.costoHora)) : '');
+  } else h += '<p class="note" style="margin:0">Cargá abajo cuánto cuesta el km de la camioneta y la hora del repartidor para ver el costo de cada salida.</p>';
+  h += kv('Km por salida', nf(tk/L.length) + ' km') + kv('Tiempo por salida', dur(tm/L.length)) + (te ? kv('Tiempo por entrega', dur(tm/te)) : '') + '</div>';
+
+  h += '<div class="panel"><h2>Para qué se salió</h2>' + Object.keys(MOTIVO).filter(k => por[k]).map(k =>
+      kv(MOTIVO[k], por[k].n + (por[k].n===1?' salida':' salidas') + ' · ' + dur(por[k].m) + ' · ' + nf(por[k].k) + ' km')).join('') + '</div>';
+
+  h += '<div class="panel"><h2>Horas por semana</h2>' + semanas.map(k =>
+      '<div class="week"><span>Sem. ' + corta(k) + '</span><div class="bar"><i style="width:' + Math.max(3, sem[k].m/maxM*100) + '%"></i></div><span>' + (sem[k].m/60).toLocaleString('es-AR',{maximumFractionDigits:1}) + ' h</span></div>').join('') + '</div>';
+
+  if(huecos > 0) h += '<div class="banner">Hay ' + nf(huecos) + ' km del cuentakilómetros sin anotar entre una salida y la siguiente. Si la camioneta se usa solo para reparto, son salidas que faltan cargar.</div>';
+  el.innerHTML = h;
+}
+function st(v, t){ return '<div class="stat"><b>' + esc(v) + '</b><small>' + esc(t) + '</small></div>'; }
+function kv(a, b){ return '<div class="kv"><span>' + esc(a) + '</span><b>' + esc(b) + '</b></div>'; }
+
+function pintarHistorial(){
+  const el = $('historial');
+  if(!cargado){ el.innerHTML = '<div class="empty">Cargando salidas…</div>'; return; }
+  const L = ordenadas().reverse();
+  if(!L.length){ el.innerHTML = '<div class="empty">Todavía no hay salidas cargadas. La primera se carga desde la solapa Cargar.</div>'; return; }
+  el.innerHTML = L.map(x => {
+    const d = parseF(x.fecha);
+    return '<div class="item"><div class="hd"><b>' + DIAS[d.getDay()] + ' ' + corta(x.fecha) + ' · ' + esc(x.sale) + ' a ' + esc(x.vuelve) + '</b>'
+      + '<span class="chip' + (x.entregas===1?' one':'') + '">' + x.entregas + (x.entregas===1?' entrega':' entregas') + '</span></div>'
+      + '<div class="meta">' + esc(MOTIVO[x.motivo]||x.motivo) + ' · ' + dur(minutos(x)) + ' · ' + nf(kms(x)) + ' km (' + nf(x.kmSale) + ' a ' + nf(x.kmVuelve) + ')' + (x.nota ? '<br>' + esc(x.nota) : '') + '</div>'
+      + '<div class="acts"><button class="ghost" data-ed="' + esc(x.id) + '">Corregir</button><button class="ghost del" data-del="' + esc(x.id) + '">Borrar</button></div></div>';
+  }).join('');
+}
+$('historial').addEventListener('click', async e => {
+  const b = e.target.closest('button'); if(!b) return;
+  if(b.dataset.ed){
+    const x = salidas.find(s => s.id===b.dataset.ed); if(!x) return;
+    editId = x.id; $('fecha').value = x.fecha; $('sale').value = x.sale; $('vuelve').value = x.vuelve; $('kmSale').value = nf(x.kmSale); $('kmVuelve').value = nf(x.kmVuelve);
+    $('entregas').value = x.entregas; $('nota').value = x.nota||''; setMotivo(x.motivo);
+    $('formTitulo').textContent = 'Corregir salida del ' + corta(x.fecha); $('guardar').textContent = 'Guardar cambios'; $('cancelar').hidden = false;
+    msg(''); calc(); tab('cargar'); window.scrollTo(0,0);
+  } else if(b.dataset.del){
+    if(b.dataset.ok !== '1'){ b.dataset.ok = '1'; b.textContent = 'Tocá de nuevo para borrar'; return; }
+    if(!db) return;
+    b.disabled = true;
+    try{ await db.collection('salidas').doc(b.dataset.del).delete(); salidas = salidas.filter(s => s.id!==b.dataset.del); pintar(); }
+    catch(err){ b.disabled = false; b.textContent = 'No se pudo borrar'; }
+  }
+});
+
+/* ---------- periodo y costos ---------- */
+document.querySelectorAll('#periodos button').forEach(b => b.onclick = () => {
+  periodo = b.dataset.p; document.querySelectorAll('#periodos button').forEach(o => o.setAttribute('aria-pressed', o===b)); pintarResumen();
+});
+['costoKm','costoHora'].forEach(id => $(id).addEventListener('change', async () => {
+  const n = ent($(id).value); cfg = {...cfg, [id]: isNaN(n) ? 0 : n}; $(id).value = cfg[id] ? nf(cfg[id]) : ''; pintarResumen();
+  if(!db) return;
+  try{ await db.doc('config/costos').set({costoKm:cfg.costoKm, costoHora:cfg.costoHora}); $('msgCfg').textContent = 'Costos guardados.'; $('msgCfg').className = 'msg ok'; }
+  catch(err){ $('msgCfg').textContent = 'No se pudieron guardar los costos.'; $('msgCfg').className = 'msg err'; }
+}));
+
+/* ---------- arranque ---------- */
+limpiar(); pintar();
+(async () => {
+  db = window.RP || await new Promise(r => { window.addEventListener('rp-ready', () => r(window.RP), {once:true}); setTimeout(() => r(window.RP || null), 15000); });
+  if(!db){ cargado = true; $('sinDb').hidden = false; pintar(); return; }
+  db.collection('salidas').limit(1000).onSnapshot(snap => {
+    salidas = snap.docs.map(d => ({id:d.id, ...d.data()})).filter(x => x.fecha && x.sale && x.vuelve);
+    const primera = !cargado; cargado = true; pintar();
+    if(primera && !editId && !$('kmSale').value){ const u = ordenadas().slice(-1)[0]; if(u) $('kmSale').value = nf(u.kmVuelve); }
+  }, () => { cargado = true; $('sinDb').hidden = false; pintar(); });
+  db.doc('config/costos').onSnapshot(s => {
+    if(!s.exists) return; const d = s.data();
+    cfg = {costoKm:Number(d.costoKm)||0, costoHora:Number(d.costoHora)||0};
+    if(document.activeElement !== $('costoKm')) $('costoKm').value = cfg.costoKm ? nf(cfg.costoKm) : '';
+    if(document.activeElement !== $('costoHora')) $('costoHora').value = cfg.costoHora ? nf(cfg.costoHora) : '';
+    pintarResumen();
+  }, () => {});
+})();
+</script>
+</body>
+</html>
