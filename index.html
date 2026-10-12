@@ -4,6 +4,8 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>FRIOTEKA</title>
+<!-- SheetJS -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <!-- Firebase -->
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
@@ -32,16 +34,20 @@ window._dbReady = false;
 
 async function loadFromFirestore() {
   try {
-    const [cliSnap, pedSnap, pendSnap, nvSnap] = await Promise.all([
+    const [cliSnap, pedSnap, pendSnap, nvSnap, prevSnap, histSnap] = await Promise.all([
       getDoc(doc(db, "datos", "clientes")),
       getDoc(doc(db, "datos", "pedidos")),
       getDoc(doc(db, "datos", "pendientes")),
-      getDoc(doc(db, "datos", "nv"))
+      getDoc(doc(db, "datos", "nv")),
+      getDoc(doc(db, "datos", "preventistas")),
+      getDoc(doc(db, "datos", "historialRemitos"))
     ]);
     window._fsClientes = cliSnap.exists() ? cliSnap.data().lista : [];
     window._fsPedidos = pedSnap.exists() ? pedSnap.data().lista : [];
     window._fsPendientes = pendSnap.exists() ? pendSnap.data().lista : [];
     window._fsNv = nvSnap.exists() ? nvSnap.data().valor : 1;
+    window._fsPreventistas = prevSnap.exists() ? prevSnap.data().lista : [];
+    window._fsHistorialRemitos = histSnap.exists() ? histSnap.data().lista : [];
     window._dbReady = true;
     window.dispatchEvent(new Event("dbready"));
 
@@ -79,6 +85,8 @@ async function loadFromFirestore() {
     window._fsPedidos = [];
     window._fsPendientes = [];
     window._fsNv = 1;
+    window._fsPreventistas = [];
+    window._fsHistorialRemitos = [];
     window._dbReady = true;
     window.dispatchEvent(new Event("dbready"));
   }
@@ -94,6 +102,12 @@ window.guardarPedidos = async function() {
 };
 window.guardarPendientes = async function() {
   await setDoc(doc(db, "datos", "pendientes"), {lista: window.pendientes});
+};
+window.guardarPreventistas = async function() {
+  await setDoc(doc(db, "datos", "preventistas"), {lista: window.preventistas});
+};
+window.guardarHistorialRemitos = async function() {
+  await setDoc(doc(db, "datos", "historialRemitos"), {lista: window.historialRemitos});
 };
 window.guardarNv = async function() {
   await setDoc(doc(db, "datos", "nv"), {valor: window.nv});
@@ -529,15 +543,20 @@ input:checked+.sw-sl:before{transform:translateX(20px);}
   <div class="tabs" style="top:108px;">
     <div class="tab on" id="nvTab-cong" onclick="nvSwitchTab('cong')">❄ Congelados</div>
     <div class="tab" id="nvTab-lac" onclick="nvSwitchTab('lac')">🧀 Lácteos S.M.</div>
+    <div class="tab" id="nvTab-remito" onclick="nvSwitchTab('remito')" style="background:rgba(255,255,255,0.18);color:#fff;font-weight:700;">📦 Remito S.M.</div>
+    <div class="tab" id="nvTab-historial" onclick="nvSwitchTab('historial')" style="background:rgba(255,255,255,0.18);color:#fff;font-weight:700;">📋 Historial</div>
   </div>
   <div class="nv-layout">
     <div class="nv-panel-cats" id="nvPanelCats"></div>
     <div class="nv-lista-wrap">
       <div id="nvLista" style="padding-bottom:90px;"></div>
       <div id="nvListaLac" style="padding-bottom:90px;display:none;"></div>
+      <div id="nvListaRemito" style="padding-bottom:90px;display:none;"></div>
+      <div id="nvListaHistorial" style="padding-bottom:90px;display:none;"></div>
     </div>
   </div>
   <button class="fab on" id="nvFab" onclick="irA('p7')">Ver pedido 🛒</button>
+  <button class="fab" id="nvFabRemito" onclick="abrirVistaRemito()" style="display:none;background:#2e7d32;">Ver remito 📦</button>
 </div>
 
 <!-- P7: RESUMEN NUEVA VENTA -->
@@ -576,6 +595,22 @@ input:checked+.sw-sl:before{transform:translateX(20px);}
       <input class="campo" id="nvCli" placeholder="Nombre del cliente / negocio" autocomplete="off">
       <div class="sugg" id="nvSugg"></div>
       <input class="campo" id="nvDir" placeholder="Dirección del cliente">
+      <div class="fpago-wrap" style="margin-top:8px;">
+        <div class="fpago-lbl">🚚 Entrega</div>
+        <div class="fpago-opts">
+          <button class="fpbtn2 on" data-en="Local" id="enBtn0">🏪 Local</button>
+          <button class="fpbtn2" data-en="Reparto" id="enBtn1">🚛 Reparto</button>
+          <button class="fpbtn2" data-en="Cadete" id="enBtn2">🏍️ Cadete</button>
+        </div>
+      </div>
+      <div class="fpago-wrap" style="margin-top:8px;">
+        <div class="fpago-lbl">👤 Preventista / Comisionista</div>
+        <div style="display:flex;gap:8px;align-items:center;">
+          <select id="nvPreventista" class="campo" style="margin:0;flex:1;">
+            <option value="">— Sin asignar —</option>
+          </select>
+        </div>
+      </div>
       <button class="bguardar" id="nvGenerar">🖨️ Generar nota de venta</button>
       <button class="bnuevo" id="nvNuevo" style="margin-top:8px;">✅ Nueva venta</button>
       <button class="bcancel" id="nvCancelar">Cancelar</button>
@@ -788,12 +823,18 @@ var clientes=[];
 var pedidos=[];
 var editCliIdx=-1;
 var pendientes=[];
+var preventistas=[];
+var historialRemitos=[];
+var nvPreventistaVal="";
 window.addEventListener("dbready",function(){
   nv=window._fsNv||1;
   clientes=window._fsClientes||[];
   pedidos=window._fsPedidos||[];
   pendientes=window._fsPendientes||[];
+  preventistas=window._fsPreventistas||[];
+  historialRemitos=window._fsHistorialRemitos||[];
   render();renderLac();updT();prevBuildChips();
+  nvFillPreventistas();
 });
 var PIN="1234";
 var ROJO="#B40000";
@@ -1341,7 +1382,7 @@ function marcarPendienteProcessado(){
 
 function renderGestion(){
   var nPend=pendientes.filter(function(p){return p.estado==="pendiente";}).length;
-  var tabs=[["pendientes","⏳ Pendientes"+(nPend>0?" ("+nPend+")":"")],["panel","Panel"],["ventas","Ventas"],["clientes","Clientes"],["cc","Cta. Cte."],["nv","+ Venta"]];
+  var tabs=[["pendientes","⏳ Pendientes"+(nPend>0?" ("+nPend+")":"")],["panel","Panel"],["ventas","Ventas"],["clientes","Clientes"],["cc","Cta. Cte."],["prev","Preventistas"],["nv","+ Venta"]];
   $("gtabs").innerHTML=tabs.map(function(t){return '<button data-t="'+t[0]+'" class="'+(gTab===t[0]?"on":"")+(t[0]==="pendientes"&&nPend>0?" tab-alert":"")+'">'+t[1]+'</button>';}).join("");
   $("gtabs").querySelectorAll("button").forEach(function(b){b.onclick=function(){gTab=this.dataset.t;renderGestion();};});
   var c=$("gcont");c.innerHTML="";
@@ -1350,6 +1391,7 @@ function renderGestion(){
   else if(gTab==="ventas") renderVentas(c);
   else if(gTab==="clientes") renderClientes(c);
   else if(gTab==="cc") renderCC(c);
+  else if(gTab==="prev") renderPreventistas(c);
   else renderNuevaVenta(c);
 }
 
@@ -1379,7 +1421,7 @@ function renderPanel(c){
 }
 
 function renderVentas(c){
-  c.innerHTML='<div class="card"><div class="form-tit">Ultimas ventas</div><div id="listaV"></div></div>';
+  c.innerHTML='<div class="card"><div class="form-tit" style="display:flex;justify-content:space-between;align-items:center;">Ultimas ventas<button class="btn-sm b" onclick="abrirExportModal()" style="font-size:13px;">📊 Exportar Excel</button></div><div id="listaV"></div></div>';
   var lv=$("listaV");
   if(!pedidos.length){lv.innerHTML='<div class="vacio">Sin ventas aun</div>';return;}
   pedidos.slice(0,50).forEach(function(p,i){
@@ -1574,6 +1616,7 @@ var nvPedLac={};
 var nvVip=false;
 var nvDescEsp=0;
 var nvFpago="Efectivo";
+var nvEntrega="Local";
 var nvTabActual="cong";
 
 function nvDm(){return nvVip?"mayorista":"minorista";}
@@ -1632,8 +1675,16 @@ function nvSwitchTab(t){
   nvTabActual=t;
   $("nvTab-cong").className="tab"+(t==="cong"?" on":"");
   $("nvTab-lac").className="tab"+(t==="lac"?" on":"");
+  if($("nvTab-remito")) $("nvTab-remito").className="tab"+(t==="remito"?" on":"");
+  if($("nvTab-historial")) $("nvTab-historial").className="tab"+(t==="historial"?" on":"");
   $("nvLista").style.display=t==="cong"?"block":"none";
   $("nvListaLac").style.display=t==="lac"?"block":"none";
+  if($("nvListaRemito")) $("nvListaRemito").style.display=t==="remito"?"block":"none";
+  if($("nvListaHistorial")) $("nvListaHistorial").style.display=t==="historial"?"block":"none";
+  if($("nvFab")) $("nvFab").style.display=(t==="remito"||t==="historial")?"none":"";
+  if($("nvFabRemito")) $("nvFabRemito").style.display=t==="remito"?"flex":"none";
+  if(t==="remito") renderRemitoLista();
+  if(t==="historial") renderHistorialRemitos();
 }
 
 function nvRender(f){
@@ -1869,8 +1920,9 @@ function nvSetDescEsp(v){
 }
 
 function nvNuevoPedido(){
-  nvPed={};nvPedLac={};nvDescEsp=0;nvFpago="Efectivo";nvVip=false;
+  nvPed={};nvPedLac={};nvDescEsp=0;nvFpago="Efectivo";nvVip=false;nvEntrega="Local";nvPreventistaVal="";
   if($("nvCli")) $("nvCli").value="";
+  var selPrevReset=$("nvPreventista");if(selPrevReset)selPrevReset.value="";
   if($("nvDir")) $("nvDir").value="";
   if($("nvVipBtn")) $("nvVipBtn").className="vipbtn";
   document.querySelectorAll(".fpbtn2").forEach(function(b){b.className="fpbtn2"+(b.dataset.fp==="Efectivo"?" on":"");});
@@ -2003,8 +2055,11 @@ document.addEventListener("DOMContentLoaded", function(){
   if($("nvDt0")) $("nvDt0").onclick=function(){nvSetDescEsp(0);};
   if($("nvDt5")) $("nvDt5").onclick=function(){nvSetDescEsp(5);};
   if($("nvDt10")) $("nvDt10").onclick=function(){nvSetDescEsp(10);};
-  document.querySelectorAll(".fpbtn2").forEach(function(b){
-    b.onclick=function(){nvFpago=this.dataset.fp;document.querySelectorAll(".fpbtn2").forEach(function(x){x.className="fpbtn2"+(x.dataset.fp===nvFpago?" on":"");});};
+  document.querySelectorAll(".fpbtn2[data-fp]").forEach(function(b){
+    b.onclick=function(){nvFpago=this.dataset.fp;document.querySelectorAll(".fpbtn2[data-fp]").forEach(function(x){x.className="fpbtn2"+(x.dataset.fp===nvFpago?" on":"");});};
+  });
+  document.querySelectorAll(".fpbtn2[data-en]").forEach(function(b){
+    b.onclick=function(){nvEntrega=this.dataset.en;document.querySelectorAll(".fpbtn2[data-en]").forEach(function(x){x.className="fpbtn2"+(x.dataset.en===nvEntrega?" on":"");});};
   });
   if($("nvCli")) $("nvCli").addEventListener("input",function(){
     var q=this.value,fl=q.toLowerCase(),sugg=$("nvSugg");
@@ -2036,7 +2091,8 @@ document.addEventListener("DOMContentLoaded", function(){
     var ctx={cl:cl,dir:dir2,pago:nvFpago,np:nvFmt(nv),fecha:new Date().toLocaleDateString("es-AR"),total:f.final,subtotal:subtotal,bultos:bultos,kg:kg,descLinea:descLinea,envio:tMin>=60000};
     var ok=await generarPDF(items,ctx);
     if(ok){
-      var rec={nv:nvFmt(nv),fecha:new Date().toLocaleDateString("es-AR"),cliente:cl,dir:dir2,fpago:nvFpago,total:f.final,items:items.map(function(it){return{nombre:it.nombre,cant:it.cantidad,precio:it.precioUnit,codigo:it.codigo};})};
+      var selPrev=$("nvPreventista");nvPreventistaVal=selPrev?selPrev.value:"";
+      var rec={nv:nvFmt(nv),fecha:new Date().toLocaleDateString("es-AR"),cliente:cl,dir:dir2,fpago:nvFpago,entrega:nvEntrega,preventista:nvPreventistaVal,total:f.final,items:items.map(function(it){return{nombre:it.nombre,cant:it.cantidad,precio:it.precioUnit,codigo:it.codigo};})};
       pedidos.unshift(rec);if(pedidos.length>500) pedidos=pedidos.slice(0,500);
       window.guardarPedidos();
       window.guardarNv();nv++;
@@ -2051,6 +2107,565 @@ document.addEventListener("DOMContentLoaded", function(){
 (async function(){
   if(window.claude){try{DL=await claude.use("downloads");}catch(e){}}
 })();
+
+/* ── PREVENTISTAS ── */
+function nvFillPreventistas(){
+  var sel=$("nvPreventista"); if(!sel) return;
+  var cur=sel.value;
+  sel.innerHTML='<option value="">— Sin asignar —</option>';
+  preventistas.forEach(function(p){
+    var o=document.createElement("option");o.value=p.nombre;o.textContent=p.nombre+" ("+p.comision+"%)";
+    if(p.nombre===cur) o.selected=true;
+    sel.appendChild(o);
+  });
+}
+
+function renderPreventistas(c){
+  var COMISION_DEFAULT=5;
+  var h='<div class="card">'
+    +'<div class="form-tit" style="display:flex;justify-content:space-between;align-items:center;">Preventistas / Comisionistas<button class="btn-sm b" onclick="abrirNuevoPrev()">+ Agregar</button></div>'
+    +'<div id="prevLista"></div></div>';
+  c.innerHTML=h;
+
+  var lista=$("prevLista");
+  if(!preventistas.length){lista.innerHTML='<div class="vacio">Sin preventistas cargados</div>';return;}
+
+  preventistas.forEach(function(p,i){
+    var comision=p.comision||COMISION_DEFAULT;
+    var ventas=pedidos.filter(function(ped){return ped.preventista===p.nombre;});
+    var totalV=ventas.reduce(function(s,ped){return s+ped.total;},0);
+    var comisionAcum=totalV*comision/100;
+    var pagos=p.pagos||[];
+    var totalPagado=pagos.reduce(function(s,pg){return s+pg.monto;},0);
+    var saldo=comisionAcum-totalPagado;
+
+    var d=document.createElement("div");d.className="hist-item";d.style.marginBottom="14px";
+
+    // Encabezado
+    var hdr='<div class="hist-hdr"><span class="hist-nv">'+p.nombre+'</span><span class="hist-f">Comisión: '+comision+'%</span></div>';
+    // Resumen cuenta
+    hdr+='<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin:10px 0 8px;">';
+    hdr+='<div style="background:#f0f7ff;border-radius:8px;padding:8px;text-align:center;">'
+      +'<div style="font-size:11px;color:#666;">Comisión acumulada</div>'
+      +'<div style="font-size:15px;font-weight:700;color:var(--azul);">'+fmt(comisionAcum)+'</div></div>';
+    hdr+='<div style="background:#f0fff4;border-radius:8px;padding:8px;text-align:center;">'
+      +'<div style="font-size:11px;color:#666;">Total pagado</div>'
+      +'<div style="font-size:15px;font-weight:700;color:#2e7d32;">'+fmt(totalPagado)+'</div></div>';
+    hdr+='<div style="background:'+(saldo>0?'#fff5f5':'#f5f5f5')+';border-radius:8px;padding:8px;text-align:center;">'
+      +'<div style="font-size:11px;color:#666;">Saldo a pagar</div>'
+      +'<div style="font-size:15px;font-weight:700;color:'+(saldo>0?'var(--rojo)':'#888')+';">'+fmt(saldo)+'</div></div>';
+    hdr+='</div>';
+    // Ventas info
+    hdr+='<div style="font-size:12px;color:#777;margin-bottom:8px;">'+ventas.length+' ventas · Total vendido: '+fmt(totalV)+'</div>';
+    d.innerHTML=hdr;
+
+    // Botones de acción
+    var acc=document.createElement("div");acc.style.cssText="display:flex;gap:8px;margin-bottom:10px;";
+    var btnPago=document.createElement("button");btnPago.className="btn-sm b";btnPago.innerHTML="💵 Registrar pago";
+    (function(idx){btnPago.onclick=function(){abrirPagoPrev(idx);};})(i);
+    var btnEdit=document.createElement("button");btnEdit.className="btn-sm";btnEdit.textContent="✏️ Editar";
+    (function(idx){btnEdit.onclick=function(){abrirEditarPrev(idx);};})(i);
+    var btnDel=document.createElement("button");btnDel.className="btn-sm";btnDel.style.cssText="background:#fff0f0;color:var(--rojo);";btnDel.textContent="🗑️ Eliminar";
+    (function(idx,nombre){btnDel.onclick=function(){
+      if(confirm("¿Eliminar preventista "+nombre+"?")){
+        preventistas.splice(idx,1);window.guardarPreventistas();nvFillPreventistas();toast("Preventista eliminado");renderGestion();
+      }
+    };})(i,p.nombre);
+    acc.appendChild(btnPago);acc.appendChild(btnEdit);acc.appendChild(btnDel);d.appendChild(acc);
+
+    // Historial de pagos
+    if(pagos.length){
+      var hist=document.createElement("div");
+      hist.style.cssText="background:#fafafa;border-radius:8px;padding:8px;font-size:12px;";
+      var htit=document.createElement("div");htit.style.cssText="font-weight:600;color:#555;margin-bottom:6px;";htit.textContent="Historial de pagos";
+      hist.appendChild(htit);
+      pagos.slice().reverse().forEach(function(pg){
+        var row=document.createElement("div");row.style.cssText="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid #eee;";
+        row.innerHTML='<span style="color:#555;">'+pg.fecha+(pg.nota?' · <em>'+pg.nota+'</em>':'')+'</span>'
+          +'<span style="font-weight:700;color:#2e7d32;">'+fmt(pg.monto)+'</span>';
+        hist.appendChild(row);
+      });
+      d.appendChild(hist);
+    } else {
+      var noP=document.createElement("div");noP.style.cssText="font-size:12px;color:#aaa;font-style:italic;";noP.textContent="Sin pagos registrados";
+      d.appendChild(noP);
+    }
+
+    lista.appendChild(d);
+  });
+}
+
+function abrirPagoPrev(idx){
+  var existing=document.getElementById("prevPagoModal");if(existing)existing.remove();
+  var p=preventistas[idx];
+  var comision=p.comision||5;
+  var ventas=pedidos.filter(function(ped){return ped.preventista===p.nombre;});
+  var totalV=ventas.reduce(function(s,ped){return s+ped.total;},0);
+  var comisionAcum=totalV*comision/100;
+  var pagos=p.pagos||[];
+  var totalPagado=pagos.reduce(function(s,pg){return s+pg.monto;},0);
+  var saldo=comisionAcum-totalPagado;
+  var modal=document.createElement("div");modal.id="prevPagoModal";
+  modal.style.cssText="position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9999;display:flex;align-items:center;justify-content:center;";
+  modal.innerHTML='<div style="background:#fff;border-radius:14px;padding:24px;width:320px;max-width:95vw;box-shadow:0 8px 32px rgba(0,0,0,.25);">'
+    +'<div style="font-size:17px;font-weight:700;margin-bottom:4px;">💵 Registrar pago</div>'
+    +'<div style="font-size:13px;color:#666;margin-bottom:16px;">'+p.nombre+' · Saldo: <strong style="color:var(--rojo);">'+fmt(saldo)+'</strong></div>'
+    +'<label style="font-size:13px;font-weight:600;">Monto</label>'
+    +'<input id="prevPagoMonto" class="campo" type="number" min="0" step="0.01" style="margin:4px 0 12px;" placeholder="0.00" value="'+saldo.toFixed(2)+'">'
+    +'<label style="font-size:13px;font-weight:600;">Nota (opcional)</label>'
+    +'<input id="prevPagoNota" class="campo" style="margin:4px 0 16px;" placeholder="Ej: transferencia, efectivo...">'
+    +'<div style="display:flex;gap:10px;">'
+    +'<button onclick="document.getElementById(\'prevPagoModal\').remove()" style="flex:1;padding:10px;border:none;border-radius:8px;background:#f0f0f0;font-size:14px;cursor:pointer;">Cancelar</button>'
+    +'<button onclick="confirmarPagoPrev('+idx+')" style="flex:1;padding:10px;border:none;border-radius:8px;background:var(--azul,#1a73e8);color:#fff;font-size:14px;font-weight:700;cursor:pointer;">Guardar</button>'
+    +'</div></div>';
+  document.body.appendChild(modal);
+  var inp=document.getElementById("prevPagoMonto");if(inp)inp.focus();
+}
+
+function confirmarPagoPrev(idx){
+  var monto=parseFloat(document.getElementById("prevPagoMonto").value)||0;
+  var nota=(document.getElementById("prevPagoNota").value||"").trim();
+  if(!monto){alert("Ingresá un monto.");return;}
+  if(!preventistas[idx].pagos) preventistas[idx].pagos=[];
+  var hoy=new Date();
+  var fecha=hoy.toLocaleDateString("es-AR",{day:"2-digit",month:"2-digit",year:"numeric"});
+  preventistas[idx].pagos.push({fecha:fecha,monto:monto,nota:nota||"Pago registrado"});
+  window.guardarPreventistas();
+  document.getElementById("prevPagoModal").remove();
+  toast("Pago registrado ✓");
+  renderGestion();
+}
+
+function abrirNuevoPrev(){abrirModalPrev(-1);}
+function abrirEditarPrev(idx){abrirModalPrev(idx);}
+function abrirModalPrev(idx){
+  var existing=document.getElementById("prevModal"); if(existing) existing.remove();
+  var p=idx>=0?preventistas[idx]:{nombre:"",comision:5};
+  var modal=document.createElement("div");modal.id="prevModal";
+  modal.style.cssText="position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9999;display:flex;align-items:center;justify-content:center;";
+  modal.innerHTML=`<div style="background:#fff;border-radius:14px;padding:24px;width:300px;max-width:95vw;box-shadow:0 8px 32px rgba(0,0,0,.25);">
+    <div style="font-size:17px;font-weight:700;margin-bottom:16px;">${idx>=0?"Editar":"Nuevo"} preventista</div>
+    <label style="font-size:13px;font-weight:600;">Nombre</label>
+    <input id="prevNombre" class="campo" style="margin:4px 0 12px;" placeholder="Nombre del preventista" value="${p.nombre}">
+    <label style="font-size:13px;font-weight:600;">Comisión %</label>
+    <input id="prevComision" class="campo" type="number" min="0" max="100" style="margin:4px 0 16px;" value="${p.comision}">
+    <div style="display:flex;gap:10px;">
+      <button onclick="document.getElementById('prevModal').remove()" style="flex:1;padding:10px;border:none;border-radius:8px;background:#f0f0f0;font-size:14px;cursor:pointer;">Cancelar</button>
+      <button onclick="guardarModalPrev(${idx})" style="flex:1;padding:10px;border:none;border-radius:8px;background:var(--azul,#1a73e8);color:#fff;font-size:14px;font-weight:700;cursor:pointer;">Guardar</button>
+    </div></div>`;
+  document.body.appendChild(modal);
+  modal.addEventListener("click",function(e){if(e.target===modal)modal.remove();});
+  setTimeout(function(){var el=$("prevNombre");if(el)el.focus();},100);
+}
+function guardarModalPrev(idx){
+  var nombre=($("prevNombre").value||"").trim();
+  var comision=parseFloat($("prevComision").value)||5;
+  if(!nombre){alert("Ingresá un nombre.");return;}
+  if(idx>=0){preventistas[idx]={nombre:nombre,comision:comision};}
+  else{preventistas.push({nombre:nombre,comision:comision});}
+  window.guardarPreventistas();nvFillPreventistas();
+  document.getElementById("prevModal").remove();
+  toast(idx>=0?"Preventista actualizado":"Preventista agregado");
+  renderGestion();
+}
+
+/* ── REMITO SAN MARTÍN ── */
+var remitoItems={};  // {codigo: {nombre, cajas, unidades}}
+
+function renderRemitoLista(){
+  var lista=$("nvListaRemito"); if(!lista) return;
+  lista.innerHTML="";
+  var busq=($("nvBuscar")?$("nvBuscar").value:"").toLowerCase();
+  var cat=null;
+  // Productos congelados
+  for(var i=0;i<P.length;i++){
+    var p=P[i];
+    if(busq&&p.nombre.toLowerCase().indexOf(busq)<0&&String(p.codigo).indexOf(busq)<0) continue;
+    if(p.categoria!==cat){
+      cat=p.categoria;
+      var h=document.createElement("div");
+      h.className="cat"+(cat.indexOf("AL POR MAYOR")>=0?" sub":"");
+      h.textContent=cat;lista.appendChild(h);
+    }
+    var k=String(p.codigo);
+    var cajas=remitoItems[k]?remitoItems[k].cajas:0;
+    var unidades=remitoItems[k]?remitoItems[k].unidades:0;
+    var activo=(cajas>0||unidades>0);
+    var nm=p.nombre.replace(/'/g,"\\'");
+    var d=document.createElement("div");d.className="prd"+(activo?" act":"");d.id="rem-prd-"+k;
+    d.innerHTML='<div class="r1"><span class="nm">'+p.nombre+'</span><span class="cd">#'+p.codigo+'</span></div>'
+      +'<div class="r2" style="display:flex;align-items:center;justify-content:space-between;gap:6px;flex-wrap:wrap;">'
+      +'<div style="display:flex;align-items:center;gap:4px;font-size:12px;">'
+      +'<span style="color:#555;font-weight:600;">📦Cajas</span>'
+      +'<button class="qbtn" onclick="remCajas(\''+k+'\',\''+nm+'\',false)" style="width:28px;height:28px;font-size:16px;border:none;border-radius:50%;background:#eee;cursor:pointer;">−</button>'
+      +'<span id="rem-caj-'+k+'" style="font-size:15px;font-weight:700;min-width:20px;text-align:center;">'+cajas+'</span>'
+      +'<button class="qbtn" onclick="remCajas(\''+k+'\',\''+nm+'\',true)" style="width:28px;height:28px;font-size:16px;border:none;border-radius:50%;background:var(--azul);color:#fff;cursor:pointer;">+</button>'
+      +'</div>'
+      +'<div style="display:flex;align-items:center;gap:4px;font-size:12px;">'
+      +'<span style="color:#555;font-weight:600;">🔢Unid.</span>'
+      +'<button class="qbtn" onclick="remUnidades(\''+k+'\',\''+nm+'\',false)" style="width:28px;height:28px;font-size:16px;border:none;border-radius:50%;background:#eee;cursor:pointer;">−</button>'
+      +'<span id="rem-uni-'+k+'" style="font-size:15px;font-weight:700;min-width:20px;text-align:center;">'+unidades+'</span>'
+      +'<button class="qbtn" onclick="remUnidades(\''+k+'\',\''+nm+'\',true)" style="width:28px;height:28px;font-size:16px;border:none;border-radius:50%;background:#388e3c;color:#fff;cursor:pointer;">+</button>'
+      +'</div>'
+      +'</div>';
+    lista.appendChild(d);
+  }
+  // Lácteos Santa María
+  var lacHead=document.createElement("div");lacHead.className="cat";lacHead.textContent="🧀 Lácteos Santa María";lista.appendChild(lacHead);
+  for(var j=0;j<LAC.length;j++){
+    var pl=LAC[j];
+    if(busq&&pl.nombre.toLowerCase().indexOf(busq)<0&&String(pl.codigo||"").indexOf(busq)<0) continue;
+    var kl="lac-"+j;
+    var cajasl=remitoItems[kl]?remitoItems[kl].cajas:0;
+    var unidadesl=remitoItems[kl]?remitoItems[kl].unidades:0;
+    var activol=(cajasl>0||unidadesl>0);
+    var nml=pl.nombre.replace(/'/g,"\\'");
+    var dl=document.createElement("div");dl.className="prd"+(activol?" act":"");dl.id="rem-prd-"+kl;
+    dl.innerHTML='<div class="r1"><span class="nm">'+pl.nombre+'</span>'+(pl.codigo?'<span class="cd">#'+pl.codigo+'</span>':'')+'</div>'
+      +'<div class="r2" style="display:flex;align-items:center;justify-content:space-between;gap:6px;flex-wrap:wrap;">'
+      +'<div style="display:flex;align-items:center;gap:4px;font-size:12px;">'
+      +'<span style="color:#555;font-weight:600;">📦Cajas</span>'
+      +'<button class="qbtn" onclick="remCajas(\''+kl+'\',\''+nml+'\',false)" style="width:28px;height:28px;font-size:16px;border:none;border-radius:50%;background:#eee;cursor:pointer;">−</button>'
+      +'<span id="rem-caj-'+kl+'" style="font-size:15px;font-weight:700;min-width:20px;text-align:center;">'+cajasl+'</span>'
+      +'<button class="qbtn" onclick="remCajas(\''+kl+'\',\''+nml+'\',true)" style="width:28px;height:28px;font-size:16px;border:none;border-radius:50%;background:var(--azul);color:#fff;cursor:pointer;">+</button>'
+      +'</div>'
+      +'<div style="display:flex;align-items:center;gap:4px;font-size:12px;">'
+      +'<span style="color:#555;font-weight:600;">🔢Unid.</span>'
+      +'<button class="qbtn" onclick="remUnidades(\''+kl+'\',\''+nml+'\',false)" style="width:28px;height:28px;font-size:16px;border:none;border-radius:50%;background:#eee;cursor:pointer;">−</button>'
+      +'<span id="rem-uni-'+kl+'" style="font-size:15px;font-weight:700;min-width:20px;text-align:center;">'+unidadesl+'</span>'
+      +'<button class="qbtn" onclick="remUnidades(\''+kl+'\',\''+nml+'\',true)" style="width:28px;height:28px;font-size:16px;border:none;border-radius:50%;background:#388e3c;color:#fff;cursor:pointer;">+</button>'
+      +'</div>'
+      +'</div>';
+    lista.appendChild(dl);
+  }
+  // Actualizar badge remito
+  actualizarBadgeRemito();
+}
+
+function actualizarBadgeRemito(){
+  var total=Object.values(remitoItems).reduce(function(s,it){return s+(it.cajas||0)+(it.unidades||0);},0);
+  var fab=$("nvFabRemito");if(fab) fab.textContent="Ver remito 📦"+(total>0?" ("+total+")":"");
+}
+
+function remCajas(k,nombre,sumar){
+  if(!remitoItems[k]) remitoItems[k]={nombre:nombre,cajas:0,unidades:0};
+  remitoItems[k].cajas=Math.max(0,remitoItems[k].cajas+(sumar?1:-1));
+  if(remitoItems[k].cajas===0&&remitoItems[k].unidades===0) delete remitoItems[k];
+  var el=document.getElementById("rem-caj-"+k);
+  if(el) el.textContent=(remitoItems[k]?remitoItems[k].cajas:0);
+  var prdEl=document.getElementById("rem-prd-"+k);
+  if(prdEl) prdEl.className="prd"+((remitoItems[k]&&(remitoItems[k].cajas>0||remitoItems[k].unidades>0))?" act":"");
+  actualizarBadgeRemito();
+}
+
+function remUnidades(k,nombre,sumar){
+  if(!remitoItems[k]) remitoItems[k]={nombre:nombre,cajas:0,unidades:0};
+  remitoItems[k].unidades=Math.max(0,remitoItems[k].unidades+(sumar?1:-1));
+  if(remitoItems[k].cajas===0&&remitoItems[k].unidades===0) delete remitoItems[k];
+  var el=document.getElementById("rem-uni-"+k);
+  if(el) el.textContent=(remitoItems[k]?remitoItems[k].unidades:0);
+  var prdEl=document.getElementById("rem-prd-"+k);
+  if(prdEl) prdEl.className="prd"+((remitoItems[k]&&(remitoItems[k].cajas>0||remitoItems[k].unidades>0))?" act":"");
+  actualizarBadgeRemito();
+}
+
+function abrirVistaRemito(){
+  var items=Object.entries(remitoItems).filter(function(e){return e[1].cajas>0||e[1].unidades>0;});
+  if(!items.length){toast("Agregá productos al remito primero");return;}
+  var existing=document.getElementById("remitoModal");if(existing)existing.remove();
+  var hoy=new Date();
+  var fechaStr=hoy.toLocaleDateString("es-AR",{day:"2-digit",month:"2-digit",year:"numeric"});
+  var hora=hoy.toLocaleTimeString("es-AR",{hour:"2-digit",minute:"2-digit"});
+  var nRem="R-"+hoy.getFullYear()+(hoy.getMonth()+1<10?"0":"")+(hoy.getMonth()+1)+(hoy.getDate()<10?"0":"")+hoy.getDate()+"-"+Math.floor(Math.random()*100);
+  var filas=items.map(function(e){
+    var it=e[1];
+    var detalle="";
+    if(it.cajas>0&&it.unidades>0) detalle=it.cajas+" cajas + "+it.unidades+" unid.";
+    else if(it.cajas>0) detalle=it.cajas+" cajas";
+    else detalle=it.unidades+" unid.";
+    return '<tr><td style="padding:6px 8px;border-bottom:1px solid #eee;">'+it.nombre+'</td><td style="padding:6px 8px;border-bottom:1px solid #eee;text-align:center;font-weight:700;">'+detalle+'</td></tr>';
+  }).join("");
+  var totalCajas=items.reduce(function(s,e){return s+e[1].cajas;},0);
+  var totalUnid=items.reduce(function(s,e){return s+e[1].unidades;},0);
+  var totalStr=(totalCajas>0?totalCajas+" cajas":"")+((totalCajas>0&&totalUnid>0)?" + ":"")+(totalUnid>0?totalUnid+" unid.":"");
+  var modal=document.createElement("div");modal.id="remitoModal";
+  modal.style.cssText="position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:9999;display:flex;align-items:flex-start;justify-content:center;overflow-y:auto;padding:16px;";
+  modal.innerHTML='<div id="remitoContent" style="background:#fff;border-radius:14px;padding:24px;width:100%;max-width:480px;box-shadow:0 8px 32px rgba(0,0,0,.3);">'
+    +'<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:16px;">'
+    +'<div><div style="font-size:20px;font-weight:800;color:#1a1a2e;">📦 REMITO</div>'
+    +'<div style="font-size:13px;color:#888;">'+nRem+'</div></div>'
+    +'<button onclick="document.getElementById(\'remitoModal\').remove()" style="border:none;background:#f0f0f0;border-radius:8px;padding:6px 12px;cursor:pointer;font-size:14px;">✕ Cerrar</button></div>'
+    +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:16px;font-size:13px;">'
+    +'<div><span style="color:#888;">Origen:</span> <strong>Cárcano</strong></div>'
+    +'<div><span style="color:#888;">Destino:</span> <strong>San Martín</strong></div>'
+    +'<div><span style="color:#888;">Fecha:</span> <strong>'+fechaStr+'</strong></div>'
+    +'<div><span style="color:#888;">Hora:</span> <strong>'+hora+'</strong></div>'
+    +'</div>'
+    +'<table style="width:100%;border-collapse:collapse;font-size:14px;">'
+    +'<thead><tr style="background:#f5f5f5;"><th style="padding:6px 8px;text-align:left;">Producto</th><th style="padding:6px 8px;text-align:center;">Cantidad</th></tr></thead>'
+    +'<tbody>'+filas+'</tbody>'
+    +'<tfoot><tr><td style="padding:8px;font-weight:700;" colspan="2">Total: '+totalStr+'</td></tr></tfoot>'
+    +'</table>'
+    +'<div style="margin-top:20px;display:flex;gap:10px;flex-wrap:wrap;">'
+    +'<button onclick="imprimirRemito()" style="flex:1;min-width:120px;padding:12px;border:none;border-radius:10px;background:#1a73e8;color:#fff;font-size:14px;font-weight:700;cursor:pointer;">🖨️ Descargar PDF</button>'
+    +'<button onclick="compartirRemitoWA(\''+nRem+'\',\''+fechaStr+'\')" style="flex:1;min-width:120px;padding:12px;border:none;border-radius:10px;background:#25D366;color:#fff;font-size:14px;font-weight:700;cursor:pointer;">💬 WhatsApp</button>'
+    +'</div>'
+    +'<button onclick="guardarRemitoHistorial(\''+nRem+'\',\''+fechaStr+'\',\''+hora+'\')" style="width:100%;margin-top:10px;padding:12px;border:none;border-radius:10px;background:#e8f5e9;color:#2e7d32;font-size:14px;font-weight:700;cursor:pointer;">💾 Guardar remito</button>'
+    +'<button onclick="limpiarRemito()" style="width:100%;margin-top:8px;padding:10px;border:none;border-radius:10px;background:#fff0f0;color:#c00;font-size:13px;cursor:pointer;">🗑️ Limpiar remito</button>'
+    +'</div>';
+  document.body.appendChild(modal);
+}
+
+function imprimirRemito(){
+  var content=document.getElementById("remitoContent");
+  if(!content) return;
+  var html='<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Remito San Martín</title>'
+    +'<style>body{font-family:Arial,sans-serif;padding:24px;max-width:600px;margin:0 auto;}table{width:100%;border-collapse:collapse;}th,td{padding:6px 8px;border-bottom:1px solid #eee;}th{background:#f5f5f5;}@media print{button{display:none;}}</style>'
+    +'</head><body>'+content.innerHTML+'</body></html>';
+  var w=window.open("","_blank");
+  w.document.write(html);w.document.close();
+  setTimeout(function(){w.print();},400);
+}
+
+function compartirRemitoWA(nRem,fecha){
+  var items=Object.entries(remitoItems).filter(function(e){return e[1].cajas>0||e[1].unidades>0;});
+  var txt="📦 *REMITO "+nRem+"*\n";
+  txt+="📅 Fecha: "+fecha+"\n";
+  txt+="🏪 Origen: Cárcano → San Martín\n\n";
+  items.forEach(function(e){
+    var it=e[1];
+    var detalle="";
+    if(it.cajas>0&&it.unidades>0) detalle=it.cajas+" cajas + "+it.unidades+" unid.";
+    else if(it.cajas>0) detalle=it.cajas+" cajas";
+    else detalle=it.unidades+" unid.";
+    txt+="• "+it.nombre+": *"+detalle+"*\n";
+  });
+  var totalCajas=items.reduce(function(s,e){return s+e[1].cajas;},0);
+  var totalUnid=items.reduce(function(s,e){return s+e[1].unidades;},0);
+  var totalStr=(totalCajas>0?totalCajas+" cajas":"")+((totalCajas>0&&totalUnid>0)?" + ":"")+(totalUnid>0?totalUnid+" unid.":"");
+  txt+="\nTotal: *"+totalStr+"*";
+  var url="https://wa.me/?text="+encodeURIComponent(txt);
+  window.open(url,"_blank");
+}
+
+function limpiarRemito(){
+  if(!confirm("¿Limpiar todo el remito?")) return;
+  remitoItems={};
+  document.getElementById("remitoModal").remove();
+  renderRemitoLista();
+  toast("Remito limpiado");
+}
+
+function guardarRemitoHistorial(nRem,fecha,hora){
+  var items=Object.entries(remitoItems).filter(function(e){return e[1].cajas>0||e[1].unidades>0;});
+  if(!items.length){toast("No hay productos en el remito");return;}
+  var productos=items.map(function(e){return {nombre:e[1].nombre,cajas:e[1].cajas,unidades:e[1].unidades};});
+  var registro={numero:nRem,fecha:fecha,hora:hora,productos:productos};
+  historialRemitos.unshift(registro);
+  window.guardarHistorialRemitos();
+  toast("Remito guardado en historial ✓");
+  // Marcar botón como guardado
+  var btns=document.querySelectorAll("#remitoContent button");
+  btns.forEach(function(b){if(b.textContent.indexOf("Guardar")>=0){b.textContent="✅ Guardado";b.disabled=true;b.style.background="#c8e6c9";}});
+}
+
+function renderHistorialRemitos(){
+  var cont=$("nvListaHistorial");if(!cont)return;
+  cont.innerHTML="";
+  if(!historialRemitos||!historialRemitos.length){
+    cont.innerHTML='<div style="padding:32px;text-align:center;color:#aaa;font-size:15px;">No hay remitos guardados todavía</div>';
+    return;
+  }
+  var html='<div style="padding:12px 12px 0;font-size:13px;color:#888;font-weight:600;">'+historialRemitos.length+' remito'+(historialRemitos.length!==1?'s':'')+' guardado'+(historialRemitos.length!==1?'s':'')+'</div>';
+  historialRemitos.forEach(function(r,idx){
+    var totalCajas=r.productos.reduce(function(s,p){return s+(p.cajas||0);},0);
+    var totalUnid=r.productos.reduce(function(s,p){return s+(p.unidades||0);},0);
+    var totalStr=(totalCajas>0?totalCajas+" caj.":"")+((totalCajas>0&&totalUnid>0)?" + ":"")+(totalUnid>0?totalUnid+" unid.":"");
+    var prods=r.productos.map(function(p){
+      var d="";
+      if(p.cajas>0&&p.unidades>0) d=p.cajas+" cajas + "+p.unidades+" unid.";
+      else if(p.cajas>0) d=p.cajas+" cajas";
+      else d=p.unidades+" unid.";
+      return '<div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid #f0f0f0;font-size:13px;"><span>'+p.nombre+'</span><span style="font-weight:700;color:#2e7d32;">'+d+'</span></div>';
+    }).join("");
+    html+='<div style="background:#fff;border-radius:12px;margin:10px 10px 0;padding:14px;box-shadow:0 1px 6px rgba(0,0,0,.08);">'
+      +'<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px;">'
+      +'<div><div style="font-size:13px;font-weight:800;color:#1a1a2e;">📦 '+r.numero+'</div>'
+      +'<div style="font-size:12px;color:#888;margin-top:2px;">'+r.fecha+(r.hora?' · '+r.hora:'')+'</div></div>'
+      +'<div style="display:flex;gap:6px;align-items:center;">'
+      +'<span style="font-size:12px;background:#e8f5e9;color:#2e7d32;padding:3px 8px;border-radius:20px;font-weight:600;">'+totalStr+'</span>'
+      +'<button onclick="eliminarRemitoHistorial('+idx+')" style="border:none;background:#fff0f0;color:#c00;border-radius:8px;padding:4px 8px;font-size:12px;cursor:pointer;">🗑️</button>'
+      +'</div></div>'
+      +'<div>'+prods+'</div>'
+      +'</div>';
+  });
+  cont.innerHTML=html+'<div style="height:20px;"></div>';
+}
+
+function eliminarRemitoHistorial(idx){
+  if(!confirm("¿Eliminar este remito del historial?"))return;
+  historialRemitos.splice(idx,1);
+  window.guardarHistorialRemitos();
+  renderHistorialRemitos();
+  toast("Remito eliminado del historial");
+}
+
+/* ── EXPORTAR EXCEL ── */
+function abrirExportModal(){
+  var existing=document.getElementById("exportModal");
+  if(existing) existing.remove();
+  var hoy=new Date();
+  var hoyStr=hoy.toISOString().slice(0,10);
+  var modal=document.createElement("div");
+  modal.id="exportModal";
+  modal.style.cssText="position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9999;display:flex;align-items:center;justify-content:center;";
+  modal.innerHTML=`
+    <div style="background:#fff;border-radius:14px;padding:24px;width:320px;max-width:95vw;box-shadow:0 8px 32px rgba(0,0,0,.25);">
+      <div style="font-size:17px;font-weight:700;margin-bottom:16px;">📊 Exportar a Excel</div>
+      <div style="margin-bottom:12px;">
+        <label style="font-weight:600;font-size:14px;">Período</label><br>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px;">
+          <button class="exp-per" data-p="dia" onclick="selPeriodo('dia')" style="border:2px solid #e8e8e8;border-radius:8px;padding:8px;font-size:14px;cursor:pointer;background:#fff;">Hoy</button>
+          <button class="exp-per" data-p="semana" onclick="selPeriodo('semana')" style="border:2px solid #e8e8e8;border-radius:8px;padding:8px;font-size:14px;cursor:pointer;background:#fff;">Última semana</button>
+          <button class="exp-per" data-p="mes" onclick="selPeriodo('mes')" style="border:2px solid #e8e8e8;border-radius:8px;padding:8px;font-size:14px;cursor:pointer;background:#fff;">Este mes</button>
+          <button class="exp-per" data-p="rango" onclick="selPeriodo('rango')" style="border:2px solid #e8e8e8;border-radius:8px;padding:8px;font-size:14px;cursor:pointer;background:#fff;">Rango</button>
+        </div>
+      </div>
+      <div id="expRangoDiv" style="display:none;margin-bottom:12px;">
+        <label style="font-size:13px;font-weight:600;">Desde</label>
+        <input type="date" id="expDesde" value="${hoyStr}" style="width:100%;margin:4px 0 8px;padding:8px;border:1.5px solid #e0e0e0;border-radius:7px;font-size:14px;box-sizing:border-box;">
+        <label style="font-size:13px;font-weight:600;">Hasta</label>
+        <input type="date" id="expHasta" value="${hoyStr}" style="width:100%;margin:4px 0;padding:8px;border:1.5px solid #e0e0e0;border-radius:7px;font-size:14px;box-sizing:border-box;">
+      </div>
+      <div style="display:flex;gap:10px;margin-top:16px;">
+        <button onclick="document.getElementById('exportModal').remove()" style="flex:1;padding:10px;border:none;border-radius:8px;background:#f0f0f0;font-size:14px;cursor:pointer;">Cancelar</button>
+        <button onclick="ejecutarExport()" style="flex:1;padding:10px;border:none;border-radius:8px;background:var(--azul,#1a73e8);color:#fff;font-size:14px;font-weight:700;cursor:pointer;">Descargar</button>
+      </div>
+    </div>`;
+  document.body.appendChild(modal);
+  modal.addEventListener("click",function(e){if(e.target===modal)modal.remove();});
+}
+
+var _expPeriodo="dia";
+function selPeriodo(p){
+  _expPeriodo=p;
+  document.querySelectorAll(".exp-per").forEach(function(b){
+    b.style.border=b.dataset.p===p?"2px solid var(--azul,#1a73e8)":"2px solid #e8e8e8";
+    b.style.background=b.dataset.p===p?"#e8f0fe":"#fff";
+    b.style.fontWeight=b.dataset.p===p?"700":"400";
+  });
+  document.getElementById("expRangoDiv").style.display=p==="rango"?"block":"none";
+}
+
+function parseFechaAR(str){
+  // "dd/mm/yyyy" → Date
+  if(!str) return null;
+  var p=str.split("/");
+  if(p.length!==3) return null;
+  return new Date(parseInt(p[2]),parseInt(p[1])-1,parseInt(p[0]));
+}
+
+function fechaToSerial(d){
+  // Excel date serial (days since 1900-01-01, with Lotus bug)
+  if(!d || isNaN(d)) return "";
+  var epoch=new Date(1899,11,30);
+  return Math.round((d-epoch)/(86400000));
+}
+
+function ejecutarExport(){
+  var desde, hasta;
+  var hoy=new Date(); hoy.setHours(23,59,59,999);
+  if(_expPeriodo==="dia"){
+    desde=new Date(); desde.setHours(0,0,0,0);
+    hasta=hoy;
+  } else if(_expPeriodo==="semana"){
+    desde=new Date(); desde.setDate(desde.getDate()-6); desde.setHours(0,0,0,0);
+    hasta=hoy;
+  } else if(_expPeriodo==="mes"){
+    desde=new Date(hoy.getFullYear(),hoy.getMonth(),1);
+    hasta=hoy;
+  } else {
+    var desdeVal=document.getElementById("expDesde").value;
+    var hastaVal=document.getElementById("expHasta").value;
+    if(!desdeVal||!hastaVal){alert("Ingresá ambas fechas.");return;}
+    desde=new Date(desdeVal+"T00:00:00");
+    hasta=new Date(hastaVal+"T23:59:59");
+  }
+
+  // Filtrar pedidos por período
+  var pedFilt=pedidos.filter(function(p){
+    var d=parseFechaAR(p.fecha);
+    return d && d>=desde && d<=hasta;
+  });
+
+  // ── HOJA 1: Ventas ──
+  var wsVentas=[["Fecha","N° Nota","Cliente","Forma de Pago","Descuento","Total"]];
+  pedFilt.forEach(function(p){
+    var d=parseFechaAR(p.fecha);
+    wsVentas.push([fechaToSerial(d),p.nv,p.cliente,p.fpago,p.descuento||0,p.total]);
+  });
+
+  // ── HOJA 2: Detalle ──
+  var wsDetalle=[["N° Nota","Fecha","Cliente","Código","Producto","Cantidad","Precio Unitario","Subtotal"]];
+  pedFilt.forEach(function(p){
+    var d=parseFechaAR(p.fecha);
+    (p.items||[]).forEach(function(it){
+      wsDetalle.push([p.nv,fechaToSerial(d),p.cliente,it.codigo||"",it.nombre,it.cant,it.precio,it.cant*it.precio]);
+    });
+  });
+
+  // ── HOJA 3: Pagos CC (filtrados por período) ──
+  var wsPagos=[["Fecha","Cliente","Monto","Nota"]];
+  clientes.forEach(function(cli){
+    (cli.pagosCC||[]).forEach(function(pg){
+      var d=parseFechaAR(pg.fecha);
+      if(d && d>=desde && d<=hasta){
+        wsPagos.push([fechaToSerial(d),cli.nombre,pg.monto,pg.nota||""]);
+      }
+    });
+  });
+
+  // ── HOJA 4: Saldos (todos los clientes CC, sin filtro de período) ──
+  var wsSaldos=[["Cliente","Saldo Inicial","Total Vendido a Cta.","Total Pagado","Saldo Pendiente"]];
+  clientes.filter(function(c){return c.cc;}).forEach(function(cli){
+    var vendido=pedidos.filter(function(p){return p.cliente===cli.nombre&&p.fpago==="Cta. Corriente";})
+      .reduce(function(s,p){return s+p.total;},0);
+    var pagado=(cli.pagosCC||[]).reduce(function(s,pg){return s+pg.monto;},0);
+    var saldoInicial=cli.saldo||0;
+    var pendiente=saldoInicial+vendido-pagado;
+    wsSaldos.push([cli.nombre,saldoInicial,vendido,pagado,pendiente]);
+  });
+
+  // Construir workbook
+  var wb=XLSX.utils.book_new();
+
+  function makeSheet(data, dateCols, currCols){
+    var ws=XLSX.utils.aoa_to_sheet(data);
+    // Formato fecha y moneda
+    var range=XLSX.utils.decode_range(ws["!ref"]);
+    for(var R=1;R<=range.e.r;R++){
+      (dateCols||[]).forEach(function(C){
+        var cell=ws[XLSX.utils.encode_cell({r:R,c:C})];
+        if(cell && typeof cell.v==="number"){cell.t="n";cell.z="DD/MM/YYYY";}
+      });
+      (currCols||[]).forEach(function(C){
+        var cell=ws[XLSX.utils.encode_cell({r:R,c:C})];
+        if(cell && typeof cell.v==="number"){cell.t="n";cell.z='#,##0.00';}
+      });
+    }
+    return ws;
+  }
+
+  XLSX.utils.book_append_sheet(wb, makeSheet(wsVentas,[0],[4,5]), "Ventas");
+  XLSX.utils.book_append_sheet(wb, makeSheet(wsDetalle,[1],[6,7]), "Detalle");
+  XLSX.utils.book_append_sheet(wb, makeSheet(wsPagos,[0],[2]), "Pagos CC");
+  XLSX.utils.book_append_sheet(wb, makeSheet(wsSaldos,[],[1,2,3,4]), "Saldos");
+
+  var fecha=new Date().toISOString().slice(0,10);
+  XLSX.writeFile(wb,"FRIOTEKA_export_"+fecha+".xlsx");
+  document.getElementById("exportModal").remove();
+  toast("Excel descargado ✓");
+}
 
 
 </script>
