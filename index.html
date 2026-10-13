@@ -1511,7 +1511,7 @@ function renderListaCli(q){
       +(c.tel?'<div class="card-det">Tel: '+c.tel+'</div>':'')
       +(c.dir?'<div class="card-det">Dir: '+c.dir+'</div>':'')
       +(c.cuit?'<div class="card-det">CUIT: '+c.cuit+'</div>':'')
-      +(c.cc?(function(){var mv=pedidos.filter(function(p){return p.cliente===c.nombre&&p.fpago==="Cta. Corriente";});var deuda=mv.reduce(function(s,p){return s+p.total;},0);var pag=(c.pagosCC||[]).reduce(function(s,p){return s+p.monto;},0);var saldoCC=deuda-pag;return '<div class="card-det" style="color:'+(saldoCC>0?'var(--rojo)':'#16a34a')+';">Cta. Cte. · Compras: '+fmt(deuda)+' · Debe: '+fmt(saldoCC)+'</div>';})():'')
+      +(c.cc?(function(){var mv=pedidos.filter(function(p){return p.cliente===c.nombre&&p.fpago==="Cta. Corriente";});var deuda=mv.reduce(function(s,p){return s+p.total;},0)+(c.saldo||0);var pag=(c.pagosCC||[]).reduce(function(s,p){return s+p.monto;},0);var saldoCC=deuda-pag;return '<div class="card-det" style="color:'+(saldoCC>0?'var(--rojo)':'#16a34a')+';">Cta. Cte. · Debe: '+fmt(saldoCC)+'</div>';})():'')
       +(tc>0?'<div class="card-det" style="color:var(--verde);">Total comprado: '+fmt(tc)+'</div>':'')
       +'<div class="card-acc"><button class="btn-sm b" data-i="'+ri+'">Editar</button><button class="btn-sm r" data-i="'+ri+'">Historial</button></div>';
     card.querySelector(".btn-sm.b").onclick=function(){abrirFormCli(parseInt(this.dataset.i));};
@@ -1526,7 +1526,7 @@ function renderCC(c){
   var h="";
   ccCli.forEach(function(cli){
     var mv=pedidos.filter(function(p){return p.cliente===cli.nombre&&p.fpago==="Cta. Corriente";});
-    var deuda=mv.reduce(function(s,p){return s+p.total;},0);
+    var deuda=mv.reduce(function(s,p){return s+p.total;},0)+(cli.saldo||0);
     var pagos=(cli.pagosCC||[]).reduce(function(s,p){return s+p.monto;},0);
     var saldo=deuda-pagos;
     var cliId=encodeURIComponent(cli.nombre);
@@ -1539,6 +1539,7 @@ function renderCC(c){
       +'<div style="font-size:12px;color:var(--gris);margin-bottom:8px;">'+mv.length+' compras · '+((cli.pagosCC||[]).length)+' pagos registrados</div>';
     // Mostrar movimientos mezclados (compras + pagos), últimos 8
     var movs=[];
+    if(cli.saldo&&cli.saldo>0) movs.push({fecha:'00000000',desc:'Saldo anterior',monto:cli.saldo,tipo:'v'});
     mv.forEach(function(v){movs.push({fecha:v.fecha,desc:v.nv,monto:v.total,tipo:'v'});});
     (cli.pagosCC||[]).forEach(function(p){movs.push({fecha:p.fecha,desc:p.nota||'Pago',monto:p.monto,tipo:'p'});});
     movs.sort(function(a,b){return b.fecha<a.fecha?-1:1;});
