@@ -2094,6 +2094,13 @@ document.addEventListener("DOMContentLoaded", function(){
       var rec={nv:nvFmt(nv),fecha:new Date().toLocaleDateString("es-AR"),cliente:cl,dir:dir2,fpago:nvFpago,entrega:nvEntrega,preventista:nvPreventistaVal,total:f.final,items:items.map(function(it){return{nombre:it.nombre,cant:it.cantidad,precio:it.precioUnit,codigo:it.codigo};})};
       pedidos.unshift(rec);if(pedidos.length>500) pedidos=pedidos.slice(0,500);
       window.guardarPedidos();
+      // Crear cliente nuevo si no existe
+      var cliExiste=clientes.some(function(c){return c.nombre.toLowerCase()===cl.toLowerCase();});
+      if(!cliExiste&&cl){
+        var esCC=nvFpago==="Cta. Corriente";
+        clientes.push({nombre:cl,tel:"",dir:dir2,cuit:"",notas:"Creado desde venta preventista",cc:esCC,saldo:0});
+        window.guardarClientes();
+      }
       window.guardarNv();nv++;
       toast("Venta "+rec.nv+" registrada");
       marcarPendienteProcessado();
