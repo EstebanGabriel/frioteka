@@ -356,29 +356,43 @@ function confirmarPOS(){const n=POS.filter(p=>!p.dup);n.forEach(p=>DB.movs.push(
 const FORMA={efectivo:"efectivo",transferencia:"transferencia",deposito:"depósito Banco de Córdoba",incluido:"incluido en otro pago"};
 function vCierre(){
   const ym=st.cierreMes,ini=ym+"-01",fin=finMes(ym);
-  const lin=[];let tSueldo=0,tCaja=0,tCC=0;
   const pagos=DB.pagos.filter(p=>p.fecha>=ini&&p.fecha<=fin&&!p.sinCaja);
   const descs=DB.movs.filter(m=>m.tipo==="descuento"&&m.imputa&&m.fecha>=ini&&m.fecha<=fin);
   const imps=[...new Set([...pagos.filter(p=>p.tipo==="pago").map(p=>p.emp+"#"+p.imputa),...descs.map(m=>m.emp+"#"+m.imputa)])];
-  for(const k of imps){const[emp,imp]=k.split("#");
-    const L=imp.startsWith("S")?liqSemana(emp,imp.slice(1)):liqMes(emp,imp);
-    const pg=L.pg.filter(p=>p.tipo==="pago"&&!p.sinCaja),f=[...pg.map(p=>p.fecha),...descs.filter(m=>m.emp===emp&&m.imputa===imp).map(m=>m.fecha)].sort().pop();
-    const total=imp.startsWith("S")?L.bruto:L.sueldo,per=imp.startsWith("S")?"semana "+dm(imp.slice(1))+" al "+dm(addD(imp.slice(1),6)):"sueldo "+mesTxt(imp);
-    const formas={};pg.forEach(p=>formas[p.forma]=(formas[p.forma]||0)+p.importe);
-    const caja=pg.reduce((a,p)=>a+p.importe,0);
-    let txt=`${dm(f)} - ${emp} - ${locTxt(emp)} - ${per} - ${fmt(total)}\n  Pagado: ${[...Object.entries(formas).map(([k,v])=>FORMA[k]+" "+fmt(v)),...(L.desc?["cuenta corriente "+fmt(L.desc)]:[])].join(" + ")||"—"}`;
-    if(!imp.startsWith("S")&&L.adel)txt+=`\n  (incluye adelantos ya pagados por ${fmt(L.adel)})`;
-    lin.push([f,txt]);tSueldo+=total;tCaja+=caja;tCC+=L.desc}
-  for(const p of pagos.filter(p=>p.tipo==="adelanto")){
-    lin.push([p.fecha,`${dm(p.fecha)} - ${p.emp} - ${locTxt(p.emp)} - adelanto a cuenta de ${p.imputa.startsWith("S")?"la semana "+dm(p.imputa.slice(1)):mesTxt(p.imputa)} - ${fmt(p.importe)}${p.cond?" - "+p.cond:""} - ${FORMA[p.forma]}`]);tCaja+=p.importe}
-  lin.sort((a,b)=>a[0]<b[0]?-1:1);
-  const out=`PAGOS A EMPLEADOS - ${mesTxt(ym).toUpperCase()}\n\n`+lin.map(l=>l[1]).join("\n\n")+`\n\nSalió de caja/banco: ${fmt(tCaja)}\nCompensado con cuenta corriente: ${fmt(tCC)}`;
+  const per={};const P=e=>per[e]||(per[e]={liqs:[],total:0,recibo:0,fuera:0,cc:0,adelPrev:0,formas:{},adelSig:[]});
+  for(const k of imps){const[emp,imp]=k.split("#"),x=P(emp),sem=imp.startsWith("S");
+    const L=sem?liqSemana(emp,imp.slice(1)):liqMes(emp,imp);
+    const total=sem?L.bruto:L.sueldo,rec=sem?0:(L.neto||0);
+    x.liqs.push({nom:sem?"semana "+dm(imp.slice(1))+" al "+dm(addD(imp.slice(1),6)):"sueldo de "+mesTxt(imp),total,rec});
+    x.total+=total;x.recibo+=rec;x.fuera+=total-rec;x.cc+=L.desc;
+    if(!sem)x.adelPrev+=L.ad.filter(a=>a.fecha<ini).reduce((s,a)=>s+a.importe,0)}
+  for(const p of pagos){const x=P(p.emp);
+    if(p.tipo==="adelanto"&&!imps.includes(p.emp+"#"+p.imputa))x.adelSig.push(p);
+    else x.formas[p.forma]=(x.formas[p.forma]||0)+p.importe}
+  const loc={sm:0,car:0,sas:0};let T={total:0,recibo:0,fuera:0,cc:0,caja:0,adel:0};
+  let out=`PAGOS A EMPLEADOS - ${mesTxt(ym).toUpperCase()}\n`;
+  for(const e of EMPS()){const x=per[e];if(!x)continue;const l=E(e).loc;
+    loc.sm+=x.total*l.sm;loc.car+=x.total*l.car;loc.sas+=x.total*l.sas;
+    const caja=Object.values(x.formas).reduce((a,b)=>a+b,0),ad=x.adelSig.reduce((a,p)=>a+p.importe,0);
+    T.total+=x.total;T.recibo+=x.recibo;T.fuera+=x.fuera;T.cc+=x.cc;T.caja+=caja;T.adel+=ad;
+    out+=`\n${e.toUpperCase()} - ${locTxt(e)}\n`;
+    if(x.liqs.length){
+      out+=`  Sueldo pagado: ${fmt(x.total)} (recibo ${fmt(x.recibo)} + por fuera ${fmt(x.fuera)})\n`;
+      out+=`  Corresponde a: ${x.liqs.map(q=>q.nom).join(", ")}\n`;
+      const fp=[...Object.entries(x.formas).filter(([k,v])=>v).map(([k,v])=>FORMA[k]+" "+fmt(v))];
+      if(x.adelSig.length===0||fp.length)out+=`  Salió de caja/banco: ${fp.length?fp.join(" + "):"$ 0"}\n`;
+      if(x.cc)out+=`  Descontado de cuenta corriente: ${fmt(x.cc)}\n`;
+      if(x.adelPrev)out+=`  Adelantos pagados el mes anterior: ${fmt(x.adelPrev)}\n`}
+    for(const p of x.adelSig)out+=`  Adelanto a cuenta de ${p.imputa.startsWith("S")?"la semana "+dm(p.imputa.slice(1)):mesTxt(p.imputa)}: ${fmt(p.importe)} - ${FORMA[p.forma]}${p.cond?" - "+p.cond:""} (${dm(p.fecha)})\n`}
+  out+=`\nTOTALES DEL MES\n  Sueldos pagados: ${fmt(T.total)} (recibo ${fmt(T.recibo)} + por fuera ${fmt(T.fuera)})\n  Por local: San Martín ${fmt(loc.sm)} · Cárcano ${fmt(loc.car)} · Compartido SAS ${fmt(loc.sas)}\n  Salió de caja/banco: ${fmt(T.caja+T.adel)}${T.adel?` (incluye ${fmt(T.adel)} de adelantos a cuenta del mes siguiente)`:""}\n  Descontado de cuenta corriente: ${fmt(T.cc)}\n`;
+  out+=`\nNota: el gasto en sueldos es el total pagado. La cuenta corriente es parte del sueldo pagada con mercadería (ya figura como venta en el POS): baja lo que sale de caja, pero no baja el gasto. Las cargas sociales y sindicales van aparte.`;
   $("#main").innerHTML=`<div class="per"><button class="btn sec sm" onclick="st.cierreMes=sumMes(st.cierreMes,-1);render()">◀</button><b>${mesTxt(ym)}</b><button class="btn sec sm" onclick="st.cierreMes=sumMes(st.cierreMes,1);render()">▶</button></div>
   <div class="card"><h2>Resumen para gastos de la empresa</h2>
-  ${R("Pagos registrados en el mes",lin.length)}${R("Salió de caja / banco",fmt(tCaja))}${R("Compensado con cuenta corriente",fmt(tCC))}
-  <h3>Listo para pegar</h3><pre class="out" id="cOut">${out}</pre>
-  <div style="display:flex;gap:8px"><button class="btn" onclick="copiar()">Copiar</button><a class="btn sec" style="text-decoration:none" href="https://wa.me/?text=${encodeURIComponent(out)}" target="_blank">Mandar por WhatsApp</a></div></div>
-  <div class="muted">Va un renglón por cada sueldo pagado en el mes (con su total y cómo se pagó) y uno por cada adelanto. Las cargas sociales de los recibos no están: van aparte en gastos.</div>`}
+  ${R("Sueldos pagados en el mes",fmt(T.total))}${R("· del recibo",fmt(T.recibo))}${R("· por fuera",fmt(T.fuera))}
+  ${R("San Martín",fmt(loc.sm))}${R("Cárcano",fmt(loc.car))}${R("Compartido SAS",fmt(loc.sas))}
+  ${R("Salió de caja / banco",fmt(T.caja+T.adel))}${R("Descontado de cuenta corriente",fmt(T.cc))}
+  <h3>Listo para pegar en gastos</h3><pre class="out" id="cOut">${out}</pre>
+  <div style="display:flex;gap:8px"><button class="btn" onclick="copiar()">Copiar</button><a class="btn sec" style="text-decoration:none" href="https://wa.me/?text=${encodeURIComponent(out)}" target="_blank">Mandar por WhatsApp</a></div></div>`}
 function locTxt(emp){const l=E(emp).loc;if(l.sas>=1)return"Compartido SAS";if(l.sm>=1)return"San Martín";if(l.car>=1)return"Cárcano";return`San Martín ${Math.round(l.sm*100)}% / Cárcano ${Math.round(l.car*100)}%`}
 function copiar(){navigator.clipboard.writeText($("#cOut").textContent).then(()=>toast("Copiado"),()=>toast("No se pudo copiar"))}
 
