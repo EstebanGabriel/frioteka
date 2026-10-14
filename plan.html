@@ -523,7 +523,7 @@ function clone(o){return JSON.parse(JSON.stringify(o||{}))}
 function load(o){const n=Object.assign(blank(),clone(o));["banchi","fernanda"].forEach(p=>{n.gente[p]=n.gente[p]||{}});["favs","nogusta","planMod","compras","meta"].forEach(k=>n[k]=n[k]||{});n.custom=n.custom||[];n.persona=quien();return n}
 function quien(){try{return localStorage.getItem("plan-quien")||"banchi"}catch(e){return "banchi"}}
 function pantallaConfig(msg){
-  document.querySelector("nav.tabs").hidden=true;document.getElementById("gauges").hidden=true;
+  document.querySelector("nav.tabs").hidden=true;document.getElementById("gauges").hidden=true;st("Falta conectar con GitHub");
   setHdr("Se hace una sola vez en cada celular","Conectar");
   const c=CFG||{};
   document.getElementById("view").innerHTML=`<div class="cfg">${msg?`<div class="note"><b>No pude conectar</b>${esc(msg)}</div>`:""}
