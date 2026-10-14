@@ -166,11 +166,37 @@ function novMes(emp,ym){const c={tarde:0,falta:0,susp:0,min:0};
     if(r.nov==="Tarde"){c.tarde++;c.min+=+(r.min||0)} if(r.nov==="Falta"||r.nov==="Falta con aviso")c.falta++; if(r.nov==="Suspensión")c.susp++}
   return c}
 
+/* ---------- historial, vacaciones, aguinaldo ---------- */
+function asegurar(){DB.sanciones=DB.sanciones||[];DB.vacaciones=DB.vacaciones||{asign:[],tomadas:[]};DB.vacaciones.asign=DB.vacaciones.asign||[];DB.vacaciones.tomadas=DB.vacaciones.tomadas||[]}
+const sancDe=emp=>(DB.sanciones||[]).filter(s=>s.emp===emp).sort((a,b)=>a.fecha<b.fecha?1:-1);
+function semestre(f){const y=f.slice(0,4),m=+f.slice(5,7);return m<=6?{ini:y+"-01-01",fin:y+"-06-30",nom:"junio "+y,meses:[1,2,3,4,5,6].map(x=>y+"-"+String(x).padStart(2,"0"))}:{ini:y+"-07-01",fin:y+"-12-31",nom:"diciembre "+y,meses:[7,8,9,10,11,12].map(x=>y+"-"+String(x).padStart(2,"0"))}}
+function totalMes(emp,ym){const ov=(DB.totMes||{})[emp+"|"+ym];if(ov!=null)return ov;
+  const fin=finMes(ym);if(regimen(emp,fin)==="mensual"){const L=liqMes(emp,ym);return L.neto==null?null:L.sueldo}
+  let s=0,hay=false;for(let f=ym+"-01";f<=fin;f=addD(f,1)){const r=dia(emp,f);if(r.h){hay=true;s+=hsPagas(emp,f,r.h)*tarifa(emp,f).hora}
+    if(D(f).getDay()===1){const L=liqSemana(emp,f);if(L.hp>0)s+=L.tr}}
+  return hay?s:null}
+function sac(emp,f){const s=semestre(f),e=E(emp);
+  const ms=s.meses.map(m=>({mes:m,tot:totalMes(emp,m)})).filter(x=>x.tot);if(!ms.length)return null;
+  const mejor=ms.reduce((a,x)=>x.tot>a.tot?x:a);const ini=e.inicio||e.ingreso;const desde=ini&&ini>s.ini?ini:s.ini;
+  const dias=(D(s.fin)-D(desde))/864e5+1,tot=(D(s.fin)-D(s.ini))/864e5+1,prop=Math.max(0,Math.min(1,dias/tot));
+  return{sem:s,mejor:{mes:mejor.mes,bruto:mejor.tot},prop,monto:mejor.tot/2*prop}}
+function vacDe(emp){const a=DB.vacaciones.asign.filter(x=>x.emp===emp),tk=DB.vacaciones.tomadas.filter(x=>x.emp===emp);
+  const anios=[...new Set([...a.map(x=>x.anio),...tk.map(x=>x.anio)])].sort();
+  return anios.map(y=>{const c=a.filter(x=>x.anio===y).reduce((s,x)=>s+x.dias,0),u=tk.filter(x=>x.anio===y);return{anio:y,corr:c,usados:u.reduce((s,x)=>s+x.dias,0),lista:u}})}
+function importarHist(file){if(!file)return;file.text().then(txt=>{const H=JSON.parse(txt);asegurar();let n=0;
+  for(const s of H.sanciones||[])if(!DB.sanciones.some(x=>x.emp===s.emp&&x.fecha===s.fecha&&x.tipo===s.tipo)){DB.sanciones.push({id:uid("s"),...s});n++}
+  for(const a of (H.vacaciones||{}).asign||[])if(!DB.vacaciones.asign.some(x=>x.emp===a.emp&&x.anio===a.anio)){DB.vacaciones.asign.push(a);n++}
+  for(const v of (H.vacaciones||{}).tomadas||[])if(!DB.vacaciones.tomadas.some(x=>x.emp===v.emp&&x.desde===v.desde&&x.dias===v.dias)){DB.vacaciones.tomadas.push({id:uid("v"),...v});n++}
+  for(const r of H.recibos||[]){const ex=DB.recibos.find(x=>x.emp===r.emp&&x.mes===r.mes);if(ex){Object.assign(ex,r)}else DB.recibos.push(r);n++}
+  for(const e of H.empleados||[]){const ex=E(e.id);if(ex){Object.assign(ex,e);n++}}
+  if(H.totMes){DB.totMes=Object.assign(DB.totMes||{},H.totMes);n+=Object.keys(H.totMes).length}
+  save("importación de históricos");render();toast(n+" datos históricos cargados")}).catch(e=>toast("No pude leer el archivo: "+e.message))}
+
 /* ---------- navegación ---------- */
 const TABS=[["inicio","🏠","Inicio"],["empleado","👤","Empleado"],["cargar","➕","Cargar"],["cierre","📋","Cierre"],["datos","⚙️","Datos"]];
 function renderNav(){$("#nav").innerHTML=TABS.map(([k,i,t])=>`<button class="${st.tab===k?"on":""}" onclick="go('${k}')"><span class="ic">${i}</span>${t}</button>`).join("")}
 function go(t,emp){st.tab=t;if(emp){st.emp=emp;st.per=null}render();window.scrollTo(0,0)}
-function render(){renderNav();setEstado(estado||"guardado ✓");
+function render(){if(DB)asegurar();renderNav();setEstado(estado||"guardado ✓");
   ({inicio:vInicio,empleado:vEmp,cargar:vCargar,cierre:vCierre,datos:vDatos})[st.tab]()}
 
 /* ---------- INICIO ---------- */
@@ -183,6 +209,7 @@ function vInicio(){
     else{const l=liqSemana(id,lunes(HOY));ext=`<div class="row"><span>Esta semana</span><span class="num">${fh(l.hp)} hs · ${fmt(l.bruto)}</span></div>`}
     tot+=cc;totAd+=ad;
     const tags=[`<span class="tag">${reg==="mensual"?"Cobra por mes":"Cobra por semana"}</span>`];
+    const sc=sancDe(id).filter(s=>s.fecha>=addD(HOY,-365));if(sc.length)tags.push(`<span class="tag bad">${sc.length} sanción${sc.length>1?"es":""}</span>`);
     if(n.tarde)tags.push(`<span class="tag warn">${n.tarde} tarde</span>`);if(n.falta)tags.push(`<span class="tag bad">${n.falta} falta${n.falta>1?"s":""}</span>`);
     return `<div class="card emp" onclick="go('empleado','${id}')"><div class="row" style="border:0;padding-top:0"><span class="nm">${id}</span><span>${tags.join(" ")}</span></div>
       <div class="row"><span>Cuenta corriente</span><span class="num ${cc>0.5?"neg":""}"><b>${fmt(cc)}</b></span></div>${ext}
@@ -191,7 +218,11 @@ function vInicio(){
     <div class="row"><span>Cuentas corrientes (lo que deben)</span><span class="num neg"><b>${fmt(tot)}</b></span></div>
     <div class="row"><span>Adelantos del mes en curso</span><span class="num">${fmt(totAd)}</span></div>
     <div class="row tot"><span>Total a descontar más adelante</span><span class="num">${fmt(tot+totAd)}</span></div></div>
-    <div class="grid">${cards}</div>`}
+    ${cardSac()}<div class="grid">${cards}</div>`}
+function cardSac(){const rows=EMPS().map(id=>({id,s:sac(id,HOY)})).filter(x=>x.s);if(!rows.length)return"";
+  const tot=rows.reduce((a,x)=>a+x.s.monto,0),sem=rows[0].s.sem;
+  return `<div class="card"><h2>Aguinaldo de ${sem.nom}: a reservar</h2>${rows.map(x=>R(`${x.id} <span class="muted">mejor mes ${mesTxt(x.s.mejor.mes)}${x.s.prop<0.999?" · proporcional "+Math.round(x.s.prop*100)+"%":""}</span>`,fmt(x.s.monto))).join("")}
+  ${R("Total estimado (bruto)",fmt(tot),"tot")}<div class="muted" style="margin-top:6px">Medio aguinaldo = mitad del mejor mes del semestre, sumando todo lo que cobró (recibo + por fuera + traslado). Se actualiza solo a medida que se cargan los meses. Proporcional si empezó a trabajar dentro del semestre. No incluye cargas sociales.</div></div>`}
 
 /* ---------- EMPLEADO ---------- */
 function perDefault(id){if(regimen(id,HOY)==="mensual")return{t:"m",v:HOY.slice(0,7)};
@@ -211,7 +242,32 @@ function vEmp(){
   h+=liqCard(id,L,isM,regPer);
   h+=diasCard(id,L,isM);
   h+=ccCard(id,isM?p.v+"-01":p.v,isM?finMes(p.v):addD(p.v,6));
+  h+=vacCard(id)+sancCard(id);
   $("#main").innerHTML=h}
+const TSANC=["Advertencia verbal","Apercibimiento escrito","Suspensión","Otro"];
+function sancCard(id){const L=sancDe(id);
+  let h=`<div class="card"><h2>Historial disciplinario</h2>`;
+  if(!L.length)h+=`<div class="muted">Sin sanciones cargadas.</div>`;
+  L.forEach(s=>h+=`<div class="row" style="align-items:flex-start"><span><b>${dmy(s.fecha)} · ${s.tipo}${s.dias?" ("+s.dias+" días)":""}</b><br><span class="muted">${s.detalle||""}</span></span><button class="del" onclick="borrarSanc('${s.id}')">✕</button></div>`);
+  h+=`<div class="f" style="margin-top:10px"><div class="two"><div><label>Fecha</label><input id="sf" type="date" value="${HOY}"></div><div><label>Tipo</label><select id="st">${TSANC.map(x=>`<option>${x}</option>`).join("")}</select></div></div>
+  <div class="two"><div><label>Días (si es suspensión)</label><input id="sd" type="number" min="0"></div><div><label>Motivo</label><input id="sm" placeholder="Ej: llegó 45 min tarde abriendo SM"></div></div>
+  <button class="btn sec full" style="margin-top:10px" onclick="nuevaSanc('${id}')">Agregar al historial</button></div></div>`;return h}
+function nuevaSanc(id){DB.sanciones.push({id:uid("s"),emp:id,fecha:$("#sf").value,tipo:$("#st").value,dias:$("#sd").value?+$("#sd").value:null,detalle:$("#sm").value});save("sanción "+id);render();toast("Agregado al historial")}
+function borrarSanc(sid){if(!confirm("¿Borrar esta sanción del historial?"))return;DB.sanciones=DB.sanciones.filter(s=>s.id!==sid);save();render()}
+function vacCard(id){const V=vacDe(id);
+  let h=`<div class="card"><h2>Vacaciones</h2>`;
+  if(!V.length)h+=`<div class="muted">Sin vacaciones cargadas.</div>`;
+  V.forEach(v=>{h+=R(`<b>Año ${v.anio}</b>`,`${v.corr} corresponden · ${v.usados} tomados · <b class="${v.corr-v.usados>0?"neg":""}">${v.corr-v.usados} pendientes</b>`);
+    v.lista.forEach(x=>h+=R(`<span class="muted">${x.desde?dmy(x.desde)+(x.hasta?" al "+dmy(x.hasta):""):x.nota||""}</span>`,`${x.dias} días <button class="del" onclick="borrarVac('${x.id}')">✕</button>`))});
+  h+=`<div class="f" style="margin-top:10px"><div class="two"><div><label>Año de las vacaciones</label><input id="va" type="number" value="${+HOY.slice(0,4)-(+HOY.slice(5,7)<10?1:0)}"></div><div><label>Días que corresponden</label><input id="vc" type="number" placeholder="14 hasta 5 años"></div></div>
+  <button class="btn ghost full" style="margin-top:8px" onclick="asignVac('${id}')">Guardar días que corresponden</button>
+  <div class="two"><div><label>Desde</label><input id="vd" type="date"></div><div><label>Hasta</label><input id="vh" type="date"></div></div>
+  <button class="btn sec full" style="margin-top:10px" onclick="tomarVac('${id}')">Registrar vacaciones tomadas</button></div>
+  <div class="muted" style="margin-top:6px">Por ley: 14 días corridos hasta 5 años de antigüedad, 21 de 5 a 10, 28 de 10 a 20 y 35 con más de 20.</div></div>`;return h}
+function asignVac(id){const a=+$("#va").value,d=+$("#vc").value;if(!a||!d)return toast("Falta el año o los días");DB.vacaciones.asign=DB.vacaciones.asign.filter(x=>!(x.emp===id&&x.anio===a));DB.vacaciones.asign.push({emp:id,anio:a,dias:d});save("vacaciones "+id);render()}
+function tomarVac(id){const a=+$("#va").value,d=$("#vd").value,h2=$("#vh").value;if(!a||!d||!h2)return toast("Faltan las fechas");const dias=(D(h2)-D(d))/864e5+1;
+  DB.vacaciones.tomadas.push({id:uid("v"),emp:id,anio:a,desde:d,hasta:h2,dias});save("vacaciones "+id);render();toast(dias+" días registrados")}
+function borrarVac(vid){if(!confirm("¿Borrar este registro de vacaciones?"))return;DB.vacaciones.tomadas=DB.vacaciones.tomadas.filter(x=>x.id!==vid);save();render()}
 function setPerT(t){const p=st.per;if(t==="m")st.per={t:"m",v:(p.t==="m"?p.v:addD(p.v,3).slice(0,7))};else st.per={t:"s",v:p.t==="s"?p.v:lunes(p.v+"-01")};render()}
 function movPer(n){const p=st.per;st.per=p.t==="m"?{t:"m",v:sumMes(p.v,n)}:{t:"s",v:addD(p.v,7*n)};render()}
 const R=(a,b,c="")=>`<div class="row ${c}"><span>${a}</span><span class="num">${b}</span></div>`;
@@ -404,10 +460,10 @@ function vDatos(){
   h+=`</table></div><div class="f" style="margin-top:10px"><div class="two"><div><label>Empleado</label><select id="te">${empOpts()}</select></div><div><label>Desde</label><input id="td" type="date" value="${HOY}"></div></div>
   <div class="two"><div><label>Valor hora</label><input id="th" type="number"></div><div><label>Traslado (semanal o mensual según cobre)</label><input id="tt" type="number"></div></div>
   <label>Plus mensual</label><input id="tp" type="number"><button class="btn sec full" style="margin-top:10px" onclick="nuevaTarifa()">Agregar valores</button></div></div>`;
-  h+=`<div class="card"><h2>Recibos de sueldo (neto)</h2>`;
-  [...DB.recibos].sort((a,b)=>a.mes<b.mes?1:-1).forEach(r=>h+=R(`${r.emp} · ${mesTxt(r.mes)}`,fmt(r.neto)));
+  h+=`<div class="card"><h2>Recibos de sueldo</h2><div class="muted">Neto = lo que cobra. Bruto = total de haberes remunerativos del recibo (se usa para el aguinaldo).</div>`;
+  [...DB.recibos].sort((a,b)=>a.mes<b.mes?1:-1).forEach(r=>h+=R(`${r.emp} · ${mesTxt(r.mes)}`,`neto ${fmt(r.neto)}${r.bruto?` · bruto ${fmt(r.bruto)}`:""}`));
   h+=`<div class="f"><div class="two"><div><label>Empleado</label><select id="re">${empOpts("Pol")}</select></div><div><label>Mes</label><input id="rm" type="month" value="${HOY.slice(0,7)}"></div></div>
-  <label>Neto del recibo</label><input id="rn" type="number"><button class="btn sec full" style="margin-top:10px" onclick="nuevoRecibo()">Guardar recibo</button></div></div>`;
+  <div class="two"><div><label>Neto del recibo</label><input id="rn" type="number"></div><div><label>Bruto remunerativo</label><input id="rb" type="number"></div></div><button class="btn sec full" style="margin-top:10px" onclick="nuevoRecibo()">Guardar recibo</button></div></div>`;
   h+=`<div class="card"><h2>Feriados</h2>${DB.feriados.map(f=>R(dmy(f),`<button class="del" onclick="DB.feriados=DB.feriados.filter(x=>x!=='${f}');save();render()">✕</button>`)).join("")}
   <div class="f two" style="margin-top:8px"><input id="fd" type="date"><button class="btn sec" onclick="const v=$('#fd').value;if(v&&!DB.feriados.includes(v)){DB.feriados.push(v);DB.feriados.sort();save();render()}">Agregar feriado</button></div>
   <div class="muted" style="margin-top:8px">Feriado trabajado: Lorena y Ramiro cobran doble. Franco y Pol: las primeras 4 hs simples (las liquida el contador) y lo que pasa de 4 hs doble.</div></div>`;
@@ -416,13 +472,13 @@ function vDatos(){
   h+=`</table></div></div>`;
   h+=`<div class="card"><h2>Sincronización y respaldo</h2>
   ${R("Usuario de este celular",CFG.quien||"—")}${R("Datos guardados en",`${CFG.owner}/${CFG.repo}/${CFG.path}`)}${R("Estado",estado)}
-  <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px"><button class="btn sec" onclick="recargar()">Traer últimos datos</button><button class="btn sec" onclick="exportar()">Descargar respaldo</button><button class="btn ghost" onclick="desconectar()">Desconectar este celular</button></div>
+  <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px"><button class="btn sec" onclick="recargar()">Traer últimos datos</button><button class="btn sec" onclick="exportar()">Descargar respaldo</button><label class="btn sec" style="margin:0;color:var(--pri)">Importar históricos<input type="file" accept=".json" style="display:none" onchange="importarHist(this.files[0])"></label><button class="btn ghost" onclick="desconectar()">Desconectar este celular</button></div>
   <div class="muted" style="margin-top:8px">Cada cambio queda guardado en GitHub con el nombre de quien lo hizo. Si vos y el encargado cargan a la vez, la app avisa y trae lo último.</div></div>`;
   $("#main").innerHTML=h}
 function nuevaTarifa(){const emp=$("#te").value,reg=regimen(emp,$("#td").value),tr=vNum("#tt");
   DB.tarifas.push({emp,desde:$("#td").value,hora:vNum("#th"),trasSem:reg==="semanal"?tr:0,trasMes:reg==="mensual"?tr:0,plus:vNum("#tp")});save();render();toast("Valores agregados")}
 function nuevoRecibo(){const emp=$("#re").value,mes=$("#rm").value,n=vNum("#rn");if(!n)return toast("Falta el neto");
-  DB.recibos=DB.recibos.filter(r=>!(r.emp===emp&&r.mes===mes));DB.recibos.push({emp,mes,neto:n});save();render();toast("Recibo guardado")}
+  DB.recibos=DB.recibos.filter(r=>!(r.emp===emp&&r.mes===mes));DB.recibos.push({emp,mes,neto:n,bruto:vNum("#rb")||null});save();render();toast("Recibo guardado")}
 function exportar(){const b=new Blob([JSON.stringify(DB)],{type:"application/json"});const a=document.createElement("a");a.href=URL.createObjectURL(b);a.download="empleados-respaldo.json";a.click()}
 
 /* ---------- acceso ---------- */
@@ -449,7 +505,7 @@ function pantallaInicial(){
   <button class="btn ghost full" style="margin-top:8px" onclick="crearInicial(false)">Empezar vacío</button>`}
 async function crearInicial(conArchivo){
   try{if(conArchivo){const f=$("#ini").files[0];if(!f)return toast("Elegí el archivo");DB=JSON.parse(await f.text())}
-    else DB={empleados:[],tarifas:[],recibos:[],feriados:[],horas:{},horasMes:{},movs:[],pagos:[]};
+    else DB={empleados:[],tarifas:[],recibos:[],feriados:[],horas:{},horasMes:{},movs:[],pagos:[],sanciones:[],vacaciones:{asign:[],tomadas:[]}};
     SHA=null;await subir("datos iniciales");estado="guardado ✓";$("#pin").style.display="none";render();toast("Datos creados en GitHub")}
   catch(e){toast("No se pudo crear: "+e.message)}}
 function pantallaConfig(){
