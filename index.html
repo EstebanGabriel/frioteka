@@ -1216,7 +1216,7 @@ function pdfNota(items, ctx){
         d.text(it.nombre, cDes + 6, ry + 14, 10, "F1", "#000000", "l", W * 0.43 - 8);
         d.text(String(it.cantidad), cCan, ry + 14, 10, "F1", "#000000", "c");
         d.text(fmt(it.precioUnit), cPu, ry + 14, 10, "F1", "#000000", "r");
-        d.text(fmt(it.precioUnit * it.cantidad), cSub, ry + 14, 10, "F2", "#000000", "r");
+        d.text(fmt(it.precioUnit * (it.cantNum||it.cantidad)), cSub, ry + 14, 10, "F2", "#000000", "r");
         d.line(X, ry + RH, X + W, ry + RH, "#eeeeee", 1);
         ry += RH;
       });
@@ -2216,7 +2216,7 @@ document.addEventListener("DOMContentLoaded", function(){
     var r=nvCalcT(),t=r.t,n=r.n,tMin=r.tMin,f=nvCalcFinal(t,n,tMin);
     if(n===0){toast("No hay productos");return;}
     var items=[],subtotal=t,bultos=0,kg=0;
-    for(var i=0;i<P.length;i++){var p=P[i],e=nvPed[String(p.codigo)];if(!e||!e.cant) continue;var pr=precio(p,e.modo);var subF=pr;if(esCaja(e.modo)){if(nvDescEsp>0&&nvDescEsp!==10&&!nvVip) subF*=(1-nvDescEsp/100);}else{if(f.d10) subF*=0.9;if(nvDescEsp>0) subF*=(1-nvDescEsp/100);}bultos+=e.cant;items.push({codigo:String(p.codigo),nombre:p.nombre,peso:"",cantidad:e.cant,precioUnit:subF,kg:0});}
+    for(var i=0;i<P.length;i++){var p=P[i],e=nvPed[String(p.codigo)];if(!e||!e.cant) continue;var pr=precio(p,e.modo);var subF=pr;if(esCaja(e.modo)){if(nvDescEsp>0&&nvDescEsp!==10&&!nvVip) subF*=(1-nvDescEsp/100);}else{if(f.d10) subF*=0.9;if(nvDescEsp>0) subF*=(1-nvDescEsp/100);}bultos+=e.cant;var cantLabel=esCaja(e.modo)?e.cant+" caja"+(e.cant>1?"s":"")+" ("+p.unidadesCaja+"u)":e.cant;items.push({codigo:String(p.codigo),nombre:p.nombre,peso:"",cantidad:cantLabel,cantNum:e.cant,precioUnit:subF,kg:0});}
     for(var lk in nvPedLac){var le=nvPedLac[lk];if(!le||!le.cant) continue;var idx=parseInt(lk.replace("lac-",""));var lp=LAC[idx];var subF2=lp.precioMay;if(nvDescEsp>0) subF2*=(1-nvDescEsp/100);bultos+=le.cant;items.push({codigo:"LAC",nombre:lp.nombre,peso:"Lacteos",cantidad:le.cant,precioUnit:subF2,kg:0});}
     var descLinea="";
     if(f.d10&&nvDescEsp>0) descLinea="10% off + "+nvDescEsp+"% especial";
