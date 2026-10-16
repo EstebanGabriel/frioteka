@@ -959,25 +959,35 @@ function render(f){
     else if(vip){var s1=document.createElement("span");s1.className="pmay";s1.textContent="May: "+fmt(p.precioMayorista);prs.appendChild(s1);var s2=document.createElement("span");s2.className="pcaj";s2.textContent="Caja: "+fmt(p.precioMayorista*p.unidadesCaja);prs.appendChild(s2);}
     else{var s1=document.createElement("span");s1.className="pmin";s1.textContent="Min: "+fmt(p.precioMinorista);prs.appendChild(s1);var s2=document.createElement("span");s2.className="pcaj";s2.textContent="Caja: "+fmt(p.precioMayorista*p.unidadesCaja);prs.appendChild(s2);}
     inf.appendChild(nom);inf.appendChild(det);inf.appendChild(prs);
+    var esKilo=(p.unidad==="K");
     var tgl=document.createElement("div");tgl.className="tgl";
     var tb1=document.createElement("button");tb1.className="tb"+(modo===m1?" on":"");tb1.id="t1-"+k;tb1.textContent=m1l;
-    var tb2=document.createElement("button");tb2.className="tb"+(modo==="caja"?" on":"");tb2.id="t2-"+k;tb2.textContent="Caja";
+    if(!esKilo){var tb2=document.createElement("button");tb2.className="tb"+(modo==="caja"?" on":"");tb2.id="t2-"+k;tb2.textContent="Caja";
     (function(key,mm1){tb1.onclick=function(){setModo(key,mm1);};tb2.onclick=function(){setModo(key,"caja");};})(k,m1);
-    tgl.appendChild(tb1);tgl.appendChild(tb2);
+    tgl.appendChild(tb1);tgl.appendChild(tb2);}
+    else{(function(key,mm1){tb1.onclick=function(){setModo(key,mm1);};})(k,m1);tgl.appendChild(tb1);}
     r1.appendChild(inf);r1.appendChild(tgl);
     var r2=document.createElement("div");r2.className="r2";
     var lbl=document.createElement("div");lbl.className="mlbl";lbl.id="lbl-"+k;
     if(p.consultar) lbl.innerHTML="<b>Precio a consultar</b>";
+    else if(esKilo) lbl.innerHTML=(vip?"Mayorista":"Minorista")+": <b>"+fmt(vip?p.precioMayorista:p.precioMinorista)+" / kg</b>";
     else if(modo==="caja") lbl.innerHTML="Caja: <b>"+p.unidadesCaja+" u · "+fmt(p.precioMayorista*p.unidadesCaja)+"</b>";
     else if(modo==="mayorista") lbl.innerHTML="Mayorista: <b>"+fmt(p.precioMayorista)+" c/u</b>";
     else lbl.innerHTML="Minorista: <b>"+fmt(p.precioMinorista)+" c/u</b>";
     var ctr=document.createElement("div");ctr.className="ctr";
-    var bm=document.createElement("button");bm.className="cb";bm.innerHTML="&#8722;";
-    var cs=document.createElement("span");cs.className="cn";cs.id="cn-"+k;cs.textContent=cant;
-    var bp=document.createElement("button");bp.className="cb";bp.textContent="+";
-    if(p.consultar){bm.disabled=true;bp.disabled=true;bm.style.opacity="0.3";bp.style.opacity="0.3";}
-    else{(function(key){bm.onclick=function(){cambiar(key,-1);};bp.onclick=function(){cambiar(key,1);};})(k);}
-    ctr.appendChild(bm);ctr.appendChild(cs);ctr.appendChild(bp);
+    if(esKilo){
+      var ki=document.createElement("input");ki.type="number";ki.min="0";ki.step="0.1";ki.className="cn-kilo";ki.id="cn-"+k;ki.value=cant||"";ki.placeholder="kg";
+      ki.style.cssText="width:64px;font-size:15px;font-weight:700;text-align:center;border:2px solid #ccc;border-radius:8px;padding:4px 2px;";
+      (function(key){ki.oninput=function(){var v=parseFloat(this.value)||0;if(!ped[key]) ped[key]={cant:0,modo:dm()};ped[key].cant=Math.max(0,v);var row=$("prd-"+key);if(row) row.className="prd"+(ped[key].cant>0?" act":"");updT();};})(k);
+      ctr.appendChild(ki);
+    } else {
+      var bm=document.createElement("button");bm.className="cb";bm.innerHTML="&#8722;";
+      var cs=document.createElement("span");cs.className="cn";cs.id="cn-"+k;cs.textContent=cant;
+      var bp=document.createElement("button");bp.className="cb";bp.textContent="+";
+      if(p.consultar){bm.disabled=true;bp.disabled=true;bm.style.opacity="0.3";bp.style.opacity="0.3";}
+      else{(function(key){bm.onclick=function(){cambiar(key,-1);};bp.onclick=function(){cambiar(key,1);};})(k);}
+      ctr.appendChild(bm);ctr.appendChild(cs);ctr.appendChild(bp);
+    }
     r2.appendChild(lbl);r2.appendChild(ctr);
     div.appendChild(r1);div.appendChild(r2);lista.appendChild(div);
   }
@@ -1030,7 +1040,7 @@ function buildMsg(t,n,tMin,f){
   var cl=$("cliente").value.trim()||"Sin nombre";
   var dir2=$("direccion").value.trim();
   var m="\u{1F9CA} *PEDIDO FRIOTEKA*\n"+nvFmt(nv)+"\n\uD83D\uDCCB "+cl+(vip?" \u2B50VIP":"")+(dir2?"\n\uD83D\uDCCD "+dir2:"")+"\n\uD83D\uDCB3 "+fpago+"\n\n";
-  for(var i=0;i<P.length;i++){var p=P[i],e=ped[String(p.codigo)];if(!e||!e.cant) continue;var pr=precio(p,e.modo);var tg=e.modo==="caja"?" (x"+p.unidadesCaja+"u)":e.modo==="mayorista"?" (VIP)":"";m+="• ["+p.codigo+"] "+p.nombre+tg+" x"+e.cant+" = "+fmt(pr*e.cant)+"\n";}
+  for(var i=0;i<P.length;i++){var p=P[i],e=ped[String(p.codigo)];if(!e||!e.cant) continue;var pr=precio(p,e.modo);var tg=e.modo==="caja"?" (x"+p.unidadesCaja+"u)":e.modo==="mayorista"?" (VIP)":"";var cantStr=p.unidad==="K"?e.cant+"kg":"x"+e.cant;m+="• ["+p.codigo+"] "+p.nombre+tg+" "+cantStr+" = "+fmt(pr*e.cant)+"\n";}
   for(var lk in pedLac){var le=pedLac[lk];if(!le||!le.cant) continue;var idx=parseInt(lk.replace("lac-",""));var lp=LAC[idx];m+="• "+lp.nombre+" x"+le.cant+" = "+fmt(lp.precioMay*le.cant)+"\n";}
   m+="\n\uD83D\uDCB0 Subtotal: "+fmt(t);
   if(f.d10) m+="\n10% off: -"+fmt(tMin*0.1);
@@ -1052,7 +1062,8 @@ function abrirRes(){
     var dv=document.createElement("div");dv.className="item";
     var dl=(f.d10&&!esCaj)||descEsp>0?"<div class='idesc'>Con desc: "+fmt(subF)+"</div>":"";
     var nd="";
-    dv.innerHTML='<div class="iizq"><div class="inom">'+p.nombre+' <span class="itag '+tc+'">'+tl+'</span></div><div class="icod">Cód: '+p.codigo+'</div></div><div class="ider"><div class="ipr">'+fmt(sub)+'</div><div class="iqt">x'+e.cant+' · '+fmt(pr)+' c/u</div>'+dl+nd+'</div>';
+    var cantLbl=p.unidad==="K"?e.cant+"kg":"x"+e.cant;
+    dv.innerHTML='<div class="iizq"><div class="inom">'+p.nombre+' <span class="itag '+tc+'">'+tl+'</span></div><div class="icod">Cód: '+p.codigo+'</div></div><div class="ider"><div class="ipr">'+fmt(sub)+'</div><div class="iqt">'+cantLbl+' · '+fmt(pr)+(p.unidad==="K"?" /kg":" c/u")+'</div>'+dl+nd+'</div>';
     ri.appendChild(dv);
   }
   for(var lk in pedLac){var le=pedLac[lk];if(!le||!le.cant) continue; hay=true;
@@ -1811,25 +1822,35 @@ function nvRender(f){
     else if(nvVip){var s1=document.createElement("span");s1.className="pmay";s1.textContent="May: "+fmt(p.precioMayorista);prs.appendChild(s1);var s2=document.createElement("span");s2.className="pcaj";s2.textContent="Caja: "+fmt(p.precioMayorista*p.unidadesCaja);prs.appendChild(s2);}
     else{var s1=document.createElement("span");s1.className="pmin";s1.textContent="Min: "+fmt(p.precioMinorista);prs.appendChild(s1);var s2=document.createElement("span");s2.className="pcaj";s2.textContent="Caja: "+fmt(p.precioMayorista*p.unidadesCaja);prs.appendChild(s2);}
     inf.appendChild(nom);inf.appendChild(det);inf.appendChild(prs);
+    var esKilo=(p.unidad==="K");
     var tgl=document.createElement("div");tgl.className="tgl";
     var tb1=document.createElement("button");tb1.className="tb"+(modo===m1?" on":"");tb1.id="nv-t1-"+k;tb1.textContent=m1l;
-    var tb2=document.createElement("button");tb2.className="tb"+(modo==="caja"?" on":"");tb2.id="nv-t2-"+k;tb2.textContent="Caja";
+    if(!esKilo){var tb2=document.createElement("button");tb2.className="tb"+(modo==="caja"?" on":"");tb2.id="nv-t2-"+k;tb2.textContent="Caja";
     (function(key,mm1){tb1.onclick=function(){nvSetModo(key,mm1);};tb2.onclick=function(){nvSetModo(key,"caja");};})(k,m1);
-    tgl.appendChild(tb1);tgl.appendChild(tb2);
+    tgl.appendChild(tb1);tgl.appendChild(tb2);}
+    else{(function(key,mm1){tb1.onclick=function(){nvSetModo(key,mm1);};})(k,m1);tgl.appendChild(tb1);}
     r1.appendChild(inf);r1.appendChild(tgl);
     var r2=document.createElement("div");r2.className="r2";
     var lbl=document.createElement("div");lbl.className="mlbl";lbl.id="nv-lbl-"+k;
     if(p.consultar) lbl.innerHTML="<b>Precio a consultar</b>";
+    else if(esKilo) lbl.innerHTML=(nvVip?"Mayorista":"Minorista")+": <b>"+fmt(nvVip?p.precioMayorista:p.precioMinorista)+" / kg</b>";
     else if(modo==="caja") lbl.innerHTML="Caja: <b>"+p.unidadesCaja+" u · "+fmt(p.precioMayorista*p.unidadesCaja)+"</b>";
     else if(modo==="mayorista") lbl.innerHTML="Mayorista: <b>"+fmt(p.precioMayorista)+" c/u</b>";
     else lbl.innerHTML="Minorista: <b>"+fmt(p.precioMinorista)+" c/u</b>";
     var ctr=document.createElement("div");ctr.className="ctr";
-    var bm=document.createElement("button");bm.className="cb";bm.innerHTML="&#8722;";
-    var cs=document.createElement("span");cs.className="cn";cs.id="nv-cn-"+k;cs.textContent=cant;
-    var bp=document.createElement("button");bp.className="cb";bp.textContent="+";
-    if(p.consultar){bm.disabled=true;bp.disabled=true;bm.style.opacity="0.3";bp.style.opacity="0.3";}
-    else{(function(key){bm.onclick=function(){nvCambiar(key,-1);};bp.onclick=function(){nvCambiar(key,1);};})(k);}
-    ctr.appendChild(bm);ctr.appendChild(cs);ctr.appendChild(bp);
+    if(esKilo){
+      var ki=document.createElement("input");ki.type="number";ki.min="0";ki.step="0.1";ki.className="cn-kilo";ki.id="nv-cn-"+k;ki.value=cant||"";ki.placeholder="kg";
+      ki.style.cssText="width:64px;font-size:15px;font-weight:700;text-align:center;border:2px solid #ccc;border-radius:8px;padding:4px 2px;";
+      (function(key){ki.oninput=function(){var v=parseFloat(this.value)||0;if(!nvPed[key]) nvPed[key]={cant:0,modo:nvDm()};nvPed[key].cant=Math.max(0,v);var row=$("nv-prd-"+key);if(row) row.className="prd"+(nvPed[key].cant>0?" act":"");nvUpdT();};})(k);
+      ctr.appendChild(ki);
+    } else {
+      var bm=document.createElement("button");bm.className="cb";bm.innerHTML="&#8722;";
+      var cs=document.createElement("span");cs.className="cn";cs.id="nv-cn-"+k;cs.textContent=cant;
+      var bp=document.createElement("button");bp.className="cb";bp.textContent="+";
+      if(p.consultar){bm.disabled=true;bp.disabled=true;bm.style.opacity="0.3";bp.style.opacity="0.3";}
+      else{(function(key){bm.onclick=function(){nvCambiar(key,-1);};bp.onclick=function(){nvCambiar(key,1);};})(k);}
+      ctr.appendChild(bm);ctr.appendChild(cs);ctr.appendChild(bp);
+    }
     r2.appendChild(lbl);r2.appendChild(ctr);
     div.appendChild(r1);div.appendChild(r2);lista.appendChild(div);
   }
@@ -1993,7 +2014,8 @@ function nvAbrirResumen(){
     var dv=document.createElement("div");dv.className="item";
     var dl=(f.d10&&!esCaj)||nvDescEsp>0?"<div class='idesc'>Con desc: "+fmt(subF)+"</div>":"";
     var nd="";
-    dv.innerHTML='<div class="iizq"><div class="inom">'+p.nombre+' <span class="itag '+tc+'">'+tl+'</span></div><div class="icod">Cód: '+p.codigo+'</div></div><div class="ider"><div class="ipr">'+fmt(sub)+'</div><div class="iqt">x'+e.cant+' · '+fmt(pr)+' c/u</div>'+dl+nd+'</div>';
+    var cantLbl=p.unidad==="K"?e.cant+"kg":"x"+e.cant;
+    dv.innerHTML='<div class="iizq"><div class="inom">'+p.nombre+' <span class="itag '+tc+'">'+tl+'</span></div><div class="icod">Cód: '+p.codigo+'</div></div><div class="ider"><div class="ipr">'+fmt(sub)+'</div><div class="iqt">'+cantLbl+' · '+fmt(pr)+(p.unidad==="K"?" /kg":" c/u")+'</div>'+dl+nd+'</div>';
     ri.appendChild(dv);
   }
   for(var lk in nvPedLac){var le=nvPedLac[lk];if(!le||!le.cant) continue; hay=true;
