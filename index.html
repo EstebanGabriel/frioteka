@@ -2106,6 +2106,7 @@ $("bvip").onclick=function(){vip=!vip;this.className="vipbtn"+(vip?" on":"");$("
 };
 $("fab").onclick=function(){abrirRes();irA("p2");};
 $("bvolver").onclick=function(){irA("p1");};
+function volverGestion(){nvNuevoPedido();irA("p3");renderGestion();}
 $("sbuscar").oninput=function(){render(this.value);};
 $("cliente").oninput=function(){buscarCli(this.value);updWA();};
 $("direccion").oninput=function(){updWA();};
