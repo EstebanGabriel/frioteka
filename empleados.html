@@ -226,15 +226,15 @@ function cardSac(){const rows=EMPS().map(id=>({id,s:sac(id,HOY)})).filter(x=>x.s
 
 /* ---------- EMPLEADO ---------- */
 function perDefault(id){if(regimen(id,HOY)==="mensual")return{t:"m",v:HOY.slice(0,7)};
-  const fs=Object.keys(DB.horas).filter(k=>k.startsWith(id+"|")).map(k=>k.split("|")[1]).sort();
-  return{t:"s",v:lunes(fs.length?fs[fs.length-1]:HOY)}}
+  return{t:"s",v:lunes(HOY)}}
 function vEmp(){
   const id=st.emp;if(!st.per)st.per=perDefault(id);
   const chips=EMPS().map(e=>`<span class="chip ${e===id?"on":""}" onclick="go('empleado','${e}')">${e}</span>`).join("");
   const p=st.per,isM=p.t==="m";
   const lbl=isM?mesTxt(p.v):"Semana "+dm(p.v)+" al "+dm(addD(p.v,6));
   const segs=`<div class="seg"><button class="${!isM?"on":""}" onclick="setPerT('s')">Por semana</button><button class="${isM?"on":""}" onclick="setPerT('m')">Por mes</button></div>`;
-  let h=`<div class="chips">${chips}</div>${segs}<div class="per"><button class="btn sec sm" onclick="movPer(-1)">◀</button><b>${lbl}</b><button class="btn sec sm" onclick="movPer(1)">▶</button></div>`;
+  let h=`<div class="chips">${chips}</div>${segs}<div class="per"><button class="btn sec sm" onclick="movPer(-1)">◀</button><b>${lbl}</b><button class="btn sec sm" onclick="movPer(1)">▶</button></div>
+  <div class="per" style="margin-top:-4px"><label class="muted" style="margin:0">Ir a:</label>${isM?`<input type="month" value="${p.v}" onchange="irPer(this.value)" style="width:auto">`:`<input type="date" value="${p.v}" onchange="irPer(this.value)" style="width:auto">`}<button class="btn ghost sm" onclick="irPer(null)">${isM?"Este mes":"Esta semana"}</button></div>`;
   const regPer=regimen(id,isM?finMes(p.v):p.v);
   if(isM&&regPer==="semanal")h+=`<div class="note">${id} en este período cobraba por semana. La vista mensual es solo para ver el total; la liquidación es la semanal.</div>`;
   if(!isM&&regPer==="mensual")h+=`<div class="note">${id} en este período cobra por mes. La semana sirve de referencia o para calcular un adelanto; la liquidación es la mensual.</div>`;
@@ -269,6 +269,7 @@ function tomarVac(id){const a=+$("#va").value,d=$("#vd").value,h2=$("#vh").value
   DB.vacaciones.tomadas.push({id:uid("v"),emp:id,anio:a,desde:d,hasta:h2,dias});save("vacaciones "+id);render();toast(dias+" días registrados")}
 function borrarVac(vid){if(!confirm("¿Borrar este registro de vacaciones?"))return;DB.vacaciones.tomadas=DB.vacaciones.tomadas.filter(x=>x.id!==vid);save();render()}
 function setPerT(t){const p=st.per;if(t==="m")st.per={t:"m",v:(p.t==="m"?p.v:addD(p.v,3).slice(0,7))};else st.per={t:"s",v:p.t==="s"?p.v:lunes(p.v+"-01")};render()}
+function irPer(v){const p=st.per;if(p.t==="m")st.per={t:"m",v:v||HOY.slice(0,7)};else st.per={t:"s",v:lunes(v||HOY)};render()}
 function movPer(n){const p=st.per;st.per=p.t==="m"?{t:"m",v:sumMes(p.v,n)}:{t:"s",v:addD(p.v,7*n)};render()}
 const R=(a,b,c="")=>`<div class="row ${c}"><span>${a}</span><span class="num">${b}</span></div>`;
 function liqCard(id,L,isM,reg){
