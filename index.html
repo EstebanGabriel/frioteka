@@ -2106,7 +2106,7 @@ $("bvip").onclick=function(){vip=!vip;this.className="vipbtn"+(vip?" on":"");$("
 };
 $("fab").onclick=function(){abrirRes();irA("p2");};
 $("bvolver").onclick=function(){irA("p1");};
-function volverGestion(){nvNuevoPedido();irA("p3");renderGestion();}
+function volverGestion(){nvPed={};nvPedLac={};nvDescEsp=0;nvFpago="Efectivo";nvVip=false;nvEntrega="Local";nvPreventistaVal="";if($("nvCli"))$("nvCli").value="";if($("nvDir"))$("nvDir").value="";if($("nvVipBtn"))$("nvVipBtn").className="vipbtn";irA("p3");renderGestion();}
 $("sbuscar").oninput=function(){render(this.value);};
 $("cliente").oninput=function(){buscarCli(this.value);updWA();};
 $("direccion").oninput=function(){updWA();};
