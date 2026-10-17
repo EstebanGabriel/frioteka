@@ -167,7 +167,7 @@ function novMes(emp,ym){const c={tarde:0,falta:0,susp:0,min:0};
   return c}
 
 /* ---------- historial, vacaciones, aguinaldo ---------- */
-function asegurar(){DB.sanciones=DB.sanciones||[];DB.vacaciones=DB.vacaciones||{asign:[],tomadas:[]};DB.vacaciones.asign=DB.vacaciones.asign||[];DB.vacaciones.tomadas=DB.vacaciones.tomadas||[]}
+function asegurar(){DB.horarios=DB.horarios||{};DB.sanciones=DB.sanciones||[];DB.vacaciones=DB.vacaciones||{asign:[],tomadas:[]};DB.vacaciones.asign=DB.vacaciones.asign||[];DB.vacaciones.tomadas=DB.vacaciones.tomadas||[]}
 const sancDe=emp=>(DB.sanciones||[]).filter(s=>s.emp===emp).sort((a,b)=>a.fecha<b.fecha?1:-1);
 function semestre(f){const y=f.slice(0,4),m=+f.slice(5,7);return m<=6?{ini:y+"-01-01",fin:y+"-06-30",nom:"junio "+y,meses:[1,2,3,4,5,6].map(x=>y+"-"+String(x).padStart(2,"0"))}:{ini:y+"-07-01",fin:y+"-12-31",nom:"diciembre "+y,meses:[7,8,9,10,11,12].map(x=>y+"-"+String(x).padStart(2,"0"))}}
 function totalMes(emp,ym){const ov=(DB.totMes||{})[emp+"|"+ym];if(ov!=null)return ov;
@@ -240,6 +240,7 @@ function vEmp(){
   if(!isM&&regPer==="mensual")h+=`<div class="note">${id} en este período cobra por mes. La semana sirve de referencia o para calcular un adelanto; la liquidación es la mensual.</div>`;
   const L=isM?liqMes(id,p.v):liqSemana(id,p.v);
   h+=liqCard(id,L,isM,regPer);
+  if(!isM)h+=horarioCard(id,p.v,L);
   h+=diasCard(id,L,isM);
   h+=ccCard(id,isM?p.v+"-01":p.v,isM?finMes(p.v):addD(p.v,6));
   h+=vacCard(id)+sancCard(id);
@@ -306,6 +307,23 @@ function liqCard(id,L,isM,reg){
   h+=`<div style="display:flex;gap:8px;margin-top:10px"><button class="btn sm" onclick="nuevoPago('${id}','${L.key}')">+ Pago</button><button class="btn sec sm" onclick="nuevoDesc('${id}','${L.key}')">+ Descuento cta. cte.</button>${isM?`<button class="btn sec sm" onclick="nuevoAdel('${id}','${L.key}')">+ Adelanto</button>`:""}</div></div>`;
   return h}
 const NOVS=["","Tarde","Falta","Falta con aviso","Suspensión","Otro"];
+
+/* ---------- horario programado (lo que firma el empleado) ---------- */
+const hDif=(a,b)=>{const f=s=>+s.slice(0,2)+(+s.slice(3))/60;return f(b)-f(a)};
+function progDia(id,f){const v=(DB.horarios||{})[id+"|"+f];if(!v)return null;if(v==="franco")return{fr:true,h:0,txt:"Franco"};
+  return{h:v.reduce((a,[l,i,s])=>a+hDif(i,s),0),txt:v.map(([l,i,s])=>`${l==="San Martín"?"SM":"Cárc"} ${i}–${s}`).join(" / ")}}
+function horarioCard(id,lun,L){const e=E(id);let tp=0,tr=0,hay=false,rows="";
+  for(let i=0;i<7;i++){const f=addD(lun,i),pd=progDia(id,f),fer=esFer(f);if(pd)hay=true;
+    let hp=pd?pd.h:0;if(fer&&pd&&pd.fr)hp=id==="Gonzalo"?8:(e.horasRecibo?4:0);tp+=hp;
+    const r=dia(id,f),hr=r.h!=null&&r.h!==""?+r.h:null;if(hr!=null)tr+=hr;
+    const dif=hr!=null&&pd&&!pd.fr&&Math.abs(hr-pd.h)>=0.25?` <span class="tag warn">${hr>pd.h?"+":""}${fh(hr-pd.h)}</span>`:"";
+    rows+=`<tr class="${fer?"fer":""}"><td>${DIAS[D(f).getDay()]} ${dm(f)}</td><td>${pd?pd.txt:'<span class="muted">—</span>'}${fer&&pd&&pd.fr?' <span class="tag">feriado pago</span>':""}</td><td class="num">${pd&&!pd.fr?fh(pd.h):""}</td><td class="num">${hr!=null?fh(hr):""}${dif}</td></tr>`}
+  if(!hay)return`<div class="card"><h2>Horario programado</h2><div class="muted">Sin horario cargado para esta semana.</div></div>`;
+  let h=`<div class="card"><h2>Horario programado</h2><div class="scroll"><table><tr><th>Día</th><th>Horario</th><th class="num">Prog.</th><th class="num">Trabajó</th></tr>${rows}`;
+  h+=`<tr><td colspan="2"><b>Total</b></td><td class="num"><b>${fh(tp)}</b></td><td class="num"><b>${tr?fh(tr):""}</b></td></tr></table></div>`;
+  if(e.hsSemana){const base=tr||tp,falta=e.hsSemana-base;
+    h+=falta>0?`<div class="note" style="margin-top:10px">Debe ${fh(falta)} h para llegar a ${e.hsSemana} h semanales${tr?"":" (según horario)"}.</div>`:`<div class="muted" style="margin-top:8px">Cumple las ${e.hsSemana} h semanales.</div>`}
+  return h+`</div>`}
 function diasCard(id,L,isM){
   if(id==="Gonzalo")return `<div class="card"><h2>Novedades</h2><div class="muted">Gonzalo cobra el recibo completo, no se cargan horas.</div>${novTable(id,L,false)}</div>`;
   return `<div class="card"><h2>Horas y novedades</h2>${L.ov?'<div class="note">Este mes tiene cargado un total de horas sin detalle por día.</div>':""}${novTable(id,L,true)}</div>`}
