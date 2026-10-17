@@ -345,7 +345,9 @@ try{ var tb=localStorage.getItem('togo-tab'); if(tb&&TABS.indexOf(tb)>=0) showTa
   try{
     var A=await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js');
     var F=await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js');
-    var fs=F.getFirestore(A.initializeApp({apiKey:"AIzaSyC5voDKO_imN8QqRRpjMQdwV7QILrJw40g",authDomain:"frioteka-preventista.firebaseapp.com",projectId:"frioteka-preventista",storageBucket:"frioteka-preventista.firebasestorage.app",messagingSenderId:"212598423220",appId:"1:212598423220:web:aee51bc39626b3c08621e1"},'elaboraciones'));
+    var fbApp=A.initializeApp({apiKey:"AIzaSyC5voDKO_imN8QqRRpjMQdwV7QILrJw40g",authDomain:"frioteka-preventista.firebaseapp.com",projectId:"frioteka-preventista",storageBucket:"frioteka-preventista.firebasestorage.app",messagingSenderId:"212598423220",appId:"1:212598423220:web:aee51bc39626b3c08621e1"},'elaboraciones');
+    await (await import('./login.js')).requireLogin(fbApp, { color: '#6a2fc0', titulo: 'Elaboraciones TOGO' });
+    var fs=F.getFirestore(fbApp);
     db={collection:function(name){ var col=F.collection(fs,C[name]); return {
       add:function(o){ return F.addDoc(col,o); },
       doc:function(id){ var r=F.doc(col,id); return {delete:function(){ return F.deleteDoc(r); }}; },

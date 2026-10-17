@@ -170,6 +170,7 @@ input[type=date],input[type=time],input[type=text]{width:100%;min-width:0;font:5
 </div>
 
 <script type="module">
+import { requireLogin } from "./login.js";
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import { getFirestore, collection, doc, onSnapshot, setDoc, deleteDoc, query, limit } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 const app = initializeApp({
@@ -180,6 +181,7 @@ const app = initializeApp({
   messagingSenderId: "212598423220",
   appId: "1:212598423220:web:aee51bc39626b3c08621e1"
 }, "reparto");
+await requireLogin(app, { color: "#2E7D32", titulo: "Reparto FRIOTEKA" });
 const fs = getFirestore(app);
 // Colecciones propias de esta app (no tocan las de preventistas ni pedidos)
 const C = { salidas: "rp_salidas", config: "rp_config" };
