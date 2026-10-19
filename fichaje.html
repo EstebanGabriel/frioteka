@@ -1,0 +1,203 @@
+<!doctype html>
+<html lang="es"><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#c04f77">
+<title>Fichaje FRIOTEKA</title>
+<style>
+:root{--bg:#fbf2f5;--sf:#fff;--bd:#efdbe3;--tx:#36242d;--mut:#7f6874;--pri:#c04f77;--pri-l:#f8dfe8;
+  --ok:#2c7a57;--ok-l:#ddf1e6;--warn:#94600c;--warn-l:#fbecd2;--bad:#b0303a;--bad-l:#fadcde;--info:#3d5f99;--info-l:#e1e9f7}
+@media (prefers-color-scheme:dark){:root{--bg:#1c1418;--sf:#281d23;--bd:#3e2d36;--tx:#f5e7ed;--mut:#b59ba8;--pri:#ec8aac;--pri-l:#4a2635;
+  --ok:#74cfa3;--ok-l:#1f3a2e;--warn:#e8b65d;--warn-l:#3d2f17;--bad:#f2838a;--bad-l:#47242a;--info:#9db8ec;--info-l:#22304a;color-scheme:dark}}
+*{box-sizing:border-box}
+html,body{margin:0;min-height:100%;background:var(--bg);color:var(--tx);font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+main{max-width:420px;margin:0 auto;padding:max(18px,env(safe-area-inset-top)) max(16px,env(safe-area-inset-right)) max(24px,env(safe-area-inset-bottom)) max(16px,env(safe-area-inset-left));display:flex;flex-direction:column;gap:14px}
+.top{display:flex;justify-content:space-between;align-items:center}
+.brand{font-weight:800;letter-spacing:.08em;font-size:13px;color:var(--pri)}
+.clock{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:26px;font-weight:700;font-variant-numeric:tabular-nums}
+h1{font-size:22px;margin:0}
+.box{display:flex;gap:10px;align-items:center;padding:12px;border-radius:14px;font-weight:700}
+.box small{display:block;font-weight:400;opacity:.85}
+.box.ok{background:var(--ok-l);color:var(--ok)} .box.warn{background:var(--warn-l);color:var(--warn)} .box.bad{background:var(--bad-l);color:var(--bad)} .box.mut{background:var(--sf);color:var(--mut);border:1px solid var(--bd)}
+.dot{width:12px;height:12px;border-radius:50%;background:currentColor;flex:none}
+.big{font:inherit;font-size:18px;font-weight:700;padding:16px 10px;border-radius:14px;border:1px solid var(--bd);background:var(--sf);color:var(--tx);cursor:pointer;width:100%}
+.big.pri{background:var(--pri);border-color:var(--pri);color:#fff}
+.big:disabled{opacity:.45}
+.pinrow{display:flex;justify-content:center;gap:14px;margin:4px 0}
+.pinrow span{width:16px;height:16px;border-radius:50%;border:2px solid var(--pri)} .pinrow span.on{background:var(--pri)}
+.keys{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.keys .big{padding:14px 0;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:22px}
+.msg{font-size:14px;color:var(--mut);text-align:center;min-height:20px}
+.msg.err{color:var(--bad);font-weight:700}
+.res{text-align:center;display:flex;flex-direction:column;gap:10px;align-items:center;padding-top:6px}
+.kind{font-size:13px;letter-spacing:.08em;text-transform:uppercase;color:var(--mut);font-weight:700}
+.hora{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:56px;font-weight:700;line-height:1;font-variant-numeric:tabular-nums}
+.chips{display:flex;gap:6px;flex-wrap:wrap;justify-content:center}
+.chip{font-size:13px;font-weight:700;padding:4px 10px;border-radius:99px}
+.c-ok{background:var(--ok-l);color:var(--ok)} .c-warn{background:var(--warn-l);color:var(--warn)} .c-bad{background:var(--bad-l);color:var(--bad)} .c-info{background:var(--info-l);color:var(--info)} .c-mut{background:var(--sf);color:var(--mut);border:1px solid var(--bd)}
+.note{font-size:14px;color:var(--mut);margin:0;text-align:center}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+</style>
+</head><body>
+<main id="app"><div class="top"><span class="brand">FRIOTEKA · FICHAJE</span></div><p class="note">Cargando…</p></main>
+
+<script type="module">
+import { requireLogin } from "./login.js";
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+import { getFirestore, doc, getDoc, setDoc, addDoc, collection, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
+const app = initializeApp({
+  apiKey: "AIzaSyC5voDKO_imN8QqRRpjMQdwV7QILrJw40g",
+  authDomain: "frioteka-preventista.firebaseapp.com",
+  projectId: "frioteka-preventista",
+  storageBucket: "frioteka-preventista.firebasestorage.app",
+  messagingSenderId: "212598423220",
+  appId: "1:212598423220:web:aee51bc39626b3c08621e1"
+}, "fichaje");
+const user = await requireLogin(app, { color: "#C04F77", titulo: "Fichaje FRIOTEKA" });
+const fs = getFirestore(app);
+
+/* Colecciones propias del fichaje (no tocan las de las otras apps) */
+const C = { marcas: "fj_marcas", estado: "fj_estado", pines: "fj_pines", horarios: "fj_horarios", config: "fj_config" };
+const USUARIO = user.email.replace("@frioteka.app", "").toLowerCase();
+const TZ = "America/Argentina/Cordoba";
+const LOCALES = { carcano: "Cárcano", sanmartin: "San Martín" };
+const RADIO = 100, TOL = 10, HORAS_ABIERTA = 10;
+const $ = s => document.querySelector(s);
+const pad = n => String(n).padStart(2, "0");
+const partes = d => { const p = Object.fromEntries(new Intl.DateTimeFormat("en-CA", { timeZone: TZ, year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false }).formatToParts(d).map(x => [x.type, x.value])); return { fecha: `${p.year}-${p.month}-${p.day}`, hm: `${p.hour === "24" ? "00" : p.hour}:${p.minute}` }; };
+const min = s => { const [a, b] = s.split(":").map(Number); return a * 60 + b; };
+const lunes = f => { const d = new Date(f + "T12:00:00"); d.setDate(d.getDate() - ((d.getDay() + 6) % 7)); return d.toISOString().slice(0, 10); };
+async function sha(s) { const b = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(s)); return [...new Uint8Array(b)].map(x => x.toString(16).padStart(2, "0")).join(""); }
+function dist(a, b) { const R = 6371000, r = x => x * Math.PI / 180, dLa = r(b.lat - a.lat), dLo = r(b.lng - a.lng);
+  const h = Math.sin(dLa / 2) ** 2 + Math.cos(r(a.lat)) * Math.cos(r(b.lat)) * Math.sin(dLo / 2) ** 2; return 2 * R * Math.asin(Math.sqrt(h)); }
+
+let local = (new URLSearchParams(location.search).get("local") || "").toLowerCase().replace(/[^a-z]/g, "");
+if (!LOCALES[local]) local = null;
+let cfg = {}, emp = null, pinHash = null, gps = { estado: "buscando" }, pin = "", errores = 0, bloqueoHasta = 0;
+
+function reloj() { const c = $("#clk"); if (c) c.textContent = partes(new Date()).hm; }
+setInterval(reloj, 15000);
+
+function cajaUbicacion() {
+  const L = local ? LOCALES[local] : "";
+  if (gps.estado === "buscando") return `<div class="box mut"><span class="dot"></span><div>Buscando tu ubicación…<small>Aceptá el permiso si el celular lo pide</small></div></div>`;
+  if (gps.estado === "ok") return `<div class="box ok"><span class="dot"></span><div>Estás en ${L}<small>Ubicación confirmada · a ${Math.round(gps.dist)} m</small></div></div>`;
+  if (gps.estado === "lejos") return `<div class="box bad"><span class="dot"></span><div>Estás a ${gps.dist >= 1000 ? (gps.dist / 1000).toFixed(1).replace(".", ",") + " km" : Math.round(gps.dist) + " m"} de ${L}<small>Tenés que estar en el local para fichar</small></div></div>`;
+  if (gps.estado === "sin-config") return `<div class="box mut"><span class="dot"></span><div>${L}<small>La ubicación del local todavía no está cargada</small></div></div>`;
+  return `<div class="box warn"><span class="dot"></span><div>No pudimos ver tu ubicación<small>Podés fichar igual; queda anotado</small></div></div>`;
+}
+function cabecera() { return `<div class="top"><span class="brand">FRIOTEKA · FICHAJE</span><span class="clock" id="clk">${partes(new Date()).hm}</span></div>`; }
+
+function pantallaLocal() {
+  $("#app").innerHTML = cabecera() + `<h1>¿En qué local estás?</h1><p class="note">Escaneá el QR del local. Si no podés, elegilo acá.</p>
+  <div class="two"><button class="big" data-l="carcano">Cárcano</button><button class="big" data-l="sanmartin">San Martín</button></div>`;
+  $("#app").onclick = e => { const b = e.target.closest("[data-l]"); if (!b) return; local = b.dataset.l; history.replaceState(null, "", "?local=" + local); iniciar(); };
+}
+
+function pantallaPin() {
+  const bloq = Date.now() < bloqueoHasta, puede = gps.estado !== "lejos" && gps.estado !== "buscando" && !bloq;
+  $("#app").innerHTML = cabecera() + cajaUbicacion() + `<h1>Hola ${emp}, poné tu PIN</h1>
+  <div class="pinrow">${[0, 1, 2, 3].map(i => `<span class="${i < pin.length ? "on" : ""}"></span>`).join("")}</div>
+  <div class="msg ${pantallaPin.err ? "err" : ""}">${bloq ? "Demasiados intentos. Esperá un minuto." : pantallaPin.err || "4 números"}</div>
+  <div class="keys">${[1, 2, 3, 4, 5, 6, 7, 8, 9].map(n => `<button class="big" data-k="${n}" ${puede ? "" : "disabled"}>${n}</button>`).join("")}
+  <button class="big" data-k="loc" aria-label="Cambiar de local" title="Cambiar de local">⇄</button><button class="big" data-k="0" ${puede ? "" : "disabled"}>0</button><button class="big" data-k="del" aria-label="Borrar">⌫</button></div>
+  <p class="note">Local: ${LOCALES[local]}</p>`;
+  $("#app").onclick = teclado;
+}
+pantallaPin.err = "";
+
+async function teclado(e) {
+  const b = e.target.closest("button[data-k]"); if (!b || b.disabled) return;
+  const k = b.dataset.k;
+  if (k === "loc") { local = null; return pantallaLocal(); }
+  if (k === "del") { pin = pin.slice(0, -1); pantallaPin.err = ""; return pantallaPin(); }
+  if (pin.length >= 4) return;
+  pin += k; pantallaPin.err = "";
+  if (pin.length < 4) return pantallaPin();
+  const ok = (await sha(`frioteka-fj|${USUARIO}|${pin}`)) === pinHash;
+  pin = "";
+  if (!ok) { errores++; pantallaPin.err = "PIN incorrecto, probá de nuevo"; if (errores >= 3) { errores = 0; bloqueoHasta = Date.now() + 60000; setTimeout(pantallaPin, 60500); } return pantallaPin(); }
+  await fichar();
+}
+
+function turnosHoy(horario, fecha) { const v = horario && horario[`${emp}|${fecha}`]; return Array.isArray(v) ? v : []; }
+
+async function fichar() {
+  $("#app").innerHTML = cabecera() + `<p class="note">Guardando…</p>`;
+  try {
+    const est = (await getDoc(doc(fs, C.estado, USUARIO))).data() || null;
+    const ahora = Date.now();
+    const abierta = est && est.tipo === "entrada" && est.ts && (ahora - est.ts.toMillis()) < HORAS_ABIERTA * 3600e3;
+    const tipo = abierta ? "salida" : "entrada";
+    const gpsDato = gps.estado === "ok" || gps.estado === "lejos" ? { lat: gps.lat, lng: gps.lng, precision: Math.round(gps.acc), distancia: Math.round(gps.dist) } : null;
+    const ref = await addDoc(collection(fs, C.marcas), {
+      usuario: USUARIO, emp, local, tipo, ts: serverTimestamp(),
+      ubicacion: gps.estado === "ok" ? "ok" : gps.estado === "sin-config" ? "local sin cargar" : "sin ubicación",
+      gps: gpsDato, celular: navigator.userAgent.slice(0, 120)
+    });
+    const snap = await getDoc(ref); const ts = snap.data().ts.toDate(); const { fecha, hm } = partes(ts);
+    await setDoc(doc(fs, C.estado, USUARIO), { tipo, ts: snap.data().ts, local, marca: ref.id });
+    let horario = null;
+    try { horario = ((await getDoc(doc(fs, C.horarios, lunes(fecha)))).data() || {}).turnos || null; } catch (e) {}
+    resultado(tipo, hm, fecha, horario, est);
+  } catch (e) {
+    $("#app").innerHTML = cabecera() + `<div class="box bad"><span class="dot"></span><div>No se pudo guardar<small>${e.message || e}</small></div></div>
+    <p class="note">Revisá que tengas internet y probá de nuevo. Si sigue, avisale a Banchi.</p><button class="big pri" id="otra">Probar de nuevo</button>`;
+    $("#otra").onclick = () => pantallaPin();
+  }
+}
+
+function resultado(tipo, hm, fecha, horario, est) {
+  const ts = turnosHoy(horario, fecha), m = min(hm);
+  let chips = [], det = "";
+  const enLocal = ts.filter(t => (t[0] === LOCALES[local]));
+  if (tipo === "entrada") {
+    const t = (enLocal.length ? enLocal : ts).slice().sort((a, b) => Math.abs(min(a[1]) - m) - Math.abs(min(b[1]) - m))[0];
+    if (t) { const d = m - min(t[1]);
+      chips.push(d > TOL ? [`Tarde +${d} min`, "c-warn"] : d > 0 ? [`+${d} min (en tolerancia)`, "c-mut"] : d < 0 ? [`${-d} min antes`, "c-ok"] : ["A horario", "c-ok"]);
+      det = `Tu horario: ${t[1]} a ${t[2]}` + (d < 0 ? `<br>Se cuenta desde las ${t[1]}` : ""); }
+    else if (horario) { chips.push(["Hoy no tenés turno acá", "c-warn"]); det = "Queda anotado para que lo revise el encargado."; }
+  } else {
+    const ent = est && est.ts ? min(partes(est.ts.toDate()).hm) : null;
+    const t = ts.slice().sort((a, b) => Math.abs(min(a[2]) - m) - Math.abs(min(b[2]) - m))[0];
+    if (t) { const d = m - min(t[2]);
+      chips.push(d < -5 ? [`Salió ${-d} min antes`, "c-warn"] : d > 5 ? [`${d} min después`, "c-info"] : ["Turno completo", "c-ok"]);
+      det = `Tu horario terminaba ${t[2]}` + (d > 5 ? "<br>Lo de más se cuenta solo si lo aprueban" : ""); }
+    if (ent != null) det += (det ? "<br>" : "") + `Entraste ${partes(est.ts.toDate()).hm}`;
+  }
+  if (gps.estado !== "ok") chips.push([gps.estado === "sin-config" ? "Local sin ubicación cargada" : "Sin ubicación", "c-info"]);
+  $("#app").innerHTML = cabecera() + `<div class="res"><span class="kind">${tipo === "entrada" ? "Entrada registrada" : "Salida registrada"}</span>
+    <span class="hora">${hm}</span><b style="font-size:18px">${emp} · ${LOCALES[local]}</b>
+    <div class="chips">${chips.map(([t, c]) => `<span class="chip ${c}">${t}</span>`).join("")}</div>
+    <p class="note">${det}</p></div><button class="big pri" id="listo">Listo</button>`;
+  $("#listo").onclick = () => { pin = ""; pantallaPin(); };
+}
+
+function buscarUbicacion() {
+  const L = cfg.locales && cfg.locales[local];
+  if (!L || L.lat == null) { gps = { estado: "sin-config" }; return pantallaPin(); }
+  if (!navigator.geolocation) { gps = { estado: "sin" }; return pantallaPin(); }
+  gps = { estado: "buscando" }; pantallaPin();
+  navigator.geolocation.getCurrentPosition(p => {
+    const a = { lat: p.coords.latitude, lng: p.coords.longitude }, d = dist(a, L), acc = p.coords.accuracy || 0;
+    gps = { ...a, acc, dist: d, estado: d - Math.min(acc, 100) <= RADIO ? "ok" : "lejos" }; pantallaPin();
+  }, () => { gps = { estado: "sin" }; pantallaPin(); }, { enableHighAccuracy: true, timeout: 12000, maximumAge: 30000 });
+}
+
+async function iniciar() {
+  if (!local) return pantallaLocal();
+  try {
+    cfg = (await getDoc(doc(fs, C.config, "general"))).data() || {};
+    const map = cfg.usuarios || {};
+    emp = Object.keys(map).find(k => (map[k] || "").toLowerCase() === USUARIO) || (USUARIO.charAt(0).toUpperCase() + USUARIO.slice(1));
+    pinHash = ((await getDoc(doc(fs, C.pines, USUARIO))).data() || {}).hash || null;
+  } catch (e) {
+    $("#app").innerHTML = cabecera() + `<div class="box bad"><span class="dot"></span><div>No pude conectarme<small>${e.message || e}</small></div></div><button class="big pri" onclick="location.reload()">Probar de nuevo</button>`; return;
+  }
+  if (!pinHash) { $("#app").innerHTML = cabecera() + `<div class="box warn"><span class="dot"></span><div>Hola ${emp}<small>Todavía no tenés un PIN para fichar. Pedíselo a Banchi.</small></div></div><p class="note">Usuario: ${USUARIO}</p>`; return; }
+  buscarUbicacion();
+}
+iniciar();
+</script>
+</body></html>

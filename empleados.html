@@ -34,7 +34,7 @@ nav button.on{color:var(--pri);font-weight:700}
 .emp{cursor:pointer}
 .emp .nm{font-weight:700;font-size:16px}
 .tag{display:inline-block;font-size:11px;padding:2px 8px;border-radius:999px;background:var(--pri-l);color:var(--pri);font-weight:600}
-.tag.warn{background:var(--warn-l);color:var(--warn)} .tag.bad{background:var(--bad-l);color:var(--bad)} .tag.ok{background:var(--ok-l);color:var(--ok)}
+.tag.warn{background:var(--warn-l);color:var(--warn)} .tag.info{background:#e1e9f7;color:#3d5f99} .tag.mut{background:#f3f1f4;color:var(--mut)} .tag.bad{background:var(--bad-l);color:var(--bad)} .tag.ok{background:var(--ok-l);color:var(--ok)}
 .per{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:10px}
 .per b{font-size:15px;text-align:center;flex:1}
 .btn{border:0;background:var(--pri);color:#fff;border-radius:10px;padding:10px 14px;font-size:14px;font-weight:600;cursor:pointer}
@@ -193,11 +193,11 @@ function importarHist(file){if(!file)return;file.text().then(txt=>{const H=JSON.
   save("importación de históricos");render();toast(n+" datos históricos cargados")}).catch(e=>toast("No pude leer el archivo: "+e.message))}
 
 /* ---------- navegación ---------- */
-const TABS=[["inicio","🏠","Inicio"],["empleado","👤","Empleado"],["cargar","➕","Cargar"],["cierre","📋","Cierre"],["datos","⚙️","Datos"]];
+const TABS=[["inicio","🏠","Inicio"],["empleado","👤","Empleado"],["cargar","➕","Cargar"],["fichaje","⏱️","Fichaje"],["cierre","📋","Cierre"],["datos","⚙️","Datos"]];
 function renderNav(){$("#nav").innerHTML=TABS.map(([k,i,t])=>`<button class="${st.tab===k?"on":""}" onclick="go('${k}')"><span class="ic">${i}</span>${t}</button>`).join("")}
 function go(t,emp){st.tab=t;if(emp){st.emp=emp;st.per=null}render();window.scrollTo(0,0)}
 function render(){if(DB)asegurar();renderNav();setEstado(estado||"guardado ✓");
-  ({inicio:vInicio,empleado:vEmp,cargar:vCargar,cierre:vCierre,datos:vDatos})[st.tab]()}
+  ({inicio:vInicio,empleado:vEmp,cargar:vCargar,fichaje:vFichaje,cierre:vCierre,datos:vDatos})[st.tab]()}
 
 /* ---------- INICIO ---------- */
 function vInicio(){
@@ -500,6 +500,129 @@ function nuevoRecibo(){const emp=$("#re").value,mes=$("#rm").value,n=vNum("#rn")
   DB.recibos=DB.recibos.filter(r=>!(r.emp===emp&&r.mes===mes));DB.recibos.push({emp,mes,neto:n,bruto:vNum("#rb")||null});save();render();toast("Recibo guardado")}
 function exportar(){const b=new Blob([JSON.stringify(DB)],{type:"application/json"});const a=document.createElement("a");a.href=URL.createObjectURL(b);a.download="empleados-respaldo.json";a.click()}
 
+
+/* ---------- fichaje (QR + PIN + GPS) ---------- */
+const FJTOL=10;
+const FJC={lun:null,marcas:null,err:null,cfg:null,pines:null,sync:{}};
+const hmMin=s=>{const[a,b]=s.split(":").map(Number);return a*60+b};
+const minHm=x=>{x=Math.round(x);return String(Math.floor(x/60)).padStart(2,"0")+":"+String(((x%60)+60)%60).padStart(2,"0")};
+const fhm=m=>{m=Math.round(m);return Math.floor(m/60)+" h "+String(m%60).padStart(2,"0")};
+const tzParts=d=>{const p=Object.fromEntries(new Intl.DateTimeFormat("en-CA",{timeZone:"America/Argentina/Cordoba",year:"numeric",month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit",hour12:false}).formatToParts(d).map(x=>[x.type,x.value]));
+  return{f:`${p.year}-${p.month}-${p.day}`,m:(p.hour==="24"?0:+p.hour)*60+(+p.minute)}};
+function fjAseg(){DB.fj=DB.fj||{};DB.fj.aprob=DB.fj.aprob||{};DB.fj.corr=DB.fj.corr||{};DB.fj.nov=DB.fj.nov||{}}
+async function fjCargar(lun,forzar){
+  if(!window.FJ){FJC.err="esperando";return}
+  if(FJC.lun===lun&&FJC.marcas&&!forzar)return;
+  FJC.lun=lun;FJC.marcas=null;FJC.err=null;
+  try{const [ms,cfg,pin]=await Promise.all([FJ.marcas(lun,addD(lun,6)),FJ.config(),FJ.pines()]);FJC.marcas=ms;FJC.cfg=cfg;FJC.pines=pin}
+  catch(e){FJC.err=e.message||String(e)}
+  fjSync(lun);fjSync(addD(lun,7));if(st.tab==="fichaje")render()}
+async function fjSync(lun){if(!window.FJ)return;const t={};
+  for(const k in (DB.horarios||{})){const f=k.split("|")[1];if(f>=lun&&f<=addD(lun,6))t[k]=DB.horarios[k]}
+  if(!Object.keys(t).length)return;const firma=JSON.stringify(t);if(FJC.sync[lun]===firma)return;
+  try{await FJ.syncHorarios(lun,t);FJC.sync[lun]=firma}catch(e){}}
+function fjCruce(id,lun){
+  fjAseg();const out=[];const ahora=tzParts(new Date());
+  const mis=(FJC.marcas||[]).filter(m=>m.emp===id&&m.t).map(m=>({...m,...tzParts(m.t)})).sort((a,b)=>a.t-b.t);
+  for(let i=0;i<7;i++){const f=addD(lun,i);const v=(DB.horarios||{})[id+"|"+f];const turnos=Array.isArray(v)?v:[];
+    const ms=mis.filter(m=>m.f===f);const iv=[];let cur=null;
+    for(const m of ms){if(m.tipo==="entrada"){if(cur)iv.push(cur);cur={ent:m,sal:null}}else{if(cur){cur.sal=m;iv.push(cur);cur=null}else iv.push({ent:null,sal:m})}}
+    if(cur)iv.push(cur);
+    const usado=new Set();
+    turnos.forEach(([loc,hi,hf],ti)=>{const a=hmMin(hi),b=hmMin(hf);let best=-1,bd=1e9;
+      iv.forEach((x,j)=>{if(usado.has(j))return;const r=x.ent?x.ent.m:x.sal.m;const d=x.ent?Math.abs(r-a):Math.abs(r-b);
+        const ov=Math.min(b,x.sal?x.sal.m:b)-Math.max(a,x.ent?x.ent.m:a);if((d<180||ov>0)&&d<bd){bd=d;best=j}});
+      const x=best>=0?iv[best]:null;if(best>=0)usado.add(best);
+      out.push(fjFila(id,f,ti,loc,a,b,x,ahora))});
+    iv.forEach((x,j)=>{if(!usado.has(j))out.push(fjFila(id,f,"x"+j,(x.ent||x.sal).local==="sanmartin"?"San Martín":"Cárcano",null,null,x,ahora))})}
+  return out}
+function fjFila(id,f,ti,loc,a,b,x,ahora){
+  const key=`${id}|${f}|${ti}`,est=[];let acc=null;const fuera=a==null;
+  const ent=x&&x.ent?x.ent.m:null;let sal=x&&x.sal?x.sal.m:null;const corr=DB.fj.corr[key];if(sal==null&&corr)sal=hmMin(corr);
+  const pasado=f<ahora.f||(f===ahora.f&&a!=null&&ahora.m>a+FJTOL);const terminado=f<ahora.f||(f===ahora.f&&b!=null&&ahora.m>b+30);
+  let cuenta=0;
+  if(fuera){est.push(["Fuera de horario","warn"]);if(ent!=null&&sal!=null){const ex=sal-ent;if(!DB.fj.aprob[key])acc={a:"apr",min:ex,t:`Aprobar ${fhm(ex)}`};cuenta=DB.fj.aprob[key]||0}}
+  else if(ent==null&&sal==null){if(pasado){est.push(["Falta","bad"]);acc={a:"nov",nov:"Falta",t:"Pasar a novedades"}}else est.push(["Todavía no","mut"])}
+  else{
+    if(ent!=null){const d=ent-a;if(d>FJTOL){est.push([`Tarde +${d} min`,"warn"]);acc={a:"nov",nov:"Tarde",min:d,t:"Pasar a novedades"}}else if(d>0)est.push([`+${d} min (en tolerancia)`,"mut"]);else if(d<0)est.push([`Entró ${-d} min antes`,"mut"]);else est.push(["A horario","ok"])}
+    else est.push(["No fichó la entrada","bad"]);
+    if(sal==null){if(terminado){est.push(["No fichó la salida","bad"]);acc={a:"corr",t:"Corregir salida"}}else est.push(["Trabajando","ok"])}
+    else{if(corr)est.push([`Salida corregida ${corr}`,"info"]);const d=sal-b;
+      if(d<-5){est.push([`Salió ${-d} min antes`,"warn"]);if(!acc)acc={a:"nov",nov:"Otro",obs:`Salió ${-d} min antes`,t:"Pasar a novedades"}}
+      else if(d>5){est.push([`Se quedó ${d} min`,"info"]);if(!DB.fj.aprob[key]&&!acc)acc={a:"apr",min:d,t:`Aprobar ${d} min`}}}
+    if(ent!=null&&sal!=null)cuenta=Math.max(0,Math.min(sal,b)-Math.max(ent,a))+(DB.fj.aprob[key]||0)}
+  if(DB.fj.aprob[key])est.push([`Aprobado +${DB.fj.aprob[key]} min`,"ok"]);
+  const ms=[x&&x.ent,x&&x.sal].filter(Boolean);
+  if(ms.some(m=>m.ubicacion!=="ok"))est.push(["Sin ubicación","info"]);
+  if(!fuera&&ms.some(m=>(m.local==="sanmartin"?"San Martín":"Cárcano")!==loc))est.push(["Fichó en otro local","warn"]);
+  const hecho=acc&&acc.a==="nov"&&DB.fj.nov[key];
+  return{key,id,f,loc,a,b,ent,sal,cuenta,est,acc,hecho,fuera}}
+function fjDif(real,plan,esEnt){if(real==null)return"";if(plan==null)return"";const d=real-plan;if(Math.abs(d)<1)return"a horario";
+  return esEnt?(d<0?`${-d} min antes`:`${d} min tarde`):(d<0?`${-d} min antes`:`${d} min después`)}
+function vFichaje(){
+  fjAseg();if(!st.fjLun)st.fjLun=lunes(HOY);if(!st.fjEmp)st.fjEmp="todos";const lun=st.fjLun;
+  let h=`<div class="per"><button class="btn sec sm" onclick="st.fjLun=addD(st.fjLun,-7);render()">◀</button><b>Semana ${dm(lun)} al ${dm(addD(lun,6))}</b><button class="btn sec sm" onclick="st.fjLun=addD(st.fjLun,7);render()">▶</button></div>
+  <div class="per" style="margin-top:-4px"><button class="btn ghost sm" onclick="st.fjLun=lunes(HOY);render()">Esta semana</button><button class="btn ghost sm" onclick="fjCargar(st.fjLun,true);render()">Actualizar</button></div>`;
+  if(!window.FJ){h+=`<div class="card"><div class="muted">Conectando con el fichaje…</div></div>`;$("#main").innerHTML=h;return}
+  if(FJC.lun!==lun||(!FJC.marcas&&!FJC.err)){fjCargar(lun);$("#main").innerHTML=h+`<div class="card"><div class="muted">Leyendo los fichajes…</div></div>`;return}
+  if(FJC.err){$("#main").innerHTML=h+`<div class="card"><div class="note">No pude leer los fichajes: ${FJC.err}</div></div>`+fjConfigCard();return}
+  const emps=EMPS();const filas={};emps.forEach(id=>filas[id]=fjCruce(id,lun));
+  h+=`<div class="chips"><span class="chip ${st.fjEmp==="todos"?"on":""}" onclick="st.fjEmp='todos';render()">Todos</span>${emps.map(e=>`<span class="chip ${st.fjEmp===e?"on":""}" onclick="st.fjEmp='${e}';render()">${e}</span>`).join("")}</div>`;
+  h+=`<div class="card"><h2>Resumen de la semana</h2>`;
+  emps.forEach(id=>{const F=filas[id].filter(r=>!r.fuera||r.cuenta);const real=F.reduce((s,r)=>s+r.cuenta,0),plan=F.filter(r=>!r.fuera).reduce((s,r)=>s+(r.b-r.a),0);
+    const n=k=>filas[id].filter(r=>r.est.some(e=>e[0].startsWith(k))).length;const e=E(id);
+    const tags=[n("Tarde")&&`<span class="tag warn">${n("Tarde")} tarde</span>`,n("Falta")&&`<span class="tag bad">${n("Falta")} falta</span>`,n("No fichó")&&`<span class="tag bad">${n("No fichó")} sin fichar</span>`,n("Sin ubicación")&&`<span class="tag info">${n("Sin ubicación")} sin ubicación</span>`,n("Fuera")&&`<span class="tag warn">${n("Fuera")} fuera de horario</span>`].filter(Boolean).join(" ")||(plan?`<span class="tag ok">Sin novedades</span>`:"");
+    let meta=plan?`horario ${fhm(plan)}`:"sin horario cargado";
+    if(e&&e.hsSemana){const falta=e.hsSemana*60-real;meta=falta>0?`debe ${fhm(falta)} sobre ${e.hsSemana} h`:`cumple las ${e.hsSemana} h`}
+    h+=R(`<b>${id}</b> <span class="muted">· ${meta}</span><br>${tags}`,`<b>${fhm(real)}</b>`)});
+  h+=`<button class="btn sec full" style="margin-top:10px" onclick="fjAplicar()">Usar estas horas en la liquidación</button><div class="muted" style="margin-top:6px">Pasa las horas que cuentan a la ficha de cada uno (menos Gonzalo, que cobra el recibo). Revisá antes las faltas y salidas sin fichar.</div></div>`;
+  const ver=st.fjEmp==="todos"?emps:[st.fjEmp];
+  h+=`<div class="card"><h2>Turno por turno</h2><div class="scroll"><table><tr><th>Día</th>${st.fjEmp==="todos"?"<th>Empleado</th>":""}<th>Local</th><th>Horario</th><th>Entró</th><th>Salió</th><th>Cuenta</th><th>Qué pasó</th><th></th></tr>`;
+  ver.forEach(id=>filas[id].forEach(r=>{
+    const btn=!r.acc?"":r.hecho?`<span class="tag ok">En novedades ✓</span>`:r.acc.a==="corr"?`<input id="c_${r.key.replace(/\W/g,"_")}" type="time" style="width:110px"><button class="btn sm" onclick="fjCorregir('${r.key}')">Guardar</button>`:`<button class="btn sm" onclick="fjAccion('${r.key}')">${r.acc.t}</button>`;
+    h+=`<tr class="${esFer(r.f)?"fer":""}"><td>${DIAS[D(r.f).getDay()]} ${dm(r.f)}</td>${st.fjEmp==="todos"?`<td>${id}</td>`:""}<td>${r.loc}</td><td class="num">${r.a==null?"—":minHm(r.a)+"–"+minHm(r.b)}</td>
+    <td class="num">${r.ent==null?"—":`<b>${minHm(r.ent)}</b><br><span class="muted">${fjDif(r.ent,r.a,true)}</span>`}</td>
+    <td class="num">${r.sal==null?"—":`<b>${minHm(r.sal)}</b><br><span class="muted">${fjDif(r.sal,r.b,false)}</span>`}</td>
+    <td class="num">${r.cuenta?fhm(r.cuenta):"—"}</td><td>${r.est.map(([t,c])=>`<span class="tag ${c}">${t}</span>`).join(" ")}</td><td>${btn}</td></tr>`}));
+  h+=`</table></div><div class="muted" style="margin-top:8px">Cuenta desde la hora de entrada del horario hasta la de salida. Llegar antes no suma; quedarse de más suma solo si lo aprobás. Hasta ${FJTOL} min tarde no es llegada tarde, pero igual se descuenta.</div></div>`;
+  h+=fjConfigCard();
+  $("#main").innerHTML=h}
+function fjBuscar(key){const[id,f]=key.split("|");return fjCruce(id,lunes(f)).find(r=>r.key===key)}
+function fjAccion(key){const r=fjBuscar(key);if(!r||!r.acc)return;const a=r.acc;
+  if(a.a==="apr"){DB.fj.aprob[key]=a.min;save("fichaje: aprobado "+key);toast("Aprobado");return render()}
+  if(a.a==="nov"){const k=r.id+"|"+r.f,d=DB.horas[k]||{};d.nov=a.nov;if(a.min)d.min=(+d.min||0)+a.min;if(a.obs)d.obs=(d.obs?d.obs+" · ":"")+a.obs;DB.horas[k]=d;DB.fj.nov[key]=true;save("fichaje: novedad "+key);toast("Pasado a novedades");return render()}}
+function fjCorregir(key){const v=$("#c_"+key.replace(/\W/g,"_")).value;if(!v)return toast("Poné la hora de salida");DB.fj.corr[key]=v;save("fichaje: salida corregida "+key);toast("Salida corregida");render()}
+function fjAplicar(){const lun=st.fjLun;let n=0;
+  if(!confirm("¿Pasar las horas del fichaje a la ficha de cada empleado para esta semana? Reemplaza las horas cargadas a mano de esos días."))return;
+  EMPS().filter(id=>!(E(id)||{}).hsSemana&&id!=="Gonzalo").forEach(id=>{const por={};fjCruce(id,lun).forEach(r=>{if(r.a!=null||r.cuenta)por[r.f]=(por[r.f]||0)+r.cuenta});
+    for(const f in por){const k=id+"|"+f,d=DB.horas[k]||{};d.h=Math.round(por[f]/60*100)/100;DB.horas[k]=d;n++}});
+  save("fichaje: horas semana "+lun);toast(n+" días actualizados");render()}
+function fjConfigCard(){const cfg=FJC.cfg||{},L=cfg.locales||{},U=cfg.usuarios||{},P=FJC.pines||{};
+  const ll=k=>L[k]&&L[k].lat!=null?`${L[k].lat}, ${L[k].lng}`:"";
+  let h=`<div class="card"><h2>Configuración del fichaje</h2><div class="f">
+  <label>Ubicación de Cárcano</label><input id="fjLC" value="${ll("carcano")}" placeholder="Pegá el link de Google Maps o las coordenadas">
+  <label>Ubicación de San Martín</label><input id="fjLS" value="${ll("sanmartin")}" placeholder="Pegá el link de Google Maps o las coordenadas">
+  <button class="btn sec full" style="margin-top:8px" onclick="fjGuardarLocales()">Guardar ubicaciones</button>
+  <div class="muted" style="margin-top:4px">Si el link es corto (maps.app.goo.gl), abrilo, mantené apretado el punto del local y copiá las coordenadas que aparecen (ej: -31.4123, -64.4987).</div></div>
+  <h3 style="margin-top:16px">Usuarios y PIN</h3>`;
+  EMPS().forEach(id=>{const u=U[id]||id.toLowerCase();const s=id.replace(/\W/g,"_");
+    h+=`<div class="f" style="margin-top:8px"><div class="two"><div><label>${id} · usuario${P[u]?' <span class="tag ok">PIN cargado</span>':' <span class="tag warn">sin PIN</span>'}</label><input id="fjU_${s}" value="${u}" autocapitalize="off"></div>
+    <div><label>PIN nuevo (4 números)</label><input id="fjP_${s}" type="password" inputmode="numeric" maxlength="4"></div></div>
+    <button class="btn ghost full" style="margin-top:6px" onclick="fjGuardarPin('${id}')">Guardar usuario y PIN de ${id}</button></div>`});
+  const base=location.href.replace(/[^/]*([?#].*)?$/,"")+"fichaje.html?local=";
+  h+=`<h3 style="margin-top:16px">Direcciones de los QR</h3><div class="muted">Cárcano: ${base}carcano<br>San Martín: ${base}sanmartin</div></div>`;return h}
+function fjParse(s){s=(s||"").trim();let m=s.match(/@(-?\d+\.\d+),(-?\d+\.\d+)/)||s.match(/!3d(-?\d+\.\d+)!4d(-?\d+\.\d+)/)||s.match(/[?&](?:q|ll|query)=(-?\d+\.\d+),\s*(-?\d+\.\d+)/)||s.match(/^(-?\d+\.\d+)\s*,\s*(-?\d+\.\d+)$/);
+  return m?{lat:+m[1],lng:+m[2]}:null}
+async function fjGuardarLocales(){const c=fjParse($("#fjLC").value),s=fjParse($("#fjLS").value);
+  if(($("#fjLC").value&&!c)||($("#fjLS").value&&!s))return toast("No reconozco alguna ubicación: pegá las coordenadas");
+  const loc={};if(c)loc.carcano=c;if(s)loc.sanmartin=s;
+  try{await FJ.setConfig({locales:loc});FJC.cfg=await FJ.config();toast("Ubicaciones guardadas");render()}catch(e){toast("No se pudo: "+e.message)}}
+async function fjGuardarPin(id){const s=id.replace(/\W/g,"_"),u=$("#fjU_"+s).value.trim().toLowerCase().replace("@frioteka.app",""),p=$("#fjP_"+s).value.trim();
+  if(!u)return toast("Falta el usuario");if(p&&!/^\d{4}$/.test(p))return toast("El PIN tiene que ser de 4 números");
+  try{await FJ.setConfig({usuarios:{[id]:u}});if(p)await FJ.setPin(u,await fjHash(u,p));FJC.cfg=await FJ.config();FJC.pines=await FJ.pines();toast(p?"PIN guardado":"Usuario guardado");render()}catch(e){toast("No se pudo: "+e.message)}}
+async function fjHash(u,p){const b=await crypto.subtle.digest("SHA-256",new TextEncoder().encode(`frioteka-fj|${u}|${p}`));return[...new Uint8Array(b)].map(x=>x.toString(16).padStart(2,"0")).join("")}
+window.addEventListener("fj-listo",()=>{if(DB&&st.tab==="fichaje")render();if(DB){fjSync(lunes(HOY));fjSync(addD(lunes(HOY),7))}});
+
 /* ---------- acceso ---------- */
 async function hash(s){const b=await crypto.subtle.digest("SHA-256",new TextEncoder().encode("frioteka-emp|"+s));return [...new Uint8Array(b)].map(x=>x.toString(16).padStart(2,"0")).join("")}
 const TIT=`<div style="font-weight:700;font-size:18px;color:var(--pri)">Empleados FRIOTEKA</div>`;
@@ -544,6 +667,36 @@ function desconectar(){if(!confirm("¿Borrar la configuración de este celular? 
 async function recargar(){try{DB=await cargarRemoto();LS.set("cache",JSON.stringify(DB));estado="actualizado ✓";render();toast("Datos actualizados")}catch(e){toast("No se pudo: "+e.message)}}
 document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="hidden"&&dirty){clearTimeout(saveT);flush()}});
 cfgLoad();if(CFG)pantallaPin();else pantallaConfig();
+</script>
+<script type="module">
+import { requireLogin } from "./login.js";
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+import { getFirestore, collection, doc, getDoc, getDocs, setDoc, query, where, Timestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+const app = initializeApp({
+  apiKey: "AIzaSyC5voDKO_imN8QqRRpjMQdwV7QILrJw40g",
+  authDomain: "frioteka-preventista.firebaseapp.com",
+  projectId: "frioteka-preventista",
+  storageBucket: "frioteka-preventista.firebasestorage.app",
+  messagingSenderId: "212598423220",
+  appId: "1:212598423220:web:aee51bc39626b3c08621e1"
+}, "empleados");
+await requireLogin(app, { color: "#C04F77", titulo: "Empleados FRIOTEKA" });
+const fs = getFirestore(app);
+// Colecciones del fichaje (no tocan las de las otras apps)
+const C = { marcas: "fj_marcas", pines: "fj_pines", horarios: "fj_horarios", config: "fj_config" };
+const t0 = f => Timestamp.fromDate(new Date(f + "T00:00:00-03:00")), t1 = f => Timestamp.fromDate(new Date(f + "T23:59:59-03:00"));
+window.FJ = {
+  async marcas(desde, hasta) {
+    const s = await getDocs(query(collection(fs, C.marcas), where("ts", ">=", t0(desde)), where("ts", "<=", t1(hasta))));
+    return s.docs.map(d => { const x = d.data(); return { id: d.id, ...x, t: x.ts ? x.ts.toDate() : null }; });
+  },
+  async config() { return (await getDoc(doc(fs, C.config, "general"))).data() || {}; },
+  async setConfig(o) { await setDoc(doc(fs, C.config, "general"), o, { merge: true }); },
+  async setPin(usuario, hash) { await setDoc(doc(fs, C.pines, usuario), { hash, actualizado: new Date().toISOString() }); },
+  async pines() { const s = await getDocs(collection(fs, C.pines)); return Object.fromEntries(s.docs.map(d => [d.id, true])); },
+  async syncHorarios(lun, turnos) { await setDoc(doc(fs, C.horarios, lun), { turnos, actualizado: new Date().toISOString() }); }
+};
+window.dispatchEvent(new Event("fj-listo"));
 </script>
 </body>
 </html>
