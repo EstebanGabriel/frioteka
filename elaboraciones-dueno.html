@@ -89,6 +89,8 @@ select optgroup{font-style:normal}
 .line:last-child{border-bottom:0}.line b{font-variant-numeric:tabular-nums}
 .sub{margin:0;font:600 13px var(--disp);letter-spacing:.07em;text-transform:uppercase;color:var(--muted)}
 
+.tag{display:inline-block;margin-left:6px;font:600 11px var(--disp);letter-spacing:.05em;text-transform:uppercase;padding:2px 7px;border-radius:999px;background:var(--warn-soft);color:var(--warn);vertical-align:middle}
+.panel.exp{display:grid;gap:10px;margin-bottom:12px}
 </style>
 </head>
 <body>
@@ -231,6 +233,12 @@ select optgroup{font-style:normal}
 
   <!-- HISTORIAL -->
   <section id="s-hist" hidden>
+    <div class="panel exp">
+      <h2 class="sub">Exportar mes a Excel</h2>
+      <div class="actions"><input type="month" id="eMes" aria-label="Mes a exportar"><button type="button" class="btn" id="eBtn">Exportar mes</button></div>
+      <p class="hint">Baja ELABORACIONES_AAAA-MM.xlsx con las hojas PRODUCCIÓN y RESUMEN DEL MES. Todo sin IVA. Guardalo en TODO CLAUDE › ELABORACIONES.</p>
+      <div id="eMsg"></div>
+    </div>
     <div class="list" id="histList"></div>
   </section>
 </div>
@@ -270,6 +278,37 @@ function stockItems(){
   return l;
 }
 ['vFecha','qFecha','pFecha','dFecha'].forEach(function(i){ $(i).value=today(); });
+
+
+// ---------- referencias del Excel de costos y alertas ----------
+var ALERTA = 0.05; // más de 5 % por encima de lo que dice TOGO_Costos.xlsx (relativo, no en puntos)
+var MARKUP_LOCAL = 1.6;
+// Códigos de la lista de precios: [fraccionado minorista, fraccionado mayorista]
+var CODIGOS = {'Salame de Milán':['1008','1028'],'Jamón cocido':['1005','1025'],'Jamón crudo':['1081','1085'],'Bondiola':['1020','1090'],'Fiambre de cerdo':['1007','1095'],'Panceta ahumada':['1040','1044'],'Jamonada':['1023','1043'],'Mortadela':['1013','1063'],'Queso Tybo':['1006','1080'],'Queso Danbo':['1074',''],
+ 'Queso cremoso Santa María':['1035','1035'],'Queso sardo':['1071','1071'],'Queso por salut':['1075','1075'],'Queso pategrás':['1076','1076'],'Queso romano':['1072','1072'],'Queso azul':['1097','1097'],'Mozzarella':['1094','1094'],'Ricota':['1083','1083'],'Queso cremoso Punta de Agua':['1017','1017'],
+ 'Pizzita Especial':['90-47','90-47'],'Pizzita Muzza':['90-45','90-45'],'Pizzita Queso Azul':['90-46','90-46'],'Pizzita Fugazza':['','']};
+function codigoOf(e){ var c=CODIGOS[e.producto]; return c?(e.canal==='may'?c[1]:c[0]):''; }
+// Costo de referencia del Excel: vacío = costo total $/kg (precio local / 1,6); pizzita = costo total $/u; quesos no tienen costo total en el Excel.
+function refCosto(p){
+  if(VAC[p]) return {v:VAC[p].min/MARKUP_LOCAL, u:'kg'};
+  if(PIZ[p]) return {v:PIZ[p].ing+PIZ_ENV+PIZ_MIN_REF*HORA/60, u:'unidad'};
+  return null;
+}
+function refMermaOf(p){ return VAC[p]?VAC[p].merma:null; }
+function costoUnit(e){ // costo real por kg envasado (fiambres/quesos) o por pizzita elaborada
+  if(e.costo==null) return null;
+  if(e.tipo==='pizzita') return e.unidades>0?e.costo/e.unidades:null;
+  var kf=kgFraccOf(e); return kf>0?e.costo/kf:null;
+}
+function alertasDe(e){
+  var out=[], rm=refMermaOf(e.producto), rc=refCosto(e.producto);
+  if(rm!=null&&e.kgPieza>0&&e.merma!=null){ var mp=e.merma/e.kgPieza*100; if(mp>rm*(1+ALERTA)) out.push({k:'merma',txt:'Merma '+fmt(mp,1)+' % (Excel '+fmt(rm,1)+' %)'}); }
+  var cu=costoUnit(e); if(rc&&cu!=null&&cu>rc.v*(1+ALERTA)) out.push({k:'costo',txt:'Costo '+money(cu)+' por '+rc.u+' (Excel '+money(rc.v)+')'});
+  return out;
+}
+function tagsFor(e,small){
+  alertasDe(e).forEach(function(a){ small.appendChild(el('span','tag',a.k==='merma'?'Merma alta':'Costo alto')); });
+}
 
 // ---------- cálculo ----------
 function calcVac(){
@@ -357,6 +396,8 @@ function showResult(box,o){
     g.appendChild(c);
   });
   card.appendChild(g);
+  var al=alertasDe(Object.assign({},o,{costo:o.costo}));
+  if(al.length) card.appendChild(el('div','msg warn','Pasa más de 5 % lo que dice el Excel de costos: '+al.map(function(a){return a.txt;}).join(' · ')+'. Es solo un aviso, no hace falta tocar nada ahora.'));
   if(o.estimado) card.appendChild(el('div','msg warn','El precio minorista de la mozzarella es estimado (costo + 50%) porque falta el dato de porciones en el Excel.'));
   box.appendChild(card);
 }
@@ -453,7 +494,7 @@ function renderDia(){
   box.appendChild(el('p','hint','Todo sin IVA. Se vende a precio minorista; cuartos, mitades y bolsas por mayor van a precio mayorista. No cuenta lo que recuperás reutilizando la merma. En pizzitas no se incluye amortización de la envasadora.'));
   xs.slice().sort(function(a,b){return (a.creado||0)-(b.creado||0)}).forEach(function(e){
     var r=el('div','row'), l=el('div','l'); l.appendChild(el('strong',null,e.producto+' · '+unitsOf(e)+ulabel(e)));
-    l.appendChild(el('small',null,'venta '+money(e.venta)+' · costo '+money(e.costo)+' · empleado '+money(e.cMO)+' · '+(e.canal==='may'?'mayorista':'minorista')));
+    var sm=el('small',null,'venta '+money(e.venta)+' · costo '+money(e.costo)+' · empleado '+money(e.cMO)+' · '+(e.canal==='may'?'mayorista':'minorista')); tagsFor(e,sm); l.appendChild(sm);
     var bg=el('div','big'+(e.resultado<0?' neg':''),money(e.resultado)); bg.appendChild(el('small',null,e.resultado>=0?'ganancia':'pérdida'));
     r.appendChild(l); r.appendChild(bg); L.appendChild(r);
   });
@@ -474,14 +515,18 @@ function realesList(){
     if(PIZ[p]){
       var px=elabs.filter(function(e){return e.producto===p&&e.minutos>=0&&e.unidades>0}); if(!px.length) return;
       var tm=0,tu=0; px.forEach(function(e){ tm+=e.minutos; tu+=e.unidades; });
-      out.push({producto:p,tipo:'Pizzita',n:px.length,mermaReal:null,mermaRef:null,minReal:tm/tu,minRef:PIZ_MIN_REF,unidad:'min por pizzita'});
+      var pc=px.filter(function(e){return e.costo!=null}), cs=0,cu=0; pc.forEach(function(e){ cs+=e.costo; cu+=e.unidades; });
+      var rcp=refCosto(p);
+      out.push({producto:p,tipo:'Pizzita',n:px.length,mermaReal:null,mermaRef:null,minReal:tm/tu,minRef:PIZ_MIN_REF,unidad:'min por pizzita',costoReal:cu>0?cs/cu:null,costoRef:rcp?rcp.v:null,costoU:'unidad'});
       return;
     }
     var xs=elabs.filter(function(e){return e.producto===p&&e.merma!=null&&e.kgPieza>0}); if(!xs.length) return;
     var vac=!!VAC[p], kp=0,mer=0,mi=0,miU=0,kgM=0;
     xs.forEach(function(e){ kp+=e.kgPieza; mer+=e.merma; if(e.minutos>=0){ mi+=e.minutos; miU+=unitsOf(e); kgM+=e.kgPieza; } });
     var mu=vac?(miU>0?mi/miU:null):(kgM>0?mi/kgM:null);
-    out.push({producto:p,tipo:vac?'Al vacío':'Queso',n:xs.length,mermaReal:mer/kp*100,mermaRef:vac?VAC[p].merma:0,minReal:mu,minRef:vac?VAC[p].mpb:(QUE[p]?QUE[p].mkg:null),unidad:vac?'min por bolsa':'min por kg'});
+    var cs2=0,ck=0; xs.forEach(function(e){ if(e.costo!=null){ cs2+=e.costo; ck+=kgFraccOf(e); } });
+    var rcv=refCosto(p);
+    out.push({producto:p,tipo:vac?'Al vacío':'Queso',n:xs.length,costoReal:ck>0?cs2/ck:null,costoRef:rcv?rcv.v:null,costoU:'kg',mermaReal:mer/kp*100,mermaRef:vac?VAC[p].merma:0,minReal:mu,minRef:vac?VAC[p].mpb:(QUE[p]?QUE[p].mkg:null),unidad:vac?'min por bolsa':'min por kg'});
   });
   return out;
 }
@@ -495,6 +540,9 @@ function renderControl(){
     if(r.mermaReal!=null){ var a=el('div'); a.appendChild(el('small',null,'Merma real / calculada')); a.appendChild(el('b',null,fmt(r.mermaReal,1)+' % / '+fmt(r.mermaRef,1)+' %')); g.appendChild(a); }
     var b=el('div'); b.appendChild(el('small',null,'Tiempo real / calculado ('+r.unidad+')')); b.appendChild(el('b',null,(r.minReal!=null?fmt(r.minReal,2):'—')+' / '+(r.minRef?fmt(r.minRef,2):'—'))); g.appendChild(b);
     card.appendChild(g);
+    if(r.costoReal!=null){ var c2=el('div'); c2.appendChild(el('small',null,'Costo real / Excel ($ por '+r.costoU+', sin IVA)')); c2.appendChild(el('b',null,money(r.costoReal)+' / '+(r.costoRef?money(r.costoRef):'—'))); g.appendChild(c2); }
+    var av=[]; if(r.mermaReal!=null&&r.mermaRef>0&&r.mermaReal>r.mermaRef*(1+ALERTA)) av.push('Merma'); if(r.costoReal!=null&&r.costoRef&&r.costoReal>r.costoRef*(1+ALERTA)) av.push('Costo');
+    if(av.length) card.appendChild(el('div','msg warn',av.join(' y ')+' arriba de lo que dice el Excel en más de 5 %. Para tenerlo en cuenta cuando actualices el Excel.'));
     if(r.n<3) card.appendChild(el('p','hint','Pocas cargas: tomalo como orientativo.'));
     box.appendChild(card);
   });
@@ -513,14 +561,110 @@ $('copiarReales').addEventListener('click',function(){
   if(navigator.clipboard&&navigator.clipboard.writeText){ navigator.clipboard.writeText(t).then(ok,fallback); } else fallback();
 });
 
+
+// ---------- exportar mes ----------
+(function(){ var d=new Date(); $('eMes').value=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0'); })();
+function loadExcelJS(){
+  return new Promise(function(res,rej){
+    if(window.ExcelJS) return res(window.ExcelJS);
+    var sc=document.createElement('script'); sc.src='https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js'; sc.crossOrigin='anonymous';
+    sc.onload=function(){ res(window.ExcelJS); }; sc.onerror=function(){ rej(new Error('No pude cargar el generador de Excel. Revisá tu conexión.')); };
+    document.head.appendChild(sc);
+  });
+}
+function r2(n,d){ return n==null||isNaN(n)?null:Math.round(n*Math.pow(10,d))/Math.pow(10,d); }
+function prodRows(mes){
+  var xs=elabs.filter(function(e){ return (e.fecha||'').indexOf(mes)===0; }).sort(function(a,b){ return (a.fecha||'').localeCompare(b.fecha||'')||(a.creado||0)-(b.creado||0); });
+  var cnt={};
+  return xs.map(function(e){
+    var k=e.fecha+'|'+e.producto; cnt[k]=(cnt[k]||0)+1;
+    var piz=e.tipo==='pizzita', kf=piz?null:kgFraccOf(e), mer=piz?null:(e.merma!=null?e.merma:(e.kgPieza-kf));
+    var lote=(piz?'Lote ':'Pieza ')+cnt[k]+' del día'+(e.nota?' · '+e.nota:'');
+    var cu=costoUnit(e), al=alertasDe(e).map(function(a){return a.txt;}).join(' | ');
+    return {e:e,vals:[e.fecha,e.producto,codigoOf(e),lote,piz?null:r2(e.kgPieza,3),piz?null:r2(kf,3),piz?null:r2(mer,3),piz||!(e.kgPieza>0)?null:r2(mer/e.kgPieza*100,2),
+      unitsOf(e),
+      r2(e.cMat,0),r2(e.cEnv,0),r2(e.cAmort,0),r2(e.cMO,0),r2(e.costo,0),piz?null:r2(cu,0),piz?r2(cu,0):null,al]};
+  });
+}
+function resumenRows(rows){
+  var by={}, order=[];
+  rows.forEach(function(r){ var e=r.e; if(!by[e.producto]){ by[e.producto]={p:e.producto,t:e.tipo,n:0,kp:0,kf:0,mer:0,un:0,cs:0,cu:0}; order.push(e.producto); }
+    var b=by[e.producto]; b.n++; b.un+=unitsOf(e); if(e.costo!=null){ b.cs+=e.costo; b.cu+=e.unidades||0; }
+    if(e.tipo!=='pizzita'){ b.kp+=e.kgPieza||0; b.kf+=kgFraccOf(e); b.mer+=(e.merma!=null?e.merma:0); if(e.costo!=null) b.ck=(b.ck||0)+kgFraccOf(e); } });
+  return order.map(function(p){
+    var b=by[p], piz=b.t==='pizzita', rc=refCosto(p), rm=refMermaOf(p);
+    var cr=piz?(b.cu>0?b.cs/b.cu:null):(b.ck>0?b.cs/b.ck:null);
+    var mp=(!piz&&b.kp>0)?b.mer/b.kp*100:null;
+    var dif=(cr!=null&&rc)?(cr/rc.v-1):null, difM=(mp!=null&&rm>0)?(mp/rm-1):null;
+    var al=[]; if(dif!=null&&dif>ALERTA) al.push('Costo'); if(difM!=null&&difM>ALERTA) al.push('Merma');
+    return [p,piz?'Pizzita':(b.t==='queso'?'Queso':'Al vacío'),b.n,piz?null:r2(b.kf,3),b.un,piz?null:r2(mp,2),rm>0?rm:null,difM==null?null:difM,r2(cr,0),rc?r2(rc.v,0):null,piz?'$/unidad':'$/kg',dif==null?null:dif,al.join(' y ')];
+  });
+}
+function stockAlCierre(finMes){
+  var tot={}; stockItems().forEach(function(i){ tot[i.key]={ent:0,sal:0,unit:i.unit}; });
+  elabs.forEach(function(e){ if((e.fecha||'')<=finMes){ var k=keyOf(e); if(tot[k]) tot[k].ent+=unitsOf(e); } });
+  movs.forEach(function(m){ if((m.fecha||'')<=finMes){ var k=m.clave||m.producto; if(tot[k]) tot[k].sal+=m.bolsas||0; } });
+  return Object.keys(tot).filter(function(k){ return tot[k].ent||tot[k].sal; }).map(function(k){ var t=tot[k]; return [k,t.unit,t.ent,t.sal,t.ent-t.sal]; });
+}
+async function exportarMes(){
+  var mes=$('eMes').value, m=$('eMsg'); m.textContent='';
+  if(!/^\d{4}-\d{2}$/.test(mes)){ m.appendChild(el('div','msg bad','Elegí el mes.')); return; }
+  var rows=prodRows(mes);
+  if(!rows.length){ m.appendChild(el('div','msg warn','No hay elaboraciones cargadas en ese mes.')); return; }
+  var y=+mes.slice(0,4), mo=+mes.slice(5), last=new Date(y,mo,0).getDate(), fin=mes+'-'+String(last).padStart(2,'0');
+  $('eBtn').disabled=true;
+  try{
+    var X=await loadExcelJS(), wb=new X.Workbook(); wb.creator='Elaboraciones TOGO'; wb.created=new Date();
+    var HF={type:'pattern',pattern:'solid',fgColor:{argb:'FF6A2FC0'}}, WH={bold:true,color:{argb:'FFFFFFFF'}}, MONEY='$ #,##0', ROJO={type:'pattern',pattern:'solid',fgColor:{argb:'FFFDE7C8'}};
+    function head(ws,r,cols){ var row=ws.getRow(r); cols.forEach(function(c,i){ var x=row.getCell(i+1); x.value=c; x.fill=HF; x.font=WH; x.alignment={wrapText:true,horizontal:'center',vertical:'middle'}; }); row.height=46; }
+    // PRODUCCIÓN
+    var ws=wb.addWorksheet('PRODUCCIÓN'); 
+    ws.getCell('A1').value='PRODUCCIÓN '+mes+' — todo sin IVA. Costos con los precios y tiempos vigentes del Excel de costos.'; ws.getCell('A1').font={bold:true,size:12};
+    head(ws,3,['Fecha','Producto','Código','Pieza o lote','Kg de entrada','Kg envasados','Merma (kg)','Merma (%)','Bolsas usadas (quesos: film = porciones o cuartos; pizzitas: unidades)','Costo materia prima ($)','Costo bolsas / film ($)','Amortización ($)','Mano de obra ($)','Costo total ($)','Costo por kg envasado ($)','Costo por unidad — pizzitas ($)','Alertas (>5 % sobre el Excel)']);
+    rows.forEach(function(r,i){ var row=ws.getRow(4+i); r.vals.forEach(function(v,j){ var c=row.getCell(j+1); c.value=v; }); 
+      [5,6,7].forEach(function(j){ row.getCell(j).numFmt='#,##0.000'; }); row.getCell(8).numFmt='0.0"%"'; [10,11,12,13,14,15,16].forEach(function(j){ row.getCell(j).numFmt=MONEY; });
+      if(r.vals[16]) row.getCell(17).fill=ROJO; });
+    var tr=4+rows.length, trow=ws.getRow(tr); trow.getCell(1).value='TOTAL'; trow.font={bold:true};
+    [['E',5],['F',6],['G',7],['J',10],['K',11],['L',12],['M',13],['N',14]].forEach(function(x){ var c=trow.getCell(x[1]); c.value={formula:'SUM('+x[0]+'4:'+x[0]+(tr-1)+')'}; c.numFmt=x[1]<=7?'#,##0.000':MONEY; });
+    [18,26,9,24,11,11,10,10,16,14,14,14,14,14,15,15,46].forEach(function(w,i){ ws.getColumn(i+1).width=w; }); ws.views=[{state:'frozen',xSplit:2,ySplit:3}];
+    // RESUMEN
+    var rs=wb.addWorksheet('RESUMEN DEL MES');
+    rs.getCell('A1').value='RESUMEN DEL MES '+mes+' — costo real contra el Excel de costos (TOGO_Costos.xlsx), sin IVA'; rs.getCell('A1').font={bold:true,size:12};
+    head(rs,3,['Producto','Tipo','Elaboraciones','Kg producidos (envasados)','Unidades (bolsas / porciones / pizzitas)','Merma promedio (%)','Merma según Excel (%)','Merma: diferencia relativa','Costo real','Costo según Excel','Unidad del costo','Costo: diferencia %','Alerta (>5 %)']);
+    var rr=resumenRows(rows);
+    rr.forEach(function(v,i){ var row=rs.getRow(4+i); v.forEach(function(x,j){ row.getCell(j+1).value=x; });
+      row.getCell(4).numFmt='#,##0.00'; row.getCell(6).numFmt='0.0"%"'; row.getCell(7).numFmt='0.0"%"'; row.getCell(8).numFmt='+0.0%;-0.0%;0.0%'; row.getCell(9).numFmt=MONEY; row.getCell(10).numFmt=MONEY; row.getCell(12).numFmt='+0.0%;-0.0%;0.0%'; if(v[12]) row.getCell(13).fill=ROJO; });
+    var n=4+rr.length+1;
+    rs.getCell(n,1).value='Notas'; rs.getCell(n,1).font={bold:true};
+    ['Merma promedio = merma total / kg de entrada total del mes. Costo real = costo total (materia prima + bolsas + amortización + mano de obra) / kg envasados. Pizzitas: por unidad elaborada.',
+     'Referencia del Excel: fiambres al vacío = costo total $/kg (precio local / 1,6) y merma calculada. Pizzitas = costo total por unidad. Quesos: el Excel no tiene costo total ni merma, quedan sin comparación.',
+     'La alerta salta cuando el real supera al Excel en más de 5 % (relativo, no en puntos). Los costos se recalculan con los precios vigentes, no con los de cada día.'].forEach(function(t,i){ rs.getCell(n+1+i,1).value=t; rs.getCell(n+1+i,1).font={italic:true,color:{argb:'FF625A78'}}; });
+    var s0=n+5;
+    rs.getCell(s0,1).value='STOCK AL FINAL DEL MES ('+fdate(fin)+')'; rs.getCell(s0,1).font={bold:true,size:12};
+    head(rs,s0+1,['Producto / presentación','Unidad','Elaboradas (acumulado)','Salidas (acumulado)','Stock al cierre']);
+    var st=stockAlCierre(fin);
+    st.forEach(function(v,i){ var row=rs.getRow(s0+2+i); v.forEach(function(x,j){ row.getCell(j+1).value=x; }); if(v[4]<0) row.getCell(5).font={color:{argb:'FFC0392B'},bold:true}; });
+    if(!st.length) rs.getCell(s0+2,1).value='Sin movimientos de stock hasta esa fecha.';
+    [30,12,13,16,18,14,14,14,13,13,11,13,16].forEach(function(w,i){ rs.getColumn(i+1).width=w; });
+    var buf=await wb.xlsx.writeBuffer();
+    var blob=new Blob([buf],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}), url=URL.createObjectURL(blob), a=document.createElement('a');
+    a.href=url; a.download='ELABORACIONES_'+mes+'.xlsx'; document.body.appendChild(a); a.click(); a.remove(); setTimeout(function(){ URL.revokeObjectURL(url); },4000);
+    var nal=rows.filter(function(r){return r.vals[16];}).length;
+    m.appendChild(el('div','msg ok','Listo: ELABORACIONES_'+mes+'.xlsx ('+rows.length+' elaboraciones'+(nal?', '+nal+' con alerta':'')+'). Guardalo en TODO CLAUDE › ELABORACIONES.'));
+  }catch(e){ m.appendChild(el('div','msg bad',(e&&e.message)||'No se pudo armar el Excel.')); }
+  $('eBtn').disabled=false;
+}
+$('eBtn').addEventListener('click',exportarMes);
+
 function renderHist(){
   var box=$('histList'); box.textContent='';
   if(!elabs.length){ box.appendChild(el('div','empty','Todavía no hay elaboraciones cargadas. Empezá por la pestaña Al vacío o Quesos.')); return; }
   elabs.slice().sort(function(a,b){ return (b.fecha||'').localeCompare(a.fecha||'')||(b.creado||0)-(a.creado||0); }).forEach(function(e){
     var r=el('div','row'), l=el('div','l'); var kf=kgFraccOf(e), mer=e.merma!=null?e.merma:(e.kgPieza-kf);
     l.appendChild(el('strong',null,e.producto+' · '+unitsOf(e)+ulabel(e)));
-    if(e.tipo==='pizzita'){ l.appendChild(el('small',null,fdate(e.fecha)+' · hechas '+e.unidades+(e.descarte?' · descartadas '+e.descarte:'')+' · '+fmt(e.minutos,0)+' min ('+fmt(e.minutos/e.unidades,2)+' por pizzita)'+(e.resultado!=null?' · resultado '+money(e.resultado):'')+(nameOf(e.uid)?' · '+nameOf(e.uid):''))); if(e.nota) l.appendChild(el('small',null,'“'+e.nota+'”')); r.appendChild(l); r.appendChild(delBtn('elaboraciones',e._id,e._src)); box.appendChild(r); return; }
+    if(e.tipo==='pizzita'){ l.appendChild(el('small',null,fdate(e.fecha)+' · hechas '+e.unidades+(e.descarte?' · descartadas '+e.descarte:'')+' · '+fmt(e.minutos,0)+' min ('+fmt(e.minutos/e.unidades,2)+' por pizzita)'+(e.resultado!=null?' · resultado '+money(e.resultado):'')+(nameOf(e.uid)?' · '+nameOf(e.uid):''))); tagsFor(e,l.lastChild); if(e.nota) l.appendChild(el('small',null,'“'+e.nota+'”')); r.appendChild(l); r.appendChild(delBtn('elaboraciones',e._id,e._src)); box.appendChild(r); return; }
     l.appendChild(el('small',null,fdate(e.fecha)+' · pieza '+fmt(e.kgPieza,3)+' kg · merma '+fmt(mer*1000,0)+' g ('+fmt(mer/e.kgPieza*100,1)+' %)'+(e.minutos>=0&&e.minutos!=null?' · '+fmt(e.minutos,0)+' min':'')+(e.resultado!=null?' · resultado '+money(e.resultado):'')+(nameOf(e.uid)?' · '+nameOf(e.uid):'')));
+    tagsFor(e,l.lastChild);
     if(e.nota) l.appendChild(el('small',null,'“'+e.nota+'”'));
     r.appendChild(l); r.appendChild(delBtn('elaboraciones',e._id,e._src)); box.appendChild(r);
   });
