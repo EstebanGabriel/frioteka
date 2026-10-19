@@ -37,6 +37,15 @@ h1{font-size:22px;margin:0}
 .c-ok{background:var(--ok-l);color:var(--ok)} .c-warn{background:var(--warn-l);color:var(--warn)} .c-bad{background:var(--bad-l);color:var(--bad)} .c-info{background:var(--info-l);color:var(--info)} .c-mut{background:var(--sf);color:var(--mut);border:1px solid var(--bd)}
 .note{font-size:14px;color:var(--mut);margin:0;text-align:center}
 .two{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.estado{border-radius:18px;padding:18px;text-align:center;display:flex;flex-direction:column;gap:6px;align-items:center}
+.estado.on{background:var(--ok-l);color:var(--ok)} .estado.off{background:var(--sf);border:1px solid var(--bd);color:var(--tx)}
+.estado b{font-size:20px} .estado span{font-size:15px;opacity:.9}
+.check{width:84px;height:84px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:48px;font-weight:800;color:#fff}
+.check.ok{background:var(--ok)} .check.sal{background:var(--info)}
+.titulo-ok{font-size:24px;font-weight:800;margin:0}
+.big.sal{background:var(--info);border-color:var(--info);color:#fff}
+.big.xl{font-size:21px;padding:20px 10px}
+.paso{font-size:15px;font-weight:700;text-align:center;padding:10px;border-radius:12px;background:var(--pri-l);color:var(--pri)}
 </style>
 </head><body>
 <main id="app"><div class="top"><span class="brand">FRIOTEKA · FICHAJE</span></div><p class="note">Cargando…</p></main>
@@ -89,19 +98,49 @@ function cajaUbicacion() {
 }
 function cabecera() { return `<div class="top"><span class="brand">FRIOTEKA · FICHAJE</span><span class="clock" id="clk">${partes(new Date()).hm}</span></div>`; }
 
+// Estado actual del empleado: si tiene una entrada abierta (sin salida) de menos de 10 horas.
+let estado = { abierta: false, est: null, ultimas: [] }, modo = null;
+async function leerEstado() {
+  const estDoc = (await getDoc(doc(fs, C.estado, USUARIO))).data() || null;
+  // Últimas marcas (la más nueva primero). Si Banchi borró alguna desde la app, se saltea y vale la anterior.
+  const ultimas = estDoc ? (estDoc.ultimas || [{ tipo: estDoc.tipo, ts: estDoc.ts, marca: estDoc.marca }]) : [];
+  let est = null;
+  for (const u of ultimas) { if (!u.marca || await existe(u.marca)) { est = u; break; } }
+  const abierta = !!(est && est.tipo === "entrada" && est.ts && (Date.now() - est.ts.toMillis()) < HORAS_ABIERTA * 3600e3);
+  estado = { abierta, est, ultimas };
+  return estado;
+}
+const durac = ms => { const m = Math.max(0, Math.round(ms / 60000)); return `${Math.floor(m / 60)} h ${pad(m % 60)} min`; };
+
+async function pantallaInicio() {
+  $("#app").innerHTML = cabecera() + `<p class="note">Cargando…</p>`;
+  try { await leerEstado(); } catch (e) {
+    $("#app").innerHTML = cabecera() + `<div class="box bad"><span class="dot"></span><div>No pude conectarme<small>${e.message || e}</small></div></div><button class="big pri" onclick="location.reload()">Probar de nuevo</button>`; return; }
+  const e = estado.est;
+  const card = estado.abierta
+    ? `<div class="estado on"><b>Estás trabajando</b><span>Entraste a las ${partes(e.ts.toDate()).hm}${e.local && LOCALES[e.local] ? " en " + LOCALES[e.local] : ""}</span><span>Llevás ${durac(Date.now() - e.ts.toMillis())}</span></div>`
+    : `<div class="estado off"><b>Hola ${emp}</b><span>No tenés un ingreso abierto</span></div>`;
+  $("#app").innerHTML = cabecera() + card +
+    (estado.abierta ? `<button class="big sal xl" id="ir">Registrar SALIDA</button>` : `<button class="big pri xl" id="ir">Registrar INGRESO</button>`) +
+    `<p class="note">Local: ${LOCALES[local]} · <a href="#" id="cambiar">cambiar</a></p>`;
+  $("#app").onclick = null;
+  $("#ir").onclick = () => { modo = estado.abierta ? "salida" : "entrada"; pin = ""; pantallaPin.err = ""; buscarUbicacion(); };
+  $("#cambiar").onclick = ev => { ev.preventDefault(); local = null; pantallaLocal(); };
+}
+
 function pantallaLocal() {
   $("#app").innerHTML = cabecera() + `<h1>¿En qué local estás?</h1><p class="note">Escaneá el QR del local. Si no podés, elegilo acá.</p>
   <div class="two"><button class="big" data-l="carcano">Cárcano</button><button class="big" data-l="sanmartin">San Martín</button></div>`;
-  $("#app").onclick = e => { const b = e.target.closest("[data-l]"); if (!b) return; local = b.dataset.l; history.replaceState(null, "", "?local=" + local); iniciar(); };
+  $("#app").onclick = e => { const b = e.target.closest("[data-l]"); if (!b) return; local = b.dataset.l; history.replaceState(null, "", "?local=" + local); pinHash ? pantallaInicio() : iniciar(); };
 }
 
 function pantallaPin() {
   const bloq = Date.now() < bloqueoHasta, puede = gps.estado !== "lejos" && gps.estado !== "buscando" && !bloq;
-  $("#app").innerHTML = cabecera() + cajaUbicacion() + `<h1>Hola ${emp}, poné tu PIN</h1>
+  $("#app").innerHTML = cabecera() + cajaUbicacion() + `<div class="paso">${modo === "salida" ? "Vas a registrar tu SALIDA" : "Vas a registrar tu INGRESO"}</div><h1>${emp}, poné tu PIN</h1>
   <div class="pinrow">${[0, 1, 2, 3].map(i => `<span class="${i < pin.length ? "on" : ""}"></span>`).join("")}</div>
   <div class="msg ${pantallaPin.err ? "err" : ""}">${bloq ? "Demasiados intentos. Esperá un minuto." : pantallaPin.err || "4 números"}</div>
   <div class="keys">${[1, 2, 3, 4, 5, 6, 7, 8, 9].map(n => `<button class="big" data-k="${n}" ${puede ? "" : "disabled"}>${n}</button>`).join("")}
-  <button class="big" data-k="loc" aria-label="Cambiar de local" title="Cambiar de local">⇄</button><button class="big" data-k="0" ${puede ? "" : "disabled"}>0</button><button class="big" data-k="del" aria-label="Borrar">⌫</button></div>
+  <button class="big" data-k="volver" aria-label="Volver" title="Volver">←</button><button class="big" data-k="0" ${puede ? "" : "disabled"}>0</button><button class="big" data-k="del" aria-label="Borrar">⌫</button></div>
   <p class="note">Local: ${LOCALES[local]}</p>`;
   $("#app").onclick = teclado;
 }
@@ -110,7 +149,7 @@ pantallaPin.err = "";
 async function teclado(e) {
   const b = e.target.closest("button[data-k]"); if (!b || b.disabled) return;
   const k = b.dataset.k;
-  if (k === "loc") { local = null; return pantallaLocal(); }
+  if (k === "volver") { pin = ""; return pantallaInicio(); }
   if (k === "del") { pin = pin.slice(0, -1); pantallaPin.err = ""; return pantallaPin(); }
   if (pin.length >= 4) return;
   pin += k; pantallaPin.err = "";
@@ -129,13 +168,7 @@ async function existe(id) { try { return (await getDoc(doc(fs, C.marcas, id))).e
 async function fichar() {
   $("#app").innerHTML = cabecera() + `<p class="note">Guardando…</p>`;
   try {
-    const estDoc = (await getDoc(doc(fs, C.estado, USUARIO))).data() || null;
-    // Últimas marcas (la más nueva primero). Si Banchi borró alguna desde la app, se saltea y vale la anterior.
-    const ultimas = estDoc ? (estDoc.ultimas || [{ tipo: estDoc.tipo, ts: estDoc.ts, marca: estDoc.marca }]) : [];
-    let est = null;
-    for (const u of ultimas) { if (!u.marca || await existe(u.marca)) { est = u; break; } }
-    const ahora = Date.now();
-    const abierta = est && est.tipo === "entrada" && est.ts && (ahora - est.ts.toMillis()) < HORAS_ABIERTA * 3600e3;
+    const { abierta, est, ultimas } = await leerEstado();
     const tipo = abierta ? "salida" : "entrada";
     const gpsDato = gps.estado === "ok" || gps.estado === "lejos" ? { lat: gps.lat, lng: gps.lng, precision: Math.round(gps.acc), distancia: Math.round(gps.dist) } : null;
     const ref = await addDoc(collection(fs, C.marcas), {
@@ -152,9 +185,16 @@ async function fichar() {
   } catch (e) {
     $("#app").innerHTML = cabecera() + `<div class="box bad"><span class="dot"></span><div>No se pudo guardar<small>${e.message || e}</small></div></div>
     <p class="note">Revisá que tengas internet y probá de nuevo. Si sigue, avisale a Banchi.</p><button class="big pri" id="otra">Probar de nuevo</button>`;
-    $("#otra").onclick = () => pantallaPin();
+    $("#otra").onclick = () => pantallaInicio();
   }
 }
+
+// Frases amables (se elige una al azar; a la noche, la salida desea un buen descanso)
+const azar = l => l[Math.floor(Math.random() * l.length)];
+function fraseEntrada() { return azar([`¡Que tengas un buen turno, ${emp}!`, `¡Buen día de trabajo, ${emp}!`, `¡Gracias por llegar, ${emp}! Que te vaya lindo.`, `¡Arrancamos! Que sea un gran turno, ${emp}.`]); }
+function fraseSalida(hm) { const h = +hm.slice(0, 2), noche = h >= 20 || h < 6;
+  return azar(noche ? [`¡Muchas gracias por tu trabajo, ${emp}! Que descanses.`, `¡Gracias, ${emp}! Que tengas una linda noche.`, `¡Buen trabajo hoy, ${emp}! A descansar.`]
+                    : [`¡Muchas gracias por tu trabajo, ${emp}! Que sigas bien.`, `¡Gracias, ${emp}! Que tengas una linda tarde.`, `¡Buen trabajo, ${emp}! Hasta la próxima.`]); }
 
 function resultado(tipo, hm, fecha, horario, est) {
   const ts = turnosHoy(horario, fecha), m = min(hm);
@@ -175,11 +215,21 @@ function resultado(tipo, hm, fecha, horario, est) {
     if (ent != null) det += (det ? "<br>" : "") + `Entraste ${partes(est.ts.toDate()).hm}`;
   }
   if (gps.estado !== "ok") chips.push([gps.estado === "sin-config" ? "Local sin ubicación cargada" : "Sin ubicación", "c-info"]);
-  $("#app").innerHTML = cabecera() + `<div class="res"><span class="kind">${tipo === "entrada" ? "Entrada registrada" : "Salida registrada"}</span>
-    <span class="hora">${hm}</span><b style="font-size:18px">${emp} · ${LOCALES[local]}</b>
+  const ent = tipo === "entrada";
+  const trabajado = !ent && est && est.ts ? `<b style="font-size:18px">Trabajaste ${durac(Date.now() - est.ts.toMillis())}</b>` : "";
+  $("#app").innerHTML = cabecera() + `<div class="res">
+    <div class="check ${ent ? "ok" : "sal"}">✓</div>
+    <p class="titulo-ok">${ent ? "¡Tu ingreso fue registrado!" : "¡Tu salida fue registrada!"}</p>
+    <p class="note" style="font-size:16px;color:var(--tx)">${ent ? fraseEntrada() : fraseSalida(hm)}</p>
+    <span class="hora">${hm}</span><b style="font-size:17px">${emp} · ${LOCALES[local]}</b>${trabajado}
     <div class="chips">${chips.map(([t, c]) => `<span class="chip ${c}">${t}</span>`).join("")}</div>
-    <p class="note">${det}</p></div><button class="big pri" id="listo">Listo</button>`;
-  $("#listo").onclick = () => { pin = ""; pantallaPin(); };
+    <p class="note">${det}</p></div>` +
+    (ent ? `<div class="estado on"><b>Estás trabajando</b><span>Cuando termines tu turno, tocá el botón o volvé a escanear el QR</span></div>
+      <button class="big sal xl" id="sig">Registrar SALIDA</button>`
+         : `<p class="note">${ts.length > 1 ? "Si tenés otro turno hoy, registrá el ingreso cuando vuelvas." : ""}</p>
+      <button class="big" id="sig">Listo</button>`);
+  $("#app").onclick = null;
+  $("#sig").onclick = () => { pin = ""; ent ? (modo = "salida", pantallaPin.err = "", buscarUbicacion()) : pantallaInicio(); };
 }
 
 function buscarUbicacion() {
@@ -204,7 +254,7 @@ async function iniciar() {
     $("#app").innerHTML = cabecera() + `<div class="box bad"><span class="dot"></span><div>No pude conectarme<small>${e.message || e}</small></div></div><button class="big pri" onclick="location.reload()">Probar de nuevo</button>`; return;
   }
   if (!pinHash) { $("#app").innerHTML = cabecera() + `<div class="box warn"><span class="dot"></span><div>Hola ${emp}<small>Todavía no tenés un PIN para fichar. Pedíselo a Banchi.</small></div></div><p class="note">Usuario: ${USUARIO}</p>`; return; }
-  buscarUbicacion();
+  pantallaInicio();
 }
 iniciar();
 </script>
