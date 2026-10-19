@@ -48,6 +48,9 @@ input,select,textarea{font:500 17px var(--body);color:var(--fg);background:var(-
 input[type=number]{font-variant-numeric:tabular-nums}
 .btn{font:600 16px var(--disp);letter-spacing:.05em;text-transform:uppercase;border:0;border-radius:8px;background:var(--accent);color:var(--accent-fg);padding:12px 18px;min-height:48px;cursor:pointer}
 .btn.ghost{background:transparent;color:var(--accent);border:1px solid var(--line)}
+.daynav{display:flex;gap:8px;align-items:stretch;margin-top:6px}
+.daynav input{flex:1;min-width:0}
+.daynav .btn:not(.small){min-width:48px;padding:0 12px;font-size:24px;line-height:1}
 .btn.small{min-height:38px;padding:6px 12px;font-size:14px}
 .btn[disabled]{opacity:.5;cursor:not-allowed}
 .live{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
@@ -208,13 +211,21 @@ select optgroup{font-style:normal}
   <!-- DIA -->
   <section id="s-dia" hidden>
     <div class="panel">
-      <label>Día a revisar<input type="date" id="dFecha"></label>
+      <label for="dFecha">Día a revisar</label>
+      <div class="daynav">
+        <button type="button" class="btn ghost" id="dPrev" aria-label="Día anterior">‹</button>
+        <input type="date" id="dFecha">
+        <button type="button" class="btn ghost" id="dNext" aria-label="Día siguiente">›</button>
+        <button type="button" class="btn ghost small" id="dHoy">Hoy</button>
+      </div>
       <div id="dResumen"></div>
     </div>
     <h2>Detalle del día</h2>
     <div class="list" id="dLista"></div>
-    <h2>Control contra el Excel</h2>
-    <div class="msg info">Merma y tiempo reales de todo lo cargado, contra los valores de tu Excel de costos. Si se desvían seguido, conviene actualizar el Excel.</div>
+    <h2>Reales vs calculados</h2>
+    <div class="msg info">Merma y tiempo que dan en la realidad (promedio de todo lo cargado) al lado de los valores con que está calculado el costo. No hace falta cambiar nada ya: copiá la tabla al Excel (hoja “Reales”) y actualizá los calculados cuando te parezca.</div>
+    <div class="actions"><button type="button" class="btn ghost small" id="copiarReales">Copiar para el Excel</button></div>
+    <div id="copiaMsg"></div>
     <div class="list" id="ctrlList"></div>
   </section>
 
@@ -341,10 +352,9 @@ function showResult(box,o){
   card.appendChild(res);
   var g=el('div','cmp');
   judge(o).forEach(function(r){
-    var c=el('div'); c.appendChild(el('small',null,r.k==='merma'?'Merma real vs Excel':(o.tipo==='vacio'?'Min por bolsa vs Excel':(o.tipo==='pizzita'?'Min por pizzita vs actual':'Min por kg vs Excel'))));
-    c.appendChild(el('b',null,r.k==='merma'?fmt(r.real,1)+' % / '+fmt(r.ref,1)+' %':fmt(r.real,2)+' / '+fmt(r.ref,2))); c.appendChild(document.createElement('br'));
-    var lab=r.st==='ok'?'Dentro de lo esperado':(r.k==='merma'?(r.st==='bad'?'Más merma que el Excel':'Menos merma que el Excel'):(r.st==='bad'?'Más lento que el Excel':'Más rápido que el Excel'));
-    c.appendChild(el('span','chip '+(r.st==='ok'?'ok':r.st==='bad'?'bad':'warn'),lab)); g.appendChild(c);
+    var c=el('div'); c.appendChild(el('small',null,r.k==='merma'?'Merma de esta carga / calculada':(o.tipo==='vacio'?'Min por bolsa de esta carga / calculado':(o.tipo==='pizzita'?'Min por pizzita de esta carga / actual':'Min por kg de esta carga / calculado'))));
+    c.appendChild(el('b',null,r.k==='merma'?fmt(r.real,1)+' % / '+fmt(r.ref,1)+' %':fmt(r.real,2)+' / '+fmt(r.ref,2)));
+    g.appendChild(c);
   });
   card.appendChild(g);
   if(o.estimado) card.appendChild(el('div','msg warn','El precio minorista de la mozzarella es estimado (costo + 50%) porque falta el dato de porciones en el Excel.'));
@@ -449,34 +459,59 @@ function renderDia(){
   });
 }
 $('dFecha').addEventListener('input',renderDia);
+function moveDay(n){
+  var v=$('dFecha').value||today(), p=v.split('-'), d=new Date(+p[0],+p[1]-1,+p[2]+n);
+  $('dFecha').value=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+  renderDia();
+}
+$('dPrev').addEventListener('click',function(){ moveDay(-1); });
+$('dNext').addEventListener('click',function(){ moveDay(1); });
+$('dHoy').addEventListener('click',function(){ $('dFecha').value=today(); renderDia(); });
 
-function renderControl(){
-  var box=$('ctrlList'); box.textContent='';
-  if(!elabs.length){ box.appendChild(el('div','empty','Cuando cargues elaboraciones, acá vas a ver la merma y el tiempo reales de cada producto contra los del Excel.')); return; }
-  var prods={}; elabs.forEach(function(e){ prods[e.producto]=1; });
+function realesList(){
+  var out=[], prods={}; elabs.forEach(function(e){ prods[e.producto]=1; });
   Object.keys(prods).forEach(function(p){
     if(PIZ[p]){
-      var px=elabs.filter(function(e){return e.producto===p&&e.minutos>=0}); if(!px.length) return;
+      var px=elabs.filter(function(e){return e.producto===p&&e.minutos>=0&&e.unidades>0}); if(!px.length) return;
       var tm=0,tu=0; px.forEach(function(e){ tm+=e.minutos; tu+=e.unidades; });
-      var mpu=tm/tu, rs=judge({minUnidad:mpu,refMin:PIZ_MIN_REF}), c0=el('div','card'), h0=el('header'); h0.appendChild(el('h2',null,p));
-      var w0=rs.length?rs[0].st:'ok'; h0.appendChild(el('span','chip '+w0,w0==='ok'?'Como el tiempo actual':(w0==='bad'?'Más lento que el actual':'Más rápido que el actual'))); c0.appendChild(h0);
-      var g0=el('div','cmp'); var a0=el('div'); a0.appendChild(el('small',null,'Min por pizzita real')); a0.appendChild(el('b',null,fmt(mpu,2))); g0.appendChild(a0);
-      var b0=el('div'); b0.appendChild(el('small',null,'Actual / objetivo')); b0.appendChild(el('b',null,fmt(PIZ_MIN_REF,2)+' / '+fmt(PIZ_MIN_OBJ,2))); g0.appendChild(b0); c0.appendChild(g0); box.appendChild(c0); return;
+      out.push({producto:p,tipo:'Pizzita',n:px.length,mermaReal:null,mermaRef:null,minReal:tm/tu,minRef:PIZ_MIN_REF,unidad:'min por pizzita'});
+      return;
     }
-    var xs=elabs.filter(function(e){return e.producto===p&&e.merma!=null}); if(!xs.length) return;
-    var kp=0,mer=0,uni=0,mi=0,miU=0,miKg=0,kgM=0; var vac=!!VAC[p];
-    xs.forEach(function(e){ kp+=e.kgPieza; mer+=e.merma; uni+=unitsOf(e); if(e.minutos>=0){ mi+=e.minutos; miU+=unitsOf(e); kgM+=e.kgPieza; } });
-    var mp=mer/kp*100, mu=vac?(miU>0?mi/miU:null):(kgM>0?mi/kgM:null);
-    var o={mermaPct:mp,minUnidad:mu,refMerma:vac?VAC[p].merma:0,refMin:vac?VAC[p].mpb:QUE[p].mkg};
-    var res=judge(o), card=el('div','card'), h=el('header'); h.appendChild(el('h2',null,p));
-    var worst=res.some(function(r){return r.st==='bad'})?'bad':res.some(function(r){return r.st==='warn'})?'warn':'ok';
-    h.appendChild(el('span','chip '+worst,worst==='ok'?'Coincide con el Excel':worst==='bad'?'Revisar costo':'Mejor que el Excel')); card.appendChild(h);
+    var xs=elabs.filter(function(e){return e.producto===p&&e.merma!=null&&e.kgPieza>0}); if(!xs.length) return;
+    var vac=!!VAC[p], kp=0,mer=0,mi=0,miU=0,kgM=0;
+    xs.forEach(function(e){ kp+=e.kgPieza; mer+=e.merma; if(e.minutos>=0){ mi+=e.minutos; miU+=unitsOf(e); kgM+=e.kgPieza; } });
+    var mu=vac?(miU>0?mi/miU:null):(kgM>0?mi/kgM:null);
+    out.push({producto:p,tipo:vac?'Al vacío':'Queso',n:xs.length,mermaReal:mer/kp*100,mermaRef:vac?VAC[p].merma:0,minReal:mu,minRef:vac?VAC[p].mpb:(QUE[p]?QUE[p].mkg:null),unidad:vac?'min por bolsa':'min por kg'});
+  });
+  return out;
+}
+function renderControl(){
+  var box=$('ctrlList'); box.textContent='';
+  var L=realesList();
+  if(!L.length){ box.appendChild(el('div','empty','Cuando cargues elaboraciones, acá vas a ver la merma y el tiempo reales de cada producto al lado de los calculados.')); return; }
+  L.forEach(function(r){
+    var card=el('div','card'), h=el('header'); h.appendChild(el('h2',null,r.producto)); h.appendChild(el('span','chip',r.n+(r.n===1?' carga':' cargas'))); card.appendChild(h);
     var g=el('div','cmp');
-    var a=el('div'); a.appendChild(el('small',null,'Merma real / Excel')); a.appendChild(el('b',null,fmt(mp,1)+' % / '+fmt(o.refMerma,1)+' %')); g.appendChild(a);
-    var b=el('div'); b.appendChild(el('small',null,vac?'Min por bolsa real / Excel':'Min por kg real / Excel')); b.appendChild(el('b',null,(mu!=null?fmt(mu,2):'—')+' / '+(o.refMin?fmt(o.refMin,2):'—'))); g.appendChild(b);
-    card.appendChild(g); box.appendChild(card);
+    if(r.mermaReal!=null){ var a=el('div'); a.appendChild(el('small',null,'Merma real / calculada')); a.appendChild(el('b',null,fmt(r.mermaReal,1)+' % / '+fmt(r.mermaRef,1)+' %')); g.appendChild(a); }
+    var b=el('div'); b.appendChild(el('small',null,'Tiempo real / calculado ('+r.unidad+')')); b.appendChild(el('b',null,(r.minReal!=null?fmt(r.minReal,2):'—')+' / '+(r.minRef?fmt(r.minRef,2):'—'))); g.appendChild(b);
+    card.appendChild(g);
+    if(r.n<3) card.appendChild(el('p','hint','Pocas cargas: tomalo como orientativo.'));
+    box.appendChild(card);
   });
 }
+function realesTexto(){
+  var rows=[['Producto','Tipo','Cargas','Merma real %','Merma calculada %','Tiempo real','Tiempo calculado','Unidad del tiempo']];
+  realesList().forEach(function(r){ rows.push([r.producto,r.tipo,r.n,r.mermaReal!=null?fmt(r.mermaReal,2):'',r.mermaRef!=null?fmt(r.mermaRef,2):'',r.minReal!=null?fmt(r.minReal,2):'',r.minRef?fmt(r.minRef,2):'',r.unidad]); });
+  return rows.map(function(r){ return r.join('\t'); }).join('\n');
+}
+$('copiarReales').addEventListener('click',function(){
+  var t=realesTexto(), m=$('copiaMsg'); m.textContent='';
+  function ok(){ m.appendChild(el('div','msg ok','Copiado. Pegalo en la hoja “Reales” del Excel, en la celda A4.')); }
+  function fallback(){
+    var ta=el('textarea'); ta.value=t; ta.style.cssText='width:100%;height:140px'; m.appendChild(el('div','msg warn','No pude copiar solo. Seleccioná el texto y copialo:')); m.appendChild(ta); ta.focus(); ta.select();
+  }
+  if(navigator.clipboard&&navigator.clipboard.writeText){ navigator.clipboard.writeText(t).then(ok,fallback); } else fallback();
+});
 
 function renderHist(){
   var box=$('histList'); box.textContent='';
