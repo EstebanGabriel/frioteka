@@ -509,12 +509,17 @@ const minHm=x=>{x=Math.round(x);return String(Math.floor(x/60)).padStart(2,"0")+
 const fhm=m=>{m=Math.round(m);return Math.floor(m/60)+" h "+String(m%60).padStart(2,"0")};
 const tzParts=d=>{const p=Object.fromEntries(new Intl.DateTimeFormat("en-CA",{timeZone:"America/Argentina/Cordoba",year:"numeric",month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit",hour12:false}).formatToParts(d).map(x=>[x.type,x.value]));
   return{f:`${p.year}-${p.month}-${p.day}`,m:(p.hour==="24"?0:+p.hour)*60+(+p.minute)}};
+const fjMesIni=f=>f.slice(0,8)+"01";
+const fjInicio=()=>(DB.fj&&DB.fj.inicio)||"2026-10-19";
+// ¿Este turno es el primero del día en ese local? (le toca abrir)
+function fjAbre(f,loc,a){let m=null;for(const k in (DB.horarios||{})){if(k.split("|")[1]!==f)continue;const v=DB.horarios[k];if(!Array.isArray(v))continue;
+  v.forEach(([l,hi])=>{if(l===loc){const x=hmMin(hi);if(m==null||x<m)m=x}})}return m!=null&&a<=m}
 function fjAseg(){DB.fj=DB.fj||{};DB.fj.aprob=DB.fj.aprob||{};DB.fj.corr=DB.fj.corr||{};DB.fj.nov=DB.fj.nov||{}}
 async function fjCargar(lun,forzar){
   if(!window.FJ){FJC.err="esperando";return}
   if(FJC.lun===lun&&FJC.marcas&&!forzar)return;
   FJC.lun=lun;FJC.marcas=null;FJC.err=null;
-  try{const [ms,cfg,pin]=await Promise.all([FJ.marcas(lun,addD(lun,6)),FJ.config(),FJ.pines()]);FJC.marcas=ms;FJC.cfg=cfg;FJC.pines=pin}
+  try{const [ms,cfg,pin]=await Promise.all([FJ.marcas(fjMesIni(lun),addD(lun,6)),FJ.config(),FJ.pines()]);FJC.marcas=ms;FJC.cfg=cfg;FJC.pines=pin}
   catch(e){FJC.err=e.message||String(e)}
   FJC.borr=[];FJC.clave=null;
   try{FJC.clave=await FJ.clave()}catch(e){}
@@ -524,7 +529,21 @@ async function fjSync(lun){if(!window.FJ)return;const t={};
   for(const k in (DB.horarios||{})){const f=k.split("|")[1];if(f>=lun&&f<=addD(lun,6))t[k]=DB.horarios[k]}
   if(!Object.keys(t).length)return;const firma=JSON.stringify(t);if(FJC.sync[lun]===firma)return;
   try{await FJ.syncHorarios(lun,t);FJC.sync[lun]=firma}catch(e){}}
-function fjCruce(id,lun){
+function fjCruce(id,lun){const rows=fjCruceBase(id,lun);fjTol(id,lun,rows);return rows}
+// Tolerancia reiterada: cada 3 ingresos dentro de la tolerancia en un mismo mes, cuenta como una llegada tarde
+function fjTol(id,lun,rows){const ini=fjInicio(),hoy=lunes(HOY)>=lun?HOY:addD(lun,6);let prev=[];
+  for(let w=lunes(fjMesIni(lun));w<lun;w=addD(w,7))prev=prev.concat(fjCruceBase(id,w));
+  const todas=prev.concat(rows).filter(r=>r.f>=ini).sort((x,y)=>x.f<y.f?-1:x.f>y.f?1:(x.a||0)-(y.a||0));const cnt={};
+  todas.forEach(r=>{if(!r.est.some(e=>e[0].includes("(en tolerancia)")))return;const m=r.f.slice(0,7);cnt[m]=(cnt[m]||0)+1;
+    if(cnt[m]%3===0&&rows.includes(r)){r.est.push([`${cnt[m]}ª tolerancia del mes: cuenta como llegada tarde`,"warn"]);r.tol3=true;
+      const d=r.ent-r.a;if(!r.acc){r.acc={a:"nov",nov:"Tarde",min:d,t:"Pasar a novedades"};r.hecho=!!DB.fj.nov[r.key]}}})}
+// Resumen del mes para el reglamento de puntualidad
+function fjMes(id,lun){const M=addD(lun,3).slice(0,7),ini=fjInicio();let rows=[];
+  for(let w=lunes(M+"-01");w<=lun;w=addD(w,7))rows=rows.concat(fjCruce(id,w));
+  rows=rows.filter(r=>r.f.startsWith(M)&&r.f>=ini&&r.f<=HOY);const has=(r,k)=>r.est.some(e=>e[0].startsWith(k));
+  return{M,tarde:rows.filter(r=>has(r,"Tarde")).length,tol3:rows.filter(r=>r.tol3).length,tol:rows.filter(r=>r.est.some(e=>e[0].includes("(en tolerancia)"))).length,
+    graves:rows.filter(r=>has(r,"Grave")).length,faltas:rows.filter(r=>r.est.some(e=>e[0]==="Falta")).length}}
+function fjCruceBase(id,lun){
   fjAseg();const out=[];const ahora=tzParts(new Date());
   const mis=(FJC.marcas||[]).filter(m=>m.emp===id&&m.t).map(m=>({...m,...tzParts(m.t)})).sort((a,b)=>a.t-b.t);
   for(let i=0;i<7;i++){const f=addD(lun,i);const v=(DB.horarios||{})[id+"|"+f];const turnos=Array.isArray(v)?v:[];
@@ -545,9 +564,10 @@ function fjFila(id,f,ti,loc,a,b,x,ahora){
   const pasado=f<ahora.f||(f===ahora.f&&a!=null&&ahora.m>a+FJTOL);const terminado=f<ahora.f||(f===ahora.f&&b!=null&&ahora.m>b+30);
   let cuenta=0;
   if(fuera){est.push(["Fuera de horario","warn"]);if(ent!=null&&sal!=null){const ex=sal-ent;if(!DB.fj.aprob[key])acc={a:"apr",min:ex,t:`Aprobar ${fhm(ex)}`};cuenta=DB.fj.aprob[key]||0}}
-  else if(ent==null&&sal==null){if(pasado){est.push(["Falta","bad"]);acc={a:"nov",nov:"Falta",t:"Pasar a novedades"}}else est.push(["Todavía no","mut"])}
+  else if(ent==null&&sal==null){if(pasado){est.push(["Falta","bad"]);est.push(["Sin aviso es falta grave","mut"]);acc={a:"nov",nov:"Falta",t:"Pasar a novedades"}}else est.push(["Todavía no","mut"])}
   else{
-    if(ent!=null){const d=ent-a;if(d>FJTOL){est.push([`Tarde +${d} min`,"warn"]);acc={a:"nov",nov:"Tarde",min:d,t:"Pasar a novedades"}}else if(d>0)est.push([`+${d} min (en tolerancia)`,"mut"]);else if(d<0)est.push([`Entró ${-d} min antes`,"mut"]);else est.push(["A horario","ok"])}
+    if(ent!=null){const d=ent-a;if(d>FJTOL){est.push([`Tarde +${d} min`,"warn"]);acc={a:"nov",nov:"Tarde",min:d,t:"Pasar a novedades"};
+      if(d>=30)est.push(["Grave: 30 min o más tarde (si no avisó)","bad"]);else if(fjAbre(f,loc,a))est.push(["Grave: llegó tarde y le tocaba abrir","bad"])}else if(d>0)est.push([`+${d} min (en tolerancia)`,"mut"]);else if(d<0)est.push([`Entró ${-d} min antes`,"mut"]);else est.push(["A horario","ok"])}
     else est.push(["No fichó la entrada","bad"]);
     if(sal==null){if(terminado){est.push(["No fichó la salida","bad"]);acc={a:"corr",t:"Corregir salida"}}else est.push(["Trabajando","ok"])}
     else{if(corr)est.push([`Salida corregida ${corr}`,"info"]);const d=sal-b;
@@ -574,10 +594,12 @@ function vFichaje(){
   h+=`<div class="card"><h2>Resumen de la semana</h2>`;
   emps.forEach(id=>{const F=filas[id].filter(r=>!r.fuera||r.cuenta);const real=F.reduce((s,r)=>s+r.cuenta,0),plan=F.filter(r=>!r.fuera).reduce((s,r)=>s+(r.b-r.a),0);
     const n=k=>filas[id].filter(r=>r.est.some(e=>e[0].startsWith(k))).length;const e=E(id);
-    const tags=[n("Tarde")&&`<span class="tag warn">${n("Tarde")} tarde</span>`,n("Falta")&&`<span class="tag bad">${n("Falta")} falta</span>`,n("No fichó")&&`<span class="tag bad">${n("No fichó")} sin fichar</span>`,n("Sin ubicación")&&`<span class="tag info">${n("Sin ubicación")} sin ubicación</span>`,n("Fuera")&&`<span class="tag warn">${n("Fuera")} fuera de horario</span>`].filter(Boolean).join(" ")||(plan?`<span class="tag ok">Sin novedades</span>`:"");
+    const tags=[n("Tarde")&&`<span class="tag warn">${n("Tarde")} tarde</span>`,n("Falta")&&`<span class="tag bad">${n("Falta")} falta</span>`,n("No fichó")&&`<span class="tag bad">${n("No fichó")} sin fichar</span>`,n("Sin ubicación")&&`<span class="tag info">${n("Sin ubicación")} sin ubicación</span>`,n("Grave")&&`<span class="tag bad">${n("Grave")} grave</span>`,n("Fuera")&&`<span class="tag warn">${n("Fuera")} fuera de horario</span>`].filter(Boolean).join(" ")||(plan?`<span class="tag ok">Sin novedades</span>`:"");
     let meta=plan?`horario ${fhm(plan)}`:"sin horario cargado";
     if(e&&e.hsSemana){const falta=e.hsSemana*60-real;meta=falta>0?`debe ${fhm(falta)} sobre ${e.hsSemana} h`:`cumple las ${e.hsSemana} h`}
-    h+=R(`<b>${id}</b> <span class="muted">· ${meta}</span><br>${tags}`,`<b>${fhm(real)}</b>`)});
+    const ms=fjMes(id,lun),MES=["enero","febrero","marzo","abril","mayo","junio","julio","agosto","septiembre","octubre","noviembre","diciembre"][+ms.M.slice(5)-1];
+    const lt=ms.tarde+ms.tol3,mesTxt=(lt||ms.tol||ms.graves||ms.faltas)?`<div class="muted" style="font-size:12px;margin-top:3px">En ${MES}: <b>${lt} llegada${lt===1?"":"s"} tarde</b>${ms.tol3?` (${ms.tol3} por 3 tolerancias)`:""} · ${ms.tol} tolerancia${ms.tol===1?"":"s"}${ms.graves?` · <b style="color:var(--bad)">${ms.graves} grave${ms.graves===1?"":"s"}</b>`:""}${ms.faltas?` · ${ms.faltas} falta${ms.faltas===1?"":"s"}`:""}</div>`:"";
+    h+=R(`<b>${id}</b> <span class="muted">· ${meta}</span><br>${tags}${mesTxt}`,`<b>${fhm(real)}</b>`)});
   h+=`<button class="btn sec full" style="margin-top:10px" onclick="fjAplicar()">Usar estas horas en la liquidación</button><div class="muted" style="margin-top:6px">Pasa las horas que cuentan a la ficha de cada uno (menos Gonzalo, que cobra el recibo). Revisá antes las faltas y salidas sin fichar.</div></div>`;
   const ver=st.fjEmp==="todos"?emps:[st.fjEmp];
   h+=`<div class="card"><h2>Turno por turno</h2><div class="scroll"><table><tr><th>Día</th>${st.fjEmp==="todos"?"<th>Empleado</th>":""}<th>Local</th><th>Horario</th><th>Entró</th><th>Salió</th><th>Cuenta</th><th>Qué pasó</th><th></th></tr>`;
@@ -587,13 +609,13 @@ function vFichaje(){
     <td class="num">${r.ent==null?"—":`<b>${minHm(r.ent)}</b><br><span class="muted">${fjDif(r.ent,r.a,true)}</span>`}</td>
     <td class="num">${r.sal==null?"—":`<b>${minHm(r.sal)}</b><br><span class="muted">${fjDif(r.sal,r.b,false)}</span>`}</td>
     <td class="num">${r.cuenta?fhm(r.cuenta):"—"}</td><td>${r.est.map(([t,c])=>`<span class="tag ${c}">${t}</span>`).join(" ")}</td><td>${btn}</td></tr>`}));
-  h+=`</table></div><div class="muted" style="margin-top:8px">Cuenta desde la hora de entrada del horario hasta la de salida. Llegar antes no suma; quedarse de más suma solo si lo aprobás. Hasta ${FJTOL} min tarde no es llegada tarde, pero igual se descuenta.</div></div>`;
+  h+=`</table></div><div class="muted" style="margin-top:8px">Cuenta desde la hora de entrada del horario hasta la de salida. Llegar antes no suma; quedarse de más suma solo si lo aprobás. Hasta ${FJTOL} min tarde no es llegada tarde, pero igual se descuenta. Según el reglamento: 3 tolerancias en el mes cuentan como una llegada tarde; 30 min o más tarde sin aviso, llegar tarde cuando le toca abrir o faltar sin aviso es falta grave.</div></div>`;
   h+=fjMarcasCard(ver);
   h+=fjConfigCard();
   $("#main").innerHTML=h}
 const LOCN=l=>l==="sanmartin"?"San Martín":"Cárcano";
 function fjMarcasCard(ver){
-  const ms=(FJC.marcas||[]).filter(m=>m.t&&ver.includes(m.emp)).sort((a,b)=>a.t-b.t);
+  const L0=st.fjLun,L6=addD(st.fjLun,6);const ms=(FJC.marcas||[]).filter(m=>{if(!m.t||!ver.includes(m.emp))return false;const f=tzParts(m.t).f;return f>=L0&&f<=L6}).sort((a,b)=>a.t-b.t);
   let h=`<div class="card"><h2>Marcas de la semana</h2><div class="muted" style="margin-bottom:8px">Cada vez que alguien fichó. Si una marca está mal (una prueba, fichó dos veces, etc.) la podés borrar con tu código de borrado. Queda una copia abajo, en "Marcas borradas", que no cuenta para nada.</div>`;
   if(!ms.length)h+=`<div class="muted">No hay marcas esta semana.</div>`;
   else{h+=`<div class="scroll"><table><tr><th>Día</th><th>Empleado</th><th>Marca</th><th>Ubicación</th><th></th></tr>`;
@@ -763,4 +785,3 @@ window.dispatchEvent(new Event("fj-listo"));
 </script>
 </body>
 </html>
-<!-- publicado 19/10 v2 -->
