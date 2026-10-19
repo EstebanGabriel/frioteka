@@ -123,10 +123,17 @@ async function teclado(e) {
 
 function turnosHoy(horario, fecha) { const v = horario && horario[`${emp}|${fecha}`]; return Array.isArray(v) ? v : []; }
 
+// ¿Sigue existiendo la marca? Si fue borrada, Firestore niega la lectura (no hay documento con su usuario).
+async function existe(id) { try { return (await getDoc(doc(fs, C.marcas, id))).exists(); } catch (e) { if (e.code === "permission-denied") return false; throw e; } }
+
 async function fichar() {
   $("#app").innerHTML = cabecera() + `<p class="note">Guardando…</p>`;
   try {
-    const est = (await getDoc(doc(fs, C.estado, USUARIO))).data() || null;
+    const estDoc = (await getDoc(doc(fs, C.estado, USUARIO))).data() || null;
+    // Últimas marcas (la más nueva primero). Si Banchi borró alguna desde la app, se saltea y vale la anterior.
+    const ultimas = estDoc ? (estDoc.ultimas || [{ tipo: estDoc.tipo, ts: estDoc.ts, marca: estDoc.marca }]) : [];
+    let est = null;
+    for (const u of ultimas) { if (!u.marca || await existe(u.marca)) { est = u; break; } }
     const ahora = Date.now();
     const abierta = est && est.tipo === "entrada" && est.ts && (ahora - est.ts.toMillis()) < HORAS_ABIERTA * 3600e3;
     const tipo = abierta ? "salida" : "entrada";
@@ -137,7 +144,8 @@ async function fichar() {
       gps: gpsDato, celular: navigator.userAgent.slice(0, 120)
     });
     const snap = await getDoc(ref); const ts = snap.data().ts.toDate(); const { fecha, hm } = partes(ts);
-    await setDoc(doc(fs, C.estado, USUARIO), { tipo, ts: snap.data().ts, local, marca: ref.id });
+    const nueva = { tipo, ts: snap.data().ts, local, marca: ref.id };
+    await setDoc(doc(fs, C.estado, USUARIO), { ...nueva, ultimas: [nueva, ...ultimas].slice(0, 6) });
     let horario = null;
     try { horario = ((await getDoc(doc(fs, C.horarios, lunes(fecha)))).data() || {}).turnos || null; } catch (e) {}
     resultado(tipo, hm, fecha, horario, est);
