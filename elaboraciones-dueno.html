@@ -506,7 +506,7 @@ function realesTexto(){
 }
 $('copiarReales').addEventListener('click',function(){
   var t=realesTexto(), m=$('copiaMsg'); m.textContent='';
-  function ok(){ m.appendChild(el('div','msg ok','Copiado. Pegalo en la hoja “Reales” del Excel, en la celda A4.')); }
+  function ok(){ m.appendChild(el('div','msg ok','Copiado. Pegalo en la hoja “Reales” del Excel, en la celda A3 (incluye los títulos).')); }
   function fallback(){
     var ta=el('textarea'); ta.value=t; ta.style.cssText='width:100%;height:140px'; m.appendChild(el('div','msg warn','No pude copiar solo. Seleccioná el texto y copialo:')); m.appendChild(ta); ta.focus(); ta.select();
   }
