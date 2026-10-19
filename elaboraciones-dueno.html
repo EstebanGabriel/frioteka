@@ -90,6 +90,7 @@ select optgroup{font-style:normal}
 .sub{margin:0;font:600 13px var(--disp);letter-spacing:.07em;text-transform:uppercase;color:var(--muted)}
 
 .tag{display:inline-block;margin-left:6px;font:600 11px var(--disp);letter-spacing:.05em;text-transform:uppercase;padding:2px 7px;border-radius:999px;background:var(--warn-soft);color:var(--warn);vertical-align:middle}
+.detalle{padding:10px 12px;margin:2px 0 8px;border-left:3px solid var(--accent);background:var(--surface2);display:grid;gap:4px}
 .panel.exp{display:grid;gap:10px;margin-bottom:12px}
 </style>
 </head>
@@ -306,7 +307,41 @@ function alertasDe(e){
   var cu=costoUnit(e); if(rc&&cu!=null&&cu>rc.v*(1+ALERTA)) out.push({k:'costo',txt:'Costo '+money(cu)+' por '+rc.u+' (Excel '+money(rc.v)+')'});
   return out;
 }
+function rareDe(e){
+  var o=[], q=QUE[e.producto], kf=kgFraccOf(e);
+  if(e.tipo!=='pizzita'){
+    var tip=q?q.kg:null;
+    if(tip&&e.kgPieza>tip*2.5) o.push('La pieza pesa '+fmt(e.kgPieza,3)+' kg y lo normal es ~'+fmt(tip,2)+' kg');
+    if(!q&&e.kgPieza>12) o.push('La pieza pesa '+fmt(e.kgPieza,3)+' kg, parece mucho');
+    if(e.merma>e.kgPieza*0.4) o.push('Merma de '+fmt(e.merma,3)+' kg sobre '+fmt(e.kgPieza,3)+' kg');
+    var g=e.unidades>0?kf/e.unidades*1000:null;
+    if(g!=null&&e.canal==='min'&&(g<15||g>1500)) o.push('Cada '+(e.tipo==='queso'?'porción':'bolsa')+' sale de '+fmt(g,0)+' g');
+  } else if(e.unidades>300) o.push(fmt(e.unidades)+' pizzitas en una carga');
+  if(e.minutos>600) o.push(fmt(e.minutos,0)+' minutos en una carga');
+  return o;
+}
+function detalleDe(e){
+  var d=el('div','detalle'), piz=e.tipo==='pizzita', kf=kgFraccOf(e);
+  function ln(a,b){ var l=el('div','line'); l.appendChild(el('span',null,a)); l.appendChild(el('b',null,b)); d.appendChild(l); }
+  d.appendChild(el('p','sub','Lo que se cargó'));
+  ln('Cargó',(nameOf(e.uid)||e.uid||'—')+(e.creado?' · '+new Date(e.creado).toLocaleString('es-AR'):''));
+  ln('Canal / presentación',(e.canal==='may'?'mayorista':'minorista'));
+  if(!piz){ ln('Kg de la pieza',fmt(e.kgPieza,3)+' kg'); ln('Merma',fmt(e.merma,3)+' kg ('+fmt(e.kgPieza>0?e.merma/e.kgPieza*100:null,1)+' %)'); ln('Kg fraccionados',fmt(kf,3)+' kg'); }
+  else { ln('Hechas',fmt(e.unidades)); ln('Descartadas',fmt(e.descarte||0)); ln('Vendibles',fmt(unitsOf(e))); }
+  if(!piz) ln(e.tipo==='queso'?(e.canal==='min'?'Porciones hechas':'Cuartos / mitades'):'Bolsas hechas',fmt(e.unidades));
+  ln('Minutos',fmt(e.minutos,0)+' ('+money(e.cMO)+')');
+  if(e.nota) ln('Nota',e.nota);
+  d.appendChild(el('p','sub','Cómo salió la cuenta (sin IVA, precios vigentes)'));
+  if(!piz) ln('Precio de venta por kg',money(e.precioKg)); else ln('Precio de venta por unidad',money(e.precioKg));
+  ln('Venta posible',money(e.venta)+(piz?'':'  ('+fmt(kf,3)+' kg × '+money(e.precioKg)+')'));
+  ln('Materia prima',money(e.cMat)); ln('Bolsas / film',money(e.cEnv)); ln('Amortización',money(e.cAmort)); ln('Mano de obra',money(e.cMO));
+  ln('Costo total',money(e.costo)); ln('Resultado',money(e.resultado));
+  var rr=rareDe(e); if(rr.length) d.appendChild(el('div','msg warn','Dato raro: '+rr.join(' · ')+'. Revisá si se cargó bien; si no, eliminala y cargala de nuevo.'));
+  if(e._id){ var a=el('div','actions'); a.appendChild(delBtn('elaboraciones',e._id,e._src)); d.appendChild(a); }
+  return d;
+}
 function tagsFor(e,small){
+  if(rareDe(e).length) small.appendChild(el('span','tag','Dato raro'));
   alertasDe(e).forEach(function(a){ small.appendChild(el('span','tag',a.k==='merma'?'Merma alta':'Costo alto')); });
 }
 
@@ -496,8 +531,15 @@ function renderDia(){
     var r=el('div','row'), l=el('div','l'); l.appendChild(el('strong',null,e.producto+' · '+unitsOf(e)+ulabel(e)));
     var sm=el('small',null,'venta '+money(e.venta)+' · costo '+money(e.costo)+' · empleado '+money(e.cMO)+' · '+(e.canal==='may'?'mayorista':'minorista')); tagsFor(e,sm); l.appendChild(sm);
     var bg=el('div','big'+(e.resultado<0?' neg':''),money(e.resultado)); bg.appendChild(el('small',null,e.resultado>=0?'ganancia':'pérdida'));
-    r.appendChild(l); r.appendChild(bg); L.appendChild(r);
+    r.appendChild(l); r.appendChild(bg);
+    var w=el('div','dia-item'); r.style.cursor='pointer'; r.setAttribute('role','button'); r.setAttribute('tabindex','0'); r.setAttribute('aria-expanded','false');
+    var det=null;
+    function tog(){ if(det){ w.removeChild(det); det=null; r.setAttribute('aria-expanded','false'); } else { det=detalleDe(e); w.appendChild(det); r.setAttribute('aria-expanded','true'); } }
+    r.addEventListener('click',function(ev){ if(ev.target.closest('button')) return; tog(); });
+    r.addEventListener('keydown',function(ev){ if(ev.key==='Enter'||ev.key===' '){ ev.preventDefault(); tog(); } });
+    w.insertBefore(r,w.firstChild); L.appendChild(w);
   });
+  L.insertBefore(el('p','hint','Tocá una elaboración para ver los datos cargados y la cuenta completa.'),L.firstChild);
 }
 $('dFecha').addEventListener('input',renderDia);
 function moveDay(n){
