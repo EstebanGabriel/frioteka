@@ -229,6 +229,8 @@ select optgroup{font-style:normal}
     <h2>Reales vs calculados</h2>
     <div class="msg info">Merma y tiempo que dan en la realidad (promedio de todo lo cargado) al lado de los valores con que está calculado el costo. No hace falta cambiar nada ya: copiá la tabla al Excel (hoja “Reales”) y actualizá los calculados cuando te parezca.</div>
     <div class="actions"><button type="button" class="btn ghost small" id="copiarReales">Copiar para el Excel</button></div>
+    <div class="actions"><button type="button" class="btn small" id="revBtn">Bajar Excel “Qué actualizar”</button></div>
+    <p class="hint">Baja REVISION_COSTOS.xlsx: por producto, lo real de la app contra lo que tiene el Excel de costos y qué valor convendría poner. Usa todas las cargas (menos las marcadas “Dato raro”).</p>
     <div id="copiaMsg"></div>
     <div class="list" id="ctrlList"></div>
   </section>
@@ -727,6 +729,41 @@ async function exportarMes(){
   $('eBtn').disabled=false;
 }
 $('eBtn').addEventListener('click',exportarMes);
+
+async function bajarRevision(){
+  var m=$('copiaMsg'); m.textContent=''; var b=$('revBtn'); b.disabled=true;
+  var bak=elabs, excl=0;
+  try{
+    elabs=bak.filter(function(e){ if(rareDe(e).length){ excl++; return false; } return true; });
+    var L=realesList(); elabs=bak;
+    if(!L.length){ m.appendChild(el('div','msg warn','Todavía no hay cargas para comparar.')); b.disabled=false; return; }
+    var X=await loadExcelJS(), wb=new X.Workbook(), ws=wb.addWorksheet('QUÉ ACTUALIZAR');
+    var HF={type:'pattern',pattern:'solid',fgColor:{argb:'FF6A2FC0'}}, WH={bold:true,color:{argb:'FFFFFFFF'}}, AM={type:'pattern',pattern:'solid',fgColor:{argb:'FFFDE7C8'}}, MONEY='$ #,##0';
+    ws.getCell('A1').value='QUÉ ACTUALIZAR EN TOGO_Costos.xlsx — '+new Date().toLocaleDateString('es-AR')+' — sin IVA'; ws.getCell('A1').font={bold:true,size:12};
+    ws.getCell('A2').value='Real = promedio de todas las cargas de la app'+(excl?' ('+excl+' carga(s) con “Dato raro” excluida(s))':'')+'. Se sugiere cambiar solo si hay 3 o más cargas y la diferencia pasa 5 %. Los costos reales usan los precios de compra vigentes.'; ws.getCell('A2').font={italic:true,color:{argb:'FF625A78'}};
+    var H=['Producto','Tipo','Cargas','Merma real (%)','Merma en el Excel (%)','Merma: diferencia','Tiempo real','Tiempo en el Excel','Unidad del tiempo','Tiempo: diferencia','Costo real','Costo en el Excel','Unidad del costo','Costo: diferencia','Qué conviene hacer'];
+    H.forEach(function(h,i){ var c=ws.getRow(4).getCell(i+1); c.value=h; c.fill=HF; c.font=WH; c.alignment={wrapText:true,horizontal:'center',vertical:'middle'}; }); ws.getRow(4).height=40;
+    L.forEach(function(r,i){
+      var dm=(r.mermaReal!=null&&r.mermaRef>0)?r.mermaReal/r.mermaRef-1:null, dt=(r.minReal!=null&&r.minRef)?r.minReal/r.minRef-1:null, dc=(r.costoReal!=null&&r.costoRef)?r.costoReal/r.costoRef-1:null;
+      var sug=[]; if(r.n<3) sug.push('Pocas cargas ('+r.n+'): esperar'); else {
+        if(dm!=null&&Math.abs(dm)>ALERTA) sug.push('Merma: poner '+fmt(r.mermaReal,1)+' %');
+        if(dt!=null&&Math.abs(dt)>ALERTA) sug.push('Tiempo: poner '+fmt(r.minReal,2));
+        if(dc!=null&&Math.abs(dc)>ALERTA) sug.push('Costo real '+(dc>0?'por encima':'por debajo')+' del Excel (revisar merma y tiempo)');
+        if(!sug.length) sug.push('Sin cambios'); }
+      var row=ws.getRow(5+i);
+      [r.producto,r.tipo,r.n,r.mermaReal!=null?+r.mermaReal.toFixed(2):null,r.mermaRef>0?r.mermaRef:null,dm,r.minReal!=null?+r.minReal.toFixed(2):null,r.minRef||null,r.unidad,dt,r.costoReal!=null?Math.round(r.costoReal):null,r.costoRef?Math.round(r.costoRef):null,r.costoReal!=null?'$/'+r.costoU:null,dc,sug.join(' · ')].forEach(function(v,j){ row.getCell(j+1).value=v; });
+      [6,10,14].forEach(function(j){ row.getCell(j).numFmt='+0.0%;-0.0%;0.0%'; }); [11,12].forEach(function(j){ row.getCell(j).numFmt=MONEY; });
+      if(r.n>=3&&sug[0].indexOf('Sin cambios')<0) row.getCell(15).fill=AM;
+    });
+    [26,11,8,12,13,12,11,12,16,12,12,13,10,12,60].forEach(function(w,i){ ws.getColumn(i+1).width=w; }); ws.views=[{state:'frozen',xSplit:1,ySplit:4}];
+    var buf=await wb.xlsx.writeBuffer(), blob=new Blob([buf],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}), url=URL.createObjectURL(blob), a=document.createElement('a');
+    a.href=url; a.download='REVISION_COSTOS.xlsx'; document.body.appendChild(a); a.click(); a.remove(); setTimeout(function(){ URL.revokeObjectURL(url); },4000);
+    m.appendChild(el('div','msg ok','Listo: REVISION_COSTOS.xlsx ('+L.length+' productos).'));
+  }catch(e){ elabs=bak; m.appendChild(el('div','msg bad',(e&&e.message)||'No se pudo armar el Excel.')); }
+  b.disabled=false;
+}
+$('revBtn').addEventListener('click',bajarRevision);
+
 
 function renderHist(){
   var box=$('histList'); box.textContent='';
