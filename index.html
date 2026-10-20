@@ -8,7 +8,6 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <!-- Firebase -->
 <script type="module">
-import { requireLogin } from "./login.js";
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import { getFirestore, doc, getDoc, setDoc, onSnapshot, collection, getDocs } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
@@ -22,7 +21,6 @@ const firebaseConfig = {
 };
 
 const app = initializeApp(firebaseConfig);
-await requireLogin(app, { color: "#B40000", titulo: "FRIOTEKA" });
 const db = getFirestore(app);
 
 window._db = db;
@@ -1424,14 +1422,18 @@ function renderGestion(){
 }
 
 function renderPanel(c){
-  var totalV=pedidos.reduce(function(s,p){return s+p.total;},0);
+  var pendientes=pedidos.filter(function(p){return !p.enSistema;});
+  var enSistema=pedidos.filter(function(p){return p.enSistema;});
+  var totalPend=pendientes.reduce(function(s,p){return s+p.total;},0);
+  var totalSist=enSistema.reduce(function(s,p){return s+p.total;},0);
   var hoy=new Date().toLocaleDateString("es-AR");
   var hoyV=pedidos.filter(function(p){return p.fecha===hoy;});
   var totalHoy=hoyV.reduce(function(s,p){return s+p.total;},0);
   c.innerHTML='<div class="stat-grid">'
     +'<div class="stat-card"><div class="stat-val">'+pedidos.length+'</div><div class="stat-lbl">Pedidos totales</div></div>'
     +'<div class="stat-card"><div class="stat-val">'+clientes.length+'</div><div class="stat-lbl">Clientes</div></div>'
-    +'<div class="stat-card"><div class="stat-val" style="font-size:16px;">'+fmt(totalV)+'</div><div class="stat-lbl">Total facturado</div></div>'
+    +'<div class="stat-card" style="border-left:4px solid var(--rojo);"><div class="stat-val" style="font-size:16px;color:var(--rojo);">'+fmt(totalPend)+'</div><div class="stat-lbl">Falta cargar ('+pendientes.length+')</div></div>'
+    +'<div class="stat-card" style="border-left:4px solid #4CAF50;"><div class="stat-val" style="font-size:16px;color:#388E3C;">'+fmt(totalSist)+'</div><div class="stat-lbl">Ya en sistema ('+enSistema.length+')</div></div>'
     +'<div class="stat-card"><div class="stat-val" style="font-size:16px;">'+fmt(totalHoy)+'</div><div class="stat-lbl">Ventas hoy ('+hoyV.length+')</div></div>'
     +'</div>';
   var cliMap={},prodMap={};
@@ -1450,19 +1452,36 @@ function renderPanel(c){
 
 function tipoBadge(t){var map={"solo_app":["Solo app","tipo-solo"],"al_sistema_cuando_paga":["CC/paga","tipo-paga"],"al_sistema_siempre":["Siempre sist.","tipo-siempre"],"sin_clasificar":["Sin clasif.","tipo-sin"]};var v=map[t]||["Sin clasif.","tipo-sin"];return '<span class="tipo-badge '+v[1]+'">'+v[0]+'</span>';}
 function renderVentas(c){
-  var ventasFiltro=pedidos.filter(function(p){return !p.pasadaAlSistema;});
-  c.innerHTML='<div class="card"><div class="form-tit" style="display:flex;justify-content:space-between;align-items:center;">Ventas activas<button class="btn-sm b" onclick="abrirExportModal()" style="font-size:13px;">📊 Exportar PANORAMA</button></div><div id="listaV"></div></div>';
+  var pendientes=pedidos.filter(function(p){return !p.enSistema;});
+  var nSist=pedidos.filter(function(p){return p.enSistema;}).length;
+  c.innerHTML='<div class="card"><div class="form-tit" style="display:flex;justify-content:space-between;align-items:center;">'
+    +'Ventas <span style="font-size:12px;font-weight:400;color:#888;">('+nSist+' ya en sistema)</span>'
+    +'<button class="btn-sm b" onclick="abrirExportModal()" style="font-size:13px;">📊 Exportar PANORAMA</button>'
+    +'</div><div id="listaV"></div></div>';
   var lv=$("listaV");
-  if(!ventasFiltro.length){lv.innerHTML='<div class="vacio">Sin ventas activas</div>';return;}
-  ventasFiltro.slice(0,50).forEach(function(p,_i){
+  if(!pedidos.length){lv.innerHTML='<div class="vacio">Sin ventas</div>';return;}
+  if(!pendientes.length){lv.innerHTML='<div class="vacio" style="color:#388E3C;">✓ Todas las ventas están cargadas en el sistema</div>';}
+  // Mostrar primero las pendientes, luego las en sistema (más tenue)
+  var ordenadas=pendientes.concat(pedidos.filter(function(p){return p.enSistema;}));
+  ordenadas.slice(0,60).forEach(function(p){
     var realIdx=pedidos.indexOf(p);
-    var d=document.createElement("div");d.className="hist-item";
-    var cobroBadge=p.cobrado?'<span class="cobro-badge cobro-ok">✓ Cobrado '+p.fechaCobro+'</span>':'<span class="cobro-badge cobro-pend">⏳ Pendiente</span>';
-    var margenStr=p.margen!=null?' <span style="color:#666;font-size:11px;">| Margen: '+fmt(p.margen)+'</span>':'';
+    var enSist=p.enSistema||false;
+    var d=document.createElement("div");
+    d.className="hist-item";
+    // Card en sistema: fondo gris suave y texto apagado
+    if(enSist){
+      d.style.background="#F5F5F5";
+      d.style.borderColor="#DDD";
+      d.style.opacity="0.75";
+    }
+    var margenStr=p.margen!=null?' <span style="color:#999;font-size:11px;">| Margen: '+fmt(p.margen)+'</span>':'';
+    var sistLabel=enSist
+      ?'<span style="display:inline-block;font-size:11px;font-weight:700;padding:2px 8px;border-radius:10px;background:#E8F5E9;color:#1B5E20;margin-left:6px;">✓ En sistema</span>'
+      :'<span style="display:inline-block;font-size:11px;font-weight:700;padding:2px 8px;border-radius:10px;background:#FFEBEE;color:#B71C1C;margin-left:6px;">⚠ Falta cargar</span>';
     d.innerHTML='<div class="hist-hdr"><span class="hist-nv">'+p.nv+'</span><span class="hist-f">'+p.fecha+'</span></div>'
-      +'<div style="font-size:14px;font-weight:600;margin:2px 0;">'+p.cliente+tipoBadge(p.tipoCliente||"sin_clasificar")+'</div>'
-      +'<div class="hist-tot">'+fmt(p.total)+margenStr+'</div>'
-      +'<div class="hist-fp">'+p.fpago+' &nbsp;'+cobroBadge+'</div>';
+      +'<div style="font-size:14px;font-weight:600;margin:2px 0;">'+p.cliente+tipoBadge(p.tipoCliente||"sin_clasificar")+sistLabel+'</div>'
+      +'<div class="hist-tot"'+(enSist?' style="color:#999;"':'')+'>'+fmt(p.total)+margenStr+'</div>'
+      +'<div class="hist-fp"'+(enSist?' style="color:#aaa;"':'')+'>'+p.fpago+(enSist?' — cargado el '+p.fechaSistema:'')+'</div>';
     var acc=document.createElement("div");acc.className="card-acc";acc.style.marginTop="8px";
     // PDF
     var btnPDF=document.createElement("button");btnPDF.className="btn-sm r";btnPDF.textContent="PDF";
@@ -1471,24 +1490,25 @@ function renderVentas(c){
       var ctx={cl:pRecord.cliente,dir:pRecord.dir||"",pago:pRecord.fpago,np:pRecord.nv,fecha:pRecord.fecha,total:pRecord.total,subtotal:pRecord.total,bultos:0,kg:0,descLinea:"",envio:false};
       await generarPDF(items,ctx);
     };})(p);
-    // Cobrar
-    if(!p.cobrado){
-      var btnCob=document.createElement("button");btnCob.className="btn-sm g";btnCob.textContent="Cobrar";
-      (function(pRecord,idx){btnCob.onclick=function(){abrirModalCobro(idx);};})(p,realIdx);
-      acc.appendChild(btnCob);
-    }
-    // Pasada al sistema (solo para al_sistema_cuando_paga o al_sistema_siempre)
-    if((p.tipoCliente==="al_sistema_cuando_paga"||p.tipoCliente==="al_sistema_siempre")&&!p.pasadaAlSistema){
-      var btnPas=document.createElement("button");btnPas.className="btn-sm b";btnPas.textContent="✓ Pasada";
-      (function(pRecord,idx){btnPas.onclick=function(){
-        if(confirm("¿Marcar nota "+pRecord.nv+" como pasada al sistema?")){
-          pedidos[idx].pasadaAlSistema=true;
-          pedidos[idx].fechaPasada=new Date().toLocaleDateString("es-AR");
-          window.guardarPedidos();toast("Nota pasada al sistema ✓");renderGestion();
+    // Botón sistema
+    var btnSis=document.createElement("button");
+    if(enSist){
+      btnSis.className="btn-sm";btnSis.style.background="#E8F5E9";btnSis.style.color="#1B5E20";btnSis.style.fontSize="12px";btnSis.textContent="✓ En sistema";
+      (function(pRecord,idx){btnSis.onclick=function(){
+        if(confirm("¿Desmarcar '"+pRecord.nv+"' como cargada?")){
+          pedidos[idx].enSistema=false;pedidos[idx].fechaSistema="";
+          window.guardarPedidos();toast("Desmarcada");renderGestion();
         }
       };})(p,realIdx);
-      acc.appendChild(btnPas);
+    } else {
+      btnSis.className="btn-sm g";btnSis.textContent="Cargado en sistema";
+      (function(pRecord,idx){btnSis.onclick=function(){
+        pedidos[idx].enSistema=true;
+        pedidos[idx].fechaSistema=new Date().toLocaleDateString("es-AR");
+        window.guardarPedidos();toast("✓ Cargada al sistema");renderGestion();
+      };})(p,realIdx);
     }
+    acc.appendChild(btnSis);
     // Editar
     var btnEdit=document.createElement("button");btnEdit.className="btn-sm";btnEdit.textContent="Editar";
     (function(pRecord,idx){btnEdit.onclick=function(){editarVenta(idx);};})(p,realIdx);
@@ -1531,19 +1551,32 @@ function abrirModalCobro(idx){
   };
 }
 
-/* ─── PASADAS AL SISTEMA ─── */
+/* ─── EN SISTEMA ─── */
 function renderPasadas(c){
-  var pasadas=pedidos.filter(function(p){return p.pasadaAlSistema;});
-  c.innerHTML='<div class="card"><div class="form-tit">Notas pasadas al sistema ('+pasadas.length+')</div><div id="listaPas"></div></div>';
+  var enSist=pedidos.filter(function(p){return p.enSistema;});
+  var totalSist=enSist.reduce(function(s,p){return s+p.total;},0);
+  c.innerHTML='<div class="card"><div class="form-tit" style="display:flex;justify-content:space-between;align-items:center;">'
+    +'Cargadas en sistema ('+enSist.length+')'
+    +'<span style="font-size:13px;font-weight:700;color:#388E3C;">'+fmt(totalSist)+'</span>'
+    +'</div><div id="listaPas"></div></div>';
   var lp=document.getElementById("listaPas");
-  if(!pasadas.length){lp.innerHTML='<div class="vacio">Ninguna nota pasada aún</div>';return;}
-  pasadas.forEach(function(p){
-    var d=document.createElement("div");d.className="hist-item";
+  if(!enSist.length){lp.innerHTML='<div class="vacio">Ninguna venta cargada aún</div>';return;}
+  enSist.forEach(function(p,_i){
+    var realIdx=pedidos.indexOf(p);
+    var d=document.createElement("div");d.className="hist-item";d.style.background="#F5F5F5";d.style.borderColor="#DDD";
     d.innerHTML='<div class="hist-hdr"><span class="hist-nv">'+p.nv+'</span><span class="hist-f">'+p.fecha+'</span></div>'
       +'<div style="font-size:14px;font-weight:600;">'+p.cliente+tipoBadge(p.tipoCliente||"sin_clasificar")+'</div>'
-      +'<div class="hist-tot">'+fmt(p.total)+'</div>'
-      +'<div class="hist-fp">Pasada el: <b>'+p.fechaPasada+'</b>'+(p.cobrado?' &nbsp;✓ Cobrado '+p.fechaCobro:'')+'</div>';
-    lp.appendChild(d);
+      +'<div class="hist-tot" style="color:#999;">'+fmt(p.total)+'</div>'
+      +'<div class="hist-fp" style="color:#aaa;">'+p.fpago+' — cargado el <b>'+p.fechaSistema+'</b></div>';
+    var acc=document.createElement("div");acc.className="card-acc";acc.style.marginTop="8px";
+    var btnDesm=document.createElement("button");btnDesm.className="btn-sm";btnDesm.style.fontSize="12px";btnDesm.textContent="Desmarcar";
+    (function(pRecord,idx){btnDesm.onclick=function(){
+      if(confirm("¿Desmarcar '"+pRecord.nv+"' como cargada?")){
+        pedidos[idx].enSistema=false;pedidos[idx].fechaSistema="";
+        window.guardarPedidos();toast("Desmarcada");renderGestion();
+      }
+    };})(p,realIdx);
+    acc.appendChild(btnDesm);d.appendChild(acc);lp.appendChild(d);
   });
 }
 
@@ -2426,7 +2459,7 @@ document.addEventListener("DOMContentLoaded", function(){
       // Buscar tipoCliente del cliente en lista
       var cliObj=clientes.find(function(c){return c.nombre.toLowerCase()===cl.toLowerCase();});
       var tipoCli=cliObj?cliObj.tipoCliente||"sin_clasificar":"sin_clasificar";
-      var rec={nv:nvFmt(nv),fecha:new Date().toLocaleDateString("es-AR"),cliente:cl,dir:dir2,fpago:nvFpago,entrega:nvEntrega,preventista:nvPreventistaVal,total:f.final,costo:costoTotal,margen:f.final-costoTotal,tipoCliente:tipoCli,cobrado:false,fechaCobro:"",fpagoCobro:"",pasadaAlSistema:false,fechaPasada:"",items:items.map(function(it){return{nombre:it.nombre,cant:it.cantidad,cantNum:it.cantNum||it.cantidad,precio:it.precioUnit,codigo:it.codigo};})};
+      var rec={nv:nvFmt(nv),fecha:new Date().toLocaleDateString("es-AR"),cliente:cl,dir:dir2,fpago:nvFpago,entrega:nvEntrega,preventista:nvPreventistaVal,total:f.final,costo:costoTotal,margen:f.final-costoTotal,tipoCliente:tipoCli,cobrado:false,fechaCobro:"",fpagoCobro:"",pasadaAlSistema:false,fechaPasada:"",enSistema:false,fechaSistema:"",items:items.map(function(it){return{nombre:it.nombre,cant:it.cantidad,cantNum:it.cantNum||it.cantidad,precio:it.precioUnit,codigo:it.codigo};})};
       pedidos.unshift(rec);if(pedidos.length>500) pedidos=pedidos.slice(0,500);
       window.guardarPedidos();
       // Crear cliente nuevo si no existe
