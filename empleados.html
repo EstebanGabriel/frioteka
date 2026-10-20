@@ -592,7 +592,8 @@ function fjFila(id,f,ti,loc,a,b,x,ahora){
   else if(ed.mot)E2.push([`Nota: ${ed.mot}`,"info"]);
   if(ed.ent||ed.sal)E2.push(["Horario editado a mano","info"]);
   const hecho=acc&&acc.a==="nov"&&DB.fj.nov[key];
-  return{key,id,f,loc,a,b,ent,sal,cuenta,est:E2,acc,hecho,fuera,ed:!!(ed.just||ed.ent||ed.sal||ed.mot)}}
+  const mids=[x&&x.ent,x&&x.sal].filter(Boolean).map(m=>({id:m.id,tipo:m.tipo,m:m.m}));
+  return{key,id,f,loc,a,b,ent,sal,cuenta,est:E2,acc,hecho,fuera,mids,ed:!!(ed.just||ed.ent||ed.sal||ed.mot)}}
 function fjDif(real,plan,esEnt){if(real==null)return"";if(plan==null)return"";const d=real-plan;if(Math.abs(d)<1)return"a horario";
   return esEnt?(d<0?`${-d} min antes`:`${d} min tarde`):(d<0?`${-d} min antes`:`${d} min después`)}
 function vFichaje(){
@@ -635,7 +636,12 @@ function vFichaje(){
       <div class="muted" style="margin-top:4px">Las horas a mano reemplazan a las fichadas solo en este turno. Si lo justificás y no trabajó, dejá las horas vacías.</div>
       <div style="border-top:1px solid var(--bd,#e5d5dc);margin-top:12px;padding-top:10px"><b>¿Ese día trabajó otro turno más?</b> (ej: volvió a la tarde)
       <div class="two" style="margin-top:6px"><div><label>Entró</label><input type="time" id="oa_${kk}"></div><div><label>Salió</label><input type="time" id="ob_${kk}"></div></div>
-      <button class="btn sec full" style="margin-top:8px" onclick="fjOtroTurno('${r.key}','${r.loc}')">Agregar otro turno ese día</button></div></div></td></tr>`}}));
+      <button class="btn sec full" style="margin-top:8px" onclick="fjOtroTurno('${r.key}','${r.loc}')">Agregar otro turno ese día</button></div>
+      ${(r.mids||[]).length?`<div style="border-top:1px solid var(--bd,#e5d5dc);margin-top:12px;padding-top:10px;background:#fff4f4;padding:10px;border-radius:10px"><b>Borrar lo fichado en este turno</b> (una prueba, un error)
+      <div class="muted" style="margin-top:4px">Se borra: ${r.mids.map(m=>`${m.tipo} ${minHm(m.m)}`).join(" y ")}. Queda una copia en "Marcas borradas", que no cuenta.</div>
+      ${FJC.clave?"":`<div class="note" style="margin-top:6px">Primero creá tu código de borrado en "Configuración del fichaje", más abajo.</div>`}
+      <div class="two" style="margin-top:6px"><div><label>Motivo</label><input id="bm_${kk}" placeholder="Ej: prueba"></div><div><label>Código de borrado</label><input id="bc_${kk}" type="password" inputmode="numeric" autocomplete="off"></div></div>
+      <button class="btn full" style="margin-top:8px;background:#c0392b" onclick="fjBorrarTurno('${r.key}')">Borrar este fichaje</button></div>`:""}</div></td></tr>`}}));
   h+=`</table></div><div class="muted" style="margin-top:8px">Cuenta desde la hora de entrada del horario hasta la de salida. Llegar antes no suma; quedarse de más suma solo si lo aprobás. Hasta ${FJTOL} min tarde no es llegada tarde, pero igual se descuenta. Según el reglamento: 3 tolerancias en el mes cuentan como una llegada tarde; 30 min o más tarde sin aviso, llegar tarde cuando le toca abrir o faltar sin aviso es falta grave.</div></div>`;
   {const dd=[0,1,2,3,4,5,6].map(i=>addD(lun,i)),e0=st.fjEmp==="todos"?emps[0]:st.fjEmp;
    h+=`<div class="card"><h2>Agregar un turno a mano</h2><div class="muted">Para un turno que no estaba en el horario y no se fichó (ej: Ramiro volvió de 18 a 21). Cuenta las horas que pongas.</div>
@@ -676,6 +682,12 @@ async function fjBorrar(id){const cod=$("#fjDelCod").value.trim(),mot=$("#fjDelM
   const hsh=await fjHash("_borrado",cod);
   if(hsh!==FJC.clave){$("#fjDelCod").value="";return toast("Código incorrecto")}
   try{await FJ.borrar(id,mot,hsh);st.fjDel=null;toast("Marca borrada (quedó la copia)");await fjCargar(st.fjLun,true);render()}
+  catch(e){toast("No se pudo borrar: "+(/permission/i.test(e.message)?"faltan publicar las reglas nuevas":e.message))}}
+async function fjBorrarTurno(key){const kk=key.replace(/\W/g,"_"),r=fjBuscar(key);if(!r||!(r.mids||[]).length)return;
+  const cod=$("#bc_"+kk).value.trim(),mot=$("#bm_"+kk).value.trim();
+  if(!FJC.clave)return toast("Primero creá tu código de borrado");if(!cod)return toast("Poné el código de borrado");
+  const hsh=await fjHash("_borrado",cod);if(hsh!==FJC.clave){$("#bc_"+kk).value="";return toast("Código incorrecto")}
+  try{for(const m of r.mids)await FJ.borrar(m.id,mot,hsh);fjAseg();delete DB.fj.ed[key];st.fjEd=null;toast("Borrado (quedó la copia)");await fjCargar(st.fjLun,true);render()}
   catch(e){toast("No se pudo borrar: "+(/permission/i.test(e.message)?"faltan publicar las reglas nuevas":e.message))}}
 async function fjGuardarClave(){const a=$("#fjCA")?$("#fjCA").value.trim():"",n=$("#fjCN").value.trim(),r=$("#fjCR").value.trim();
   if(FJC.clave&&await fjHash("_borrado",a)!==FJC.clave)return toast("El código actual no es correcto");
