@@ -1995,7 +1995,9 @@ function renderCC(c){
     +'<div style="font-size:14px;color:var(--gris);margin-bottom:4px;">Monto pagado ($)</div>'
     +'<input id="ccModalMonto" type="number" inputmode="numeric" placeholder="Ej: 50000" style="width:100%;padding:12px;font-size:18px;border:2px solid var(--borde);border-radius:12px;margin-bottom:12px;box-sizing:border-box;">'
     +'<div style="font-size:14px;color:var(--gris);margin-bottom:4px;">Nota (opcional)</div>'
-    +'<input id="ccModalNota" type="text" placeholder="Ej: transferencia, efectivo..." style="width:100%;padding:10px;font-size:14px;border:2px solid var(--borde);border-radius:12px;margin-bottom:20px;box-sizing:border-box;">'
+    +'<input id="ccModalNota" type="text" placeholder="Ej: transferencia, efectivo..." style="width:100%;padding:10px;font-size:14px;border:2px solid var(--borde);border-radius:12px;margin-bottom:12px;box-sizing:border-box;">'
+    +'<div style="font-size:14px;color:var(--gris);margin-bottom:4px;">Fecha del pago</div>'
+    +'<input id="ccModalFecha" type="text" placeholder="dd/mm/aaaa" style="width:100%;padding:10px;font-size:14px;border:2px solid var(--borde);border-radius:12px;margin-bottom:20px;box-sizing:border-box;">'
     +'<div style="display:flex;gap:10px;">'
     +'<button class="btn-sm" style="flex:1;padding:14px;background:#f0f0f0;" onclick="cerrarPagoCC(null)">Cancelar</button>'
     +'<button class="btn-sm" style="flex:1;padding:14px;background:#16a34a;color:white;font-size:16px;" onclick="confirmarPagoCC()">✅ Confirmar pago</button>'
@@ -2039,6 +2041,8 @@ function abrirPagoCC(idx){
   document.getElementById('ccModalNombre').textContent=cli.nombre;
   document.getElementById('ccModalMonto').value='';
   document.getElementById('ccModalNota').value='';
+  var hoyDef=new Date().toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit',year:'numeric'});
+  document.getElementById('ccModalFecha').value=hoyDef;
   setTimeout(function(){document.getElementById('ccModalMonto').focus();},100);
 }
 function cerrarPagoCC(e){
@@ -2049,11 +2053,11 @@ function confirmarPagoCC(){
   var monto=parseFloat(document.getElementById('ccModalMonto').value.replace(',','.'));
   if(!monto||monto<=0){alert('Ingresá un monto válido.');return;}
   var nota=document.getElementById('ccModalNota').value.trim();
+  var fechaInput=document.getElementById('ccModalFecha').value.trim();
   var cli=clientes.find(function(c){return c.nombre===_ccModalCliente;});
   if(!cli){alert('Cliente no encontrado.');return;}
   if(!cli.pagosCC) cli.pagosCC=[];
-  var hoy=new Date();
-  var fecha=hoy.toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit',year:'numeric'});
+  var fecha=fechaInput||new Date().toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit',year:'numeric'});
   cli.pagosCC.push({fecha:fecha,monto:monto,nota:nota||'Pago registrado'});
   // Impactar en panel: marcar como "en sistema" los pedidos de este cliente por el monto del pago
   // Se busca el pedido más antiguo sin enSistema de este cliente y se lo marca
