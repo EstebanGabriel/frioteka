@@ -514,7 +514,7 @@ const fjInicio=()=>(DB.fj&&DB.fj.inicio)||"2026-10-19";
 // ¿Este turno es el primero del día en ese local? (le toca abrir)
 function fjAbre(f,loc,a){let m=null;for(const k in (DB.horarios||{})){if(k.split("|")[1]!==f)continue;const v=DB.horarios[k];if(!Array.isArray(v))continue;
   v.forEach(([l,hi])=>{if(l===loc){const x=hmMin(hi);if(m==null||x<m)m=x}})}return m!=null&&a<=m}
-function fjAseg(){DB.fj=DB.fj||{};DB.fj.aprob=DB.fj.aprob||{};DB.fj.corr=DB.fj.corr||{};DB.fj.nov=DB.fj.nov||{}}
+function fjAseg(){DB.fj=DB.fj||{};DB.fj.aprob=DB.fj.aprob||{};DB.fj.corr=DB.fj.corr||{};DB.fj.nov=DB.fj.nov||{};DB.fj.ed=DB.fj.ed||{}}
 async function fjCargar(lun,forzar){
   if(!window.FJ){FJC.err="esperando";return}
   if(FJC.lun===lun&&FJC.marcas&&!forzar)return;
@@ -560,7 +560,9 @@ function fjCruceBase(id,lun){
   return out}
 function fjFila(id,f,ti,loc,a,b,x,ahora){
   const key=`${id}|${f}|${ti}`,est=[];let acc=null;const fuera=a==null;
-  const ent=x&&x.ent?x.ent.m:null;let sal=x&&x.sal?x.sal.m:null;const corr=DB.fj.corr[key];if(sal==null&&corr)sal=hmMin(corr);
+  const ed=DB.fj.ed[key]||{};
+  let ent=x&&x.ent?x.ent.m:null;let sal=x&&x.sal?x.sal.m:null;const corr=DB.fj.corr[key];if(sal==null&&corr)sal=hmMin(corr);
+  if(ed.ent)ent=hmMin(ed.ent);if(ed.sal)sal=hmMin(ed.sal);
   const pasado=f<ahora.f||(f===ahora.f&&a!=null&&ahora.m>a+FJTOL);const terminado=f<ahora.f||(f===ahora.f&&b!=null&&ahora.m>b+30);
   let cuenta=0;
   if(fuera){est.push(["Fuera de horario","warn"]);if(ent!=null&&sal!=null){const ex=sal-ent;if(!DB.fj.aprob[key])acc={a:"apr",min:ex,t:`Aprobar ${fhm(ex)}`};cuenta=DB.fj.aprob[key]||0}}
@@ -578,8 +580,14 @@ function fjFila(id,f,ti,loc,a,b,x,ahora){
   const ms=[x&&x.ent,x&&x.sal].filter(Boolean);
   if(ms.some(m=>m.ubicacion!=="ok"))est.push(["Sin ubicación","info"]);
   if(!fuera&&ms.some(m=>(m.local==="sanmartin"?"San Martín":"Cárcano")!==loc))est.push(["Fichó en otro local","warn"]);
+  // Edición manual de Banchi (época de prueba, errores, avisos): manda sobre lo calculado
+  let E2=est;
+  if(ed.just){E2=est.filter(([t,c])=>!/^(Falta|Sin aviso|Tarde|Grave|No fichó|Salió|Fuera de horario)/.test(t)&&!t.includes("(en tolerancia)"));
+    E2.push([`Justificado${ed.mot?": "+ed.mot:""}`,"ok"]);acc=null}
+  else if(ed.mot)E2.push([`Nota: ${ed.mot}`,"info"]);
+  if(ed.ent||ed.sal)E2.push(["Horario editado a mano","info"]);
   const hecho=acc&&acc.a==="nov"&&DB.fj.nov[key];
-  return{key,id,f,loc,a,b,ent,sal,cuenta,est,acc,hecho,fuera}}
+  return{key,id,f,loc,a,b,ent,sal,cuenta,est:E2,acc,hecho,fuera,ed:!!(ed.just||ed.ent||ed.sal||ed.mot)}}
 function fjDif(real,plan,esEnt){if(real==null)return"";if(plan==null)return"";const d=real-plan;if(Math.abs(d)<1)return"a horario";
   return esEnt?(d<0?`${-d} min antes`:`${d} min tarde`):(d<0?`${-d} min antes`:`${d} min después`)}
 function vFichaje(){
@@ -605,10 +613,21 @@ function vFichaje(){
   h+=`<div class="card"><h2>Turno por turno</h2><div class="scroll"><table><tr><th>Día</th>${st.fjEmp==="todos"?"<th>Empleado</th>":""}<th>Local</th><th>Horario</th><th>Entró</th><th>Salió</th><th>Cuenta</th><th>Qué pasó</th><th></th></tr>`;
   ver.forEach(id=>filas[id].forEach(r=>{
     const btn=!r.acc?"":r.hecho?`<span class="tag ok">En novedades ✓</span>`:r.acc.a==="corr"?`<input id="c_${r.key.replace(/\W/g,"_")}" type="time" style="width:110px"><button class="btn sm" onclick="fjCorregir('${r.key}')">Guardar</button>`:`<button class="btn sm" onclick="fjAccion('${r.key}')">${r.acc.t}</button>`;
+    const kk=r.key.replace(/\W/g,"_");
+    const edBtn=`<button class="btn ghost sm" style="margin-top:4px" onclick="st.fjEd=st.fjEd==='${r.key}'?null:'${r.key}';render()">${r.ed?"Editado ✎":"Editar"}</button>`;
     h+=`<tr class="${esFer(r.f)?"fer":""}"><td>${DIAS[D(r.f).getDay()]} ${dm(r.f)}</td>${st.fjEmp==="todos"?`<td>${id}</td>`:""}<td>${r.loc}</td><td class="num">${r.a==null?"—":minHm(r.a)+"–"+minHm(r.b)}</td>
     <td class="num">${r.ent==null?"—":`<b>${minHm(r.ent)}</b><br><span class="muted">${fjDif(r.ent,r.a,true)}</span>`}</td>
     <td class="num">${r.sal==null?"—":`<b>${minHm(r.sal)}</b><br><span class="muted">${fjDif(r.sal,r.b,false)}</span>`}</td>
-    <td class="num">${r.cuenta?fhm(r.cuenta):"—"}</td><td>${r.est.map(([t,c])=>`<span class="tag ${c}">${t}</span>`).join(" ")}</td><td>${btn}</td></tr>`}));
+    <td class="num">${r.cuenta?fhm(r.cuenta):"—"}</td><td>${r.est.map(([t,c])=>`<span class="tag ${c}">${t}</span>`).join(" ")}</td><td>${btn}${btn?"<br>":""}${edBtn}</td></tr>`;
+    if(st.fjEd===r.key){const ed=DB.fj.ed[r.key]||{};const cols=st.fjEmp==="todos"?9:8;
+      h+=`<tr><td colspan="${cols}" style="background:var(--sf2,rgba(0,0,0,.03))"><div class="f" style="max-width:520px">
+      <b>Editar ${id} · ${DIAS[D(r.f).getDay()]} ${dm(r.f)}${r.a!=null?` · turno ${minHm(r.a)}–${minHm(r.b)}`:""}</b>
+      <label style="display:flex;gap:8px;align-items:center;margin-top:8px"><input type="checkbox" id="ej_${kk}" ${ed.just?"checked":""} style="width:auto"> Justificado: no cuenta como falta, tarde ni grave</label>
+      <div class="two" style="margin-top:6px"><div><label>Entró (a mano)</label><input type="time" id="ee_${kk}" value="${ed.ent||""}"></div><div><label>Salió (a mano)</label><input type="time" id="es_${kk}" value="${ed.sal||""}"></div></div>
+      ${r.a!=null?`<button class="btn ghost sm" style="margin-top:6px" onclick="$('#ee_${kk}').value='${minHm(r.a)}';$('#es_${kk}').value='${minHm(r.b)}'">Trabajó el turno completo</button>`:""}
+      <label style="margin-top:6px">Motivo / nota</label><input id="em_${kk}" value="${(ed.mot||"").replace(/"/g,"&quot;")}" placeholder="Ej: todavía no estaba la app">
+      <div class="two" style="margin-top:8px"><button class="btn" onclick="fjEditar('${r.key}')">Guardar</button><button class="btn ghost" onclick="fjEditar('${r.key}',true)">Quitar edición</button></div>
+      <div class="muted" style="margin-top:4px">Las horas a mano reemplazan a las fichadas solo en este turno. Si lo justificás y no trabajó, dejá las horas vacías.</div></div></td></tr>`}}));
   h+=`</table></div><div class="muted" style="margin-top:8px">Cuenta desde la hora de entrada del horario hasta la de salida. Llegar antes no suma; quedarse de más suma solo si lo aprobás. Hasta ${FJTOL} min tarde no es llegada tarde, pero igual se descuenta. Según el reglamento: 3 tolerancias en el mes cuentan como una llegada tarde; 30 min o más tarde sin aviso, llegar tarde cuando le toca abrir o faltar sin aviso es falta grave.</div></div>`;
   h+=fjMarcasCard(ver);
   h+=fjConfigCard();
@@ -652,6 +671,13 @@ function fjBuscar(key){const[id,f]=key.split("|");return fjCruce(id,lunes(f)).fi
 function fjAccion(key){const r=fjBuscar(key);if(!r||!r.acc)return;const a=r.acc;
   if(a.a==="apr"){DB.fj.aprob[key]=a.min;save("fichaje: aprobado "+key);toast("Aprobado");return render()}
   if(a.a==="nov"){const k=r.id+"|"+r.f,d=DB.horas[k]||{};d.nov=a.nov;if(a.min)d.min=(+d.min||0)+a.min;if(a.obs)d.obs=(d.obs?d.obs+" · ":"")+a.obs;DB.horas[k]=d;DB.fj.nov[key]=true;save("fichaje: novedad "+key);toast("Pasado a novedades");return render()}}
+function fjEditar(key,quitar){fjAseg();const kk=key.replace(/\W/g,"_");
+  if(quitar){delete DB.fj.ed[key];st.fjEd=null;save("fichaje: edición quitada "+key);toast("Edición quitada");return render()}
+  const ent=$("#ee_"+kk).value,sal=$("#es_"+kk).value,just=$("#ej_"+kk).checked,mot=$("#em_"+kk).value.trim();
+  if(ent&&sal&&hmMin(sal)<=hmMin(ent))return toast("La salida tiene que ser después de la entrada");
+  const o={};if(just)o.just=true;if(ent)o.ent=ent;if(sal)o.sal=sal;if(mot)o.mot=mot;
+  if(Object.keys(o).length)DB.fj.ed[key]=o;else delete DB.fj.ed[key];
+  st.fjEd=null;save("fichaje: editado "+key);toast("Guardado");render()}
 function fjCorregir(key){const v=$("#c_"+key.replace(/\W/g,"_")).value;if(!v)return toast("Poné la hora de salida");DB.fj.corr[key]=v;save("fichaje: salida corregida "+key);toast("Salida corregida");render()}
 function fjAplicar(){const lun=st.fjLun;let n=0;
   if(!confirm("¿Pasar las horas del fichaje a la ficha de cada empleado para esta semana? Reemplaza las horas cargadas a mano de esos días."))return;
