@@ -1445,14 +1445,69 @@ function renderPanel(c){
   pedidos.forEach(function(p){cliMap[p.cliente]=(cliMap[p.cliente]||0)+p.total;p.items&&p.items.forEach(function(it){prodMap[it.nombre]=(prodMap[it.nombre]||0)+it.cant;});});
   var cliArr=Object.keys(cliMap).map(function(k){return{n:k,v:cliMap[k]};}).sort(function(a,b){return b.v-a.v;}).slice(0,5);
   var prodArr=Object.keys(prodMap).map(function(k){return{n:k,v:prodMap[k]};}).sort(function(a,b){return b.v-a.v;}).slice(0,6);
-  var h='<div class="card"><div class="form-tit">Top clientes</div>';
-  cliArr.forEach(function(ci,i){h+='<div class="top-row"><span>'+(i+1)+'. '+ci.n+'</span><span style="font-weight:700;color:var(--rojo);">'+fmt(ci.v)+'</span></div>';});
-  if(!cliArr.length) h+='<div class="vacio">Sin datos aun</div>';
-  h+='</div><div class="card"><div class="form-tit">Productos mas vendidos</div>';
-  prodArr.forEach(function(p,i){h+='<div class="top-row"><span>'+(i+1)+'. '+p.n+'</span><span style="font-weight:700;color:var(--azul);">'+p.v+' u</span></div>';});
-  if(!prodArr.length) h+='<div class="vacio">Sin datos aun</div>';
-  h+='</div>';
-  c.innerHTML+=h;
+  // ── Gráfico 1: dona Falta cargar vs En sistema ──
+  var totalCC=totalPend+totalSist;
+  var pctPend=totalCC>0?Math.round(totalPend/totalCC*100):0;
+  var pctSist=100-pctPend;
+  var r=42,cx=60,cy=60,circ=2*Math.PI*r;
+  var dashPend=circ*pctPend/100,dashSist=circ*pctSist/100;
+  var donaH='<div class="card" style="margin-bottom:10px;">'
+    +'<div class="form-tit">Estado de ventas</div>'
+    +'<div style="display:flex;align-items:center;gap:16px;justify-content:center;flex-wrap:wrap;">'
+    +'<svg width="120" height="120" viewBox="0 0 120 120">'
+    +'<circle cx="'+cx+'" cy="'+cy+'" r="'+r+'" fill="none" stroke="#eee" stroke-width="14"/>'
+    +'<circle cx="'+cx+'" cy="'+cy+'" r="'+r+'" fill="none" stroke="#4CAF50" stroke-width="14" stroke-dasharray="'+dashSist+' '+circ+'" stroke-dashoffset="0" transform="rotate(-90 '+cx+' '+cy+')" stroke-linecap="round"/>'
+    +'<circle cx="'+cx+'" cy="'+cy+'" r="'+r+'" fill="none" stroke="#E53935" stroke-width="14" stroke-dasharray="'+dashPend+' '+circ+'" stroke-dashoffset="'+(-(circ*pctSist/100))+'" transform="rotate(-90 '+cx+' '+cy+')" stroke-linecap="round"/>'
+    +'<text x="'+cx+'" y="'+(cy+5)+'" text-anchor="middle" font-size="14" font-weight="800" fill="#333">'+pctSist+'%</text>'
+    +'</svg>'
+    +'<div style="font-size:13px;line-height:2;">'
+    +'<div><span style="display:inline-block;width:12px;height:12px;border-radius:50%;background:#4CAF50;margin-right:6px;vertical-align:middle;"></span>En sistema: <b style="color:#388E3C;">'+fmt(totalSist)+'</b></div>'
+    +'<div><span style="display:inline-block;width:12px;height:12px;border-radius:50%;background:#E53935;margin-right:6px;vertical-align:middle;"></span>Falta cargar: <b style="color:#E53935;">'+fmt(totalPend)+'</b></div>'
+    +'</div></div></div>';
+
+  // ── Gráfico 2: barras Top clientes ──
+  var colores=['#E53935','#1E88E5','#43A047','#FB8C00','#8E24AA'];
+  var maxCli=cliArr.length?cliArr[0].v:1;
+  var barH='<div class="card" style="margin-bottom:10px;"><div class="form-tit">Top clientes 💰</div>';
+  if(!cliArr.length){barH+='<div class="vacio">Sin datos aun</div>';}
+  else{
+    barH+='<div style="display:flex;flex-direction:column;gap:8px;margin-top:6px;">';
+    cliArr.forEach(function(ci,i){
+      var pct=Math.round(ci.v/maxCli*100);
+      barH+='<div>'
+        +'<div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:3px;">'
+        +'<span style="font-weight:600;color:#333;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:60%;">'+(i+1)+'. '+ci.n+'</span>'
+        +'<span style="font-weight:700;color:'+colores[i]+';">'+fmt(ci.v)+'</span></div>'
+        +'<div style="background:#f0f0f0;border-radius:20px;height:10px;overflow:hidden;">'
+        +'<div style="width:'+pct+'%;height:100%;background:'+colores[i]+';border-radius:20px;transition:width .4s;"></div>'
+        +'</div></div>';
+    });
+    barH+='</div>';
+  }
+  barH+='</div>';
+
+  // ── Gráfico 3: barras productos más vendidos ──
+  var coloresProd=['#00ACC1','#7CB342','#F4511E','#5E35B1','#039BE5','#E67C73'];
+  var maxProd=prodArr.length?prodArr[0].v:1;
+  var prodH='<div class="card"><div class="form-tit">Productos más vendidos 📦</div>';
+  if(!prodArr.length){prodH+='<div class="vacio">Sin datos aun</div>';}
+  else{
+    prodH+='<div style="display:flex;flex-direction:column;gap:8px;margin-top:6px;">';
+    prodArr.forEach(function(p,i){
+      var pct=Math.round(p.v/maxProd*100);
+      prodH+='<div>'
+        +'<div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:3px;">'
+        +'<span style="font-weight:600;color:#333;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:70%;">'+(i+1)+'. '+p.n+'</span>'
+        +'<span style="font-weight:700;color:'+coloresProd[i]+';">'+p.v+' u</span></div>'
+        +'<div style="background:#f0f0f0;border-radius:20px;height:10px;overflow:hidden;">'
+        +'<div style="width:'+pct+'%;height:100%;background:'+coloresProd[i]+';border-radius:20px;transition:width .4s;"></div>'
+        +'</div></div>';
+    });
+    prodH+='</div>';
+  }
+  prodH+='</div>';
+
+  c.innerHTML+=donaH+barH+prodH;
 }
 
 function tipoBadge(t){var map={"solo_app":["Solo app","tipo-solo"],"al_sistema_cuando_paga":["CC/paga","tipo-paga"],"al_sistema_siempre":["Siempre sist.","tipo-siempre"],"sin_clasificar":["Sin clasif.","tipo-sin"]};var v=map[t]||["Sin clasif.","tipo-sin"];return '<span class="tipo-badge '+v[1]+'">'+v[0]+'</span>';}
