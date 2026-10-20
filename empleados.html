@@ -632,7 +632,10 @@ function vFichaje(){
       ${r.a!=null?`<button class="btn ghost sm" style="margin-top:6px" onclick="$('#ee_${kk}').value='${minHm(r.a)}';$('#es_${kk}').value='${minHm(r.b)}'">Trabajó el turno completo</button>`:""}
       <label style="margin-top:6px">Motivo / nota</label><input id="em_${kk}" value="${(ed.mot||"").replace(/"/g,"&quot;")}" placeholder="Ej: todavía no estaba la app">
       <div class="two" style="margin-top:8px"><button class="btn" onclick="fjEditar('${r.key}')">Guardar</button><button class="btn ghost" onclick="fjEditar('${r.key}',true)">Quitar edición</button></div>
-      <div class="muted" style="margin-top:4px">Las horas a mano reemplazan a las fichadas solo en este turno. Si lo justificás y no trabajó, dejá las horas vacías.</div></div></td></tr>`}}));
+      <div class="muted" style="margin-top:4px">Las horas a mano reemplazan a las fichadas solo en este turno. Si lo justificás y no trabajó, dejá las horas vacías.</div>
+      <div style="border-top:1px solid var(--bd,#e5d5dc);margin-top:12px;padding-top:10px"><b>¿Ese día trabajó otro turno más?</b> (ej: volvió a la tarde)
+      <div class="two" style="margin-top:6px"><div><label>Entró</label><input type="time" id="oa_${kk}"></div><div><label>Salió</label><input type="time" id="ob_${kk}"></div></div>
+      <button class="btn sec full" style="margin-top:8px" onclick="fjOtroTurno('${r.key}','${r.loc}')">Agregar otro turno ese día</button></div></div></td></tr>`}}));
   h+=`</table></div><div class="muted" style="margin-top:8px">Cuenta desde la hora de entrada del horario hasta la de salida. Llegar antes no suma; quedarse de más suma solo si lo aprobás. Hasta ${FJTOL} min tarde no es llegada tarde, pero igual se descuenta. Según el reglamento: 3 tolerancias en el mes cuentan como una llegada tarde; 30 min o más tarde sin aviso, llegar tarde cuando le toca abrir o faltar sin aviso es falta grave.</div></div>`;
   {const dd=[0,1,2,3,4,5,6].map(i=>addD(lun,i)),e0=st.fjEmp==="todos"?emps[0]:st.fjEmp;
    h+=`<div class="card"><h2>Agregar un turno a mano</h2><div class="muted">Para un turno que no estaba en el horario y no se fichó (ej: Ramiro volvió de 18 a 21). Cuenta las horas que pongas.</div>
@@ -686,6 +689,10 @@ function fjAccion(key){const r=fjBuscar(key);if(!r||!r.acc)return;const a=r.acc;
 function fjAgregarManual(){fjAseg();const id=$("#amE").value,f=$("#amF").value,loc=$("#amL").value,a=$("#amA").value,b=$("#amB").value,mot=$("#amM").value.trim();
   if(!a||!b)return toast("Poné la hora de entrada y de salida");if(hmMin(b)<=hmMin(a))return toast("La salida tiene que ser después de la entrada");
   const k=id+"|"+f;(DB.fj.extra[k]=DB.fj.extra[k]||[]).push({loc,ent:a,sal:b,...(mot?{mot}:{})});
+  save("fichaje: turno a mano "+k);toast(`Agregado: ${id} ${dm(f)} ${a}–${b}`);render()}
+function fjOtroTurno(key,loc){fjAseg();const kk=key.replace(/\W/g,"_"),[id,f]=key.split("|"),a=$("#oa_"+kk).value,b=$("#ob_"+kk).value;
+  if(!a||!b)return toast("Poné la hora de entrada y de salida del otro turno");if(hmMin(b)<=hmMin(a))return toast("La salida tiene que ser después de la entrada");
+  const k=id+"|"+f;(DB.fj.extra[k]=DB.fj.extra[k]||[]).push({loc,ent:a,sal:b});st.fjEd=null;
   save("fichaje: turno a mano "+k);toast(`Agregado: ${id} ${dm(f)} ${a}–${b}`);render()}
 function fjQuitarManual(id,f,i){if(!confirm("¿Quitar este turno agregado a mano?"))return;const k=id+"|"+f;
   (DB.fj.extra[k]||[]).splice(i,1);if(!DB.fj.extra[k].length)delete DB.fj.extra[k];save("fichaje: turno a mano quitado "+k);toast("Quitado");render()}
