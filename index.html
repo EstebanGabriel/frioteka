@@ -1925,7 +1925,8 @@ function renderCC(c){
     (cli.pagosCC||[]).forEach(function(p,idx){
       movs.push({fecha:p.fecha,desc:p.nota||'Pago',monto:p.monto,tipo:'p',esPago:true,pagoIdx:idx});
     });
-    movs.sort(function(a,b){return a.fecha<b.fecha?-1:a.fecha>b.fecha?1:0;});
+    function fechaANum(f){if(!f||f==='—')return 0;var p=f.split('/');if(p.length===3)return parseInt(p[2])*10000+parseInt(p[1])*100+parseInt(p[0]);return 0;}
+    movs.sort(function(a,b){return fechaANum(a.fecha)-fechaANum(b.fecha);});
     // Calcular saldo corrido
     var saldoCorrido=0;
     movs.forEach(function(m){
