@@ -81,6 +81,8 @@ input[type=date],input[type=time],input[type=text]{width:100%;min-width:0;font:5
 .item .hd{display:flex;justify-content:space-between;gap:10px;align-items:baseline}
 .item .hd b{font-family:var(--display);font-size:21px;font-weight:600;font-variant-numeric:tabular-nums}
 .item .meta{font-size:14px;color:var(--muted);font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
+.cost{font-size:15px;color:var(--muted);font-variant-numeric:tabular-nums}
+.cost b{color:var(--accent);font-size:17px;margin-right:6px}
 .chip{display:inline-block;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;padding:3px 8px;border-radius:999px;background:var(--accent-soft);color:var(--accent);white-space:nowrap}
 .chip.one{background:var(--warn-soft);color:var(--warn)}
 .acts{display:flex;gap:8px;flex-wrap:wrap}
@@ -154,12 +156,20 @@ input[type=date],input[type=time],input[type=text]{width:100%;min-width:0;font:5
       <p class="note" style="margin:0">El resumen va con el período elegido arriba. El Excel trae todas las salidas cargadas, una por fila.</p>
     </div>
     <div class="panel">
-      <h2>Costos para calcular</h2>
+      <h2>Cuánto cuesta cada km y cada hora</h2>
+      <span class="lbl">Camioneta</span>
       <div class="row2">
-        <div class="field"><label for="costoKm">Camioneta, $ por km</label><input type="text" inputmode="numeric" id="costoKm" placeholder="0" autocomplete="off"></div>
-        <div class="field"><label for="costoHora">Repartidor, $ por hora</label><input type="text" inputmode="numeric" id="costoHora" placeholder="0" autocomplete="off"></div>
+        <div class="field"><label for="cPrecio">Combustible, $ por litro</label><input type="text" inputmode="numeric" id="cPrecio" placeholder="ej. 1.400" autocomplete="off"></div>
+        <div class="field"><label for="cRinde">Km por litro</label><input type="text" inputmode="decimal" id="cRinde" placeholder="ej. 9" autocomplete="off"></div>
       </div>
-      <p class="note" style="margin:0">En el costo por km de la camioneta poné combustible más desgaste (cubiertas, service, seguro). Con estos dos valores sale el costo de cada salida y de cada entrega.</p>
+      <div class="row2">
+        <div class="field"><label for="cFijos">Otros gastos por mes, $</label><input type="text" inputmode="numeric" id="cFijos" placeholder="seguro, patente, service" autocomplete="off"></div>
+        <div class="field"><label for="cKmMes">Km por mes</label><input type="text" inputmode="numeric" id="cKmMes" placeholder="auto" autocomplete="off"></div>
+      </div>
+      <span class="lbl">Repartidor</span>
+      <div class="field"><label for="cHora">Valor de su hora, $</label><input type="text" inputmode="numeric" id="cHora" placeholder="ej. 3.500" autocomplete="off"></div>
+      <div id="calcCosto"></div>
+      <p class="note" style="margin:0">En "otros gastos" va lo que pagás por mes por la camioneta aunque no salga: seguro, patente, service y cubiertas repartidos por mes. Si dejás "km por mes" vacío, la app lo saca de las salidas cargadas.</p>
       <div class="msg" id="msgCfg" aria-live="polite"></div>
     </div>
   </section>
@@ -208,7 +218,7 @@ const nf = n => Math.round(n).toLocaleString('es-AR');
 const money = n => '$ ' + nf(n);
 const MOTIVO = {mayorista:'Mayorista', reposicion:'Reposición San Martín', ambas:'Mayorista + reposición'};
 
-let db = null, salidas = [], cfg = {costoKm:0, costoHora:0}, editId = null, motivo = null, periodo = '4', cargado = false;
+let db = null, salidas = [], cfg = {precio:0, rinde:0, fijos:0, kmMes:0, costoKm:0, costoHora:0}, editId = null, motivo = null, periodo = '4', cargado = false;
 
 /* ---------- utilidades de fecha y numeros ---------- */
 function hoy(){ const d = new Date(); return iso(d); }
@@ -312,7 +322,7 @@ function pintarResumen(){
   const unas = L.filter(x => x.entregas===1), kmUna = unas.reduce((s,x) => s+kms(x),0), minUna = unas.reduce((s,x) => s+minutos(x),0);
   const sem = {}; L.forEach(x => { const k = lunes(x.fecha); (sem[k] ||= {m:0,n:0,k:0}); sem[k].m += minutos(x); sem[k].n++; sem[k].k += kms(x); });
   const semanas = Object.keys(sem).sort(), nSem = semanas.length, maxM = Math.max(...semanas.map(k => sem[k].m));
-  const costo = tk*cfg.costoKm + (tm/60)*cfg.costoHora, hayCosto = cfg.costoKm > 0 || cfg.costoHora > 0;
+  const P = partes(), cCam = tk*P.porKm, cRep = (tm/60)*P.porHora, costo = cCam + cRep, hayCosto = hayCostos();
 
   let huecos = 0; const all = ordenadas();
   for(let i=1;i<all.length;i++){ if(L.includes(all[i]) && all[i].kmSale > all[i-1].kmVuelve) huecos += all[i].kmSale - all[i-1].kmVuelve; }
@@ -334,11 +344,13 @@ function pintarResumen(){
   h += '<div class="panel"><h2>Costos</h2>';
   if(hayCosto){
     h += kv('Costo total del período', money(costo))
+      + kv('  Camioneta (' + nf(tk) + ' km)', money(cCam))
+      + kv('  Repartidor (' + dur(tm) + ')', money(cRep))
       + kv('Costo por salida', money(costo/L.length))
       + (te ? kv('Costo por entrega', money(costo/te)) : '')
       + (tk ? kv('Costo por km, con repartidor', money(costo/tk)) : '')
-      + (unas.length ? kv('Gastado en viajes de una entrega', money(kmUna*cfg.costoKm + (minUna/60)*cfg.costoHora)) : '');
-  } else h += '<p class="note" style="margin:0">Cargá abajo cuánto cuesta el km de la camioneta y la hora del repartidor para ver el costo de cada salida.</p>';
+      + (unas.length ? kv('Gastado en viajes de una entrega', money(kmUna*P.porKm + (minUna/60)*P.porHora)) : '');
+  } else h += '<p class="note" style="margin:0">Cargá abajo el combustible, el rendimiento de la camioneta y el valor hora del repartidor para ver cuánta plata se va en reparto.</p>';
   h += kv('Km por salida', nf(tk/L.length) + ' km') + kv('Tiempo por salida', dur(tm/L.length)) + (te ? kv('Tiempo por entrega', dur(tm/te)) : '') + '</div>';
 
   h += '<div class="panel"><h2>Para qué se salió</h2>' + Object.keys(MOTIVO).filter(k => por[k]).map(k =>
@@ -358,25 +370,26 @@ function txtSalida(x){
   return '*Reparto FRIOTEKA*\n' + diaCorto(x.fecha) + ' · ' + x.sale + ' a ' + x.vuelve + ' (' + dur(minutos(x)) + ')\n'
     + 'Km ' + nf(x.kmSale) + ' a ' + nf(x.kmVuelve) + ' (' + nf(kms(x)) + ' km)\n'
     + (MOTIVO[x.motivo]||x.motivo) + ' · ' + x.entregas + (x.entregas===1?' entrega':' entregas')
+    + (hayCostos() ? (() => { const c = costoDe(x); return '\n*Costo: ' + money(c.tot) + '* (camioneta ' + money(c.cam) + ' + repartidor ' + money(c.rep) + ')'; })() : '')
     + (x.nota ? '\nNota: ' + x.nota : '');
 }
 function txtResumen(L){
   const tm = L.reduce((s,x) => s+minutos(x),0), tk = L.reduce((s,x) => s+kms(x),0), te = L.reduce((s,x) => s+x.entregas,0);
   const unas = L.filter(x => x.entregas===1).length, nSem = new Set(L.map(x => lunes(x.fecha))).size;
-  const costo = tk*cfg.costoKm + (tm/60)*cfg.costoHora;
+  const P = partes(), costo = tk*P.porKm + (tm/60)*P.porHora;
   let t = '*Reparto FRIOTEKA · ' + PER[periodo] + '*\n'
     + 'Del ' + corta(L[0].fecha) + ' al ' + corta(L[L.length-1].fecha) + '\n'
     + L.length + (L.length===1?' salida':' salidas') + ' · ' + dur(tm) + ' · ' + nf(tk) + ' km · ' + te + ' entregas\n'
     + 'Por semana: ' + dur(tm/nSem) + '\n'
     + 'Viajes por una sola entrega: ' + unas + ' de ' + L.length + '\n';
-  if(cfg.costoKm || cfg.costoHora) t += 'Costo total: ' + money(costo) + ' · por salida: ' + money(costo/L.length) + (te ? ' · por entrega: ' + money(costo/te) : '') + '\n';
-  t += '\n' + L.map(x => '- ' + diaCorto(x.fecha) + ' ' + x.sale + '-' + x.vuelve + ' · ' + nf(kms(x)) + ' km · ' + (MOTIVO[x.motivo]||x.motivo) + ' · ' + x.entregas + ' ent.').join('\n');
+  if(hayCostos()) t += 'Costo total: ' + money(costo) + ' · por salida: ' + money(costo/L.length) + (te ? ' · por entrega: ' + money(costo/te) : '') + '\n';
+  t += '\n' + L.map(x => '- ' + diaCorto(x.fecha) + ' ' + x.sale + '-' + x.vuelve + ' · ' + nf(kms(x)) + ' km · ' + (MOTIVO[x.motivo]||x.motivo) + ' · ' + x.entregas + ' ent.' + (hayCostos() ? ' · ' + money(costoDe(x).tot) : '')).join('\n');
   return t;
 }
 $('excel').onclick = () => {
   const q = v => '"' + String(v ?? '').replace(/"/g,'""') + '"';
-  const filas = [['Fecha','Día','Hora salida','Hora vuelta','Minutos','Km al salir','Km al volver','Km recorridos','Para qué fue','Entregas','Nota']]
-    .concat(ordenadas().map(x => [corta(x.fecha) + '/' + x.fecha.slice(0,4), DIAS[parseF(x.fecha).getDay()], x.sale, x.vuelve, minutos(x), x.kmSale, x.kmVuelve, kms(x), MOTIVO[x.motivo]||x.motivo, x.entregas, x.nota||'']));
+  const filas = [['Fecha','Día','Hora salida','Hora vuelta','Minutos','Km al salir','Km al volver','Km recorridos','Para qué fue','Entregas','Costo camioneta','Costo repartidor','Costo total','Nota']]
+    .concat(ordenadas().map(x => [corta(x.fecha) + '/' + x.fecha.slice(0,4), DIAS[parseF(x.fecha).getDay()], x.sale, x.vuelve, minutos(x), x.kmSale, x.kmVuelve, kms(x), MOTIVO[x.motivo]||x.motivo, x.entregas, ...(c => [Math.round(c.cam), Math.round(c.rep), Math.round(c.tot)])(costoDe(x)), x.nota||'']));
   const csv = '﻿' + filas.map(f => f.map(q).join(';')).join('\r\n');
   const a = document.createElement('a');
   a.href = URL.createObjectURL(new Blob([csv], {type:'text/csv;charset=utf-8'}));
@@ -384,6 +397,35 @@ $('excel').onclick = () => {
   document.body.appendChild(a); a.click(); a.remove();
   setTimeout(() => URL.revokeObjectURL(a.href), 2000);
 };
+
+/* ---------- costos ---------- */
+const CF = {cPrecio:'precio', cRinde:'rinde', cFijos:'fijos', cKmMes:'kmMes', cHora:'costoHora'};
+function num(v, dec){ let s = String(v ?? '').trim(); s = dec ? s.replace(',','.') : s.replace(/\./g,'').replace(',','.'); const n = parseFloat(s); return isFinite(n) && n > 0 ? n : 0; }
+function fmtCfg(k, v){ return !v ? '' : k==='rinde' ? String(v).replace('.',',') : nf(v); }
+function kmMesAuto(){
+  const d = parseF(hoy()); d.setDate(d.getDate() - 28); const desde = iso(d);
+  const k = salidas.filter(x => x.fecha >= desde).reduce((s,x) => s+kms(x),0);
+  return k ? k * 30 / 28 : 0;
+}
+function partes(){
+  const comb = cfg.precio && cfg.rinde ? cfg.precio / cfg.rinde : 0;
+  const kmMes = cfg.kmMes || kmMesAuto();
+  const fijo = cfg.fijos && kmMes ? cfg.fijos / kmMes : 0;
+  const porKm = comb || fijo ? comb + fijo : cfg.costoKm;
+  return {comb, fijo, kmMes, auto: !cfg.kmMes, porKm, porHora: cfg.costoHora};
+}
+function costoDe(x){ const p = partes(); const cam = kms(x)*p.porKm, rep = minutos(x)/60*p.porHora; return {cam, rep, tot: cam+rep}; }
+function hayCostos(){ const p = partes(); return p.porKm > 0 || p.porHora > 0; }
+function pintarCalc(){
+  const p = partes(), el = $('calcCosto');
+  if(!p.porKm && !p.porHora){ el.innerHTML = ''; return; }
+  let h = '<div class="panel" style="background:var(--accent-soft);border:0;gap:6px">';
+  if(p.porKm) h += kv('Camioneta, por km', money(p.porKm))
+    + (p.comb ? '<div class="note">Combustible ' + money(p.comb) + (p.fijo ? ' + gastos fijos ' + money(p.fijo) + ' (sobre ' + nf(p.kmMes) + ' km/mes' + (p.auto ? ', calculado' : '') + ')' : '') + '</div>' : '');
+  if(p.porHora) h += kv('Repartidor, por hora', money(p.porHora));
+  if(p.porKm && p.porHora) h += '<div class="note">Ejemplo: 2 horas y 14 km = ' + money(2*p.porHora + 14*p.porKm) + '</div>';
+  el.innerHTML = h + '</div>';
+}
 
 function st(v, t){ return '<div class="stat"><b>' + esc(v) + '</b><small>' + esc(t) + '</small></div>'; }
 function kv(a, b){ return '<div class="kv"><span>' + esc(a) + '</span><b>' + esc(b) + '</b></div>'; }
@@ -397,6 +439,7 @@ function pintarHistorial(){
     const d = parseF(x.fecha);
     return '<div class="item"><div class="hd"><b>' + DIAS[d.getDay()] + ' ' + corta(x.fecha) + ' · ' + esc(x.sale) + ' a ' + esc(x.vuelve) + '</b>'
       + '<span class="chip' + (x.entregas===1?' one':'') + '">' + x.entregas + (x.entregas===1?' entrega':' entregas') + '</span></div>'
+      + (hayCostos() ? (() => { const c = costoDe(x); return '<div class="cost"><b>' + money(c.tot) + '</b> camioneta ' + money(c.cam) + ' + repartidor ' + money(c.rep) + '</div>'; })() : '')
       + '<div class="meta">' + esc(MOTIVO[x.motivo]||x.motivo) + ' · ' + dur(minutos(x)) + ' · ' + nf(kms(x)) + ' km (' + nf(x.kmSale) + ' a ' + nf(x.kmVuelve) + ')' + (x.nota ? '<br>' + esc(x.nota) : '') + '</div>'
       + '<div class="acts"><button class="ghost" data-ed="' + esc(x.id) + '">Corregir</button><button class="ghost del" data-del="' + esc(x.id) + '">Borrar</button></div></div>';
   }).join('');
@@ -422,10 +465,12 @@ $('historial').addEventListener('click', async e => {
 document.querySelectorAll('#periodos button').forEach(b => b.onclick = () => {
   periodo = b.dataset.p; document.querySelectorAll('#periodos button').forEach(o => o.setAttribute('aria-pressed', o===b)); pintarResumen();
 });
-['costoKm','costoHora'].forEach(id => $(id).addEventListener('change', async () => {
-  const n = ent($(id).value); cfg = {...cfg, [id]: isNaN(n) ? 0 : n}; $(id).value = cfg[id] ? nf(cfg[id]) : ''; pintarResumen();
+Object.keys(CF).forEach(id => $(id).addEventListener('change', async () => {
+  const k = CF[id]; cfg = {...cfg, [k]: num($(id).value, k==='rinde')}; $(id).value = fmtCfg(k, cfg[k]);
+  pintarCalc(); pintar();
   if(!db) return;
-  try{ await db.doc('config/costos').set({costoKm:cfg.costoKm, costoHora:cfg.costoHora}); $('msgCfg').textContent = 'Costos guardados.'; $('msgCfg').className = 'msg ok'; }
+  const p = partes();
+  try{ await db.doc('config/costos').set({precio:cfg.precio, rinde:cfg.rinde, fijos:cfg.fijos, kmMes:cfg.kmMes, costoHora:cfg.costoHora, costoKm:Math.round(p.porKm)}); $('msgCfg').textContent = 'Costos guardados.'; $('msgCfg').className = 'msg ok'; }
   catch(err){ $('msgCfg').textContent = 'No se pudieron guardar los costos.'; $('msgCfg').className = 'msg err'; }
 }));
 
@@ -436,15 +481,14 @@ limpiar(); pintar();
   if(!db){ cargado = true; $('sinDb').hidden = false; pintar(); return; }
   db.collection('salidas').limit(1000).onSnapshot(snap => {
     salidas = snap.docs.map(d => ({id:d.id, ...d.data()})).filter(x => x.fecha && x.sale && x.vuelve);
-    const primera = !cargado; cargado = true; pintar();
+    const primera = !cargado; cargado = true; pintar(); pintarCalc();
     if(primera && !editId && !$('kmSale').value){ const u = ordenadas().slice(-1)[0]; if(u) $('kmSale').value = nf(u.kmVuelve); }
   }, () => { cargado = true; $('sinDb').hidden = false; pintar(); });
   db.doc('config/costos').onSnapshot(s => {
     if(!s.exists) return; const d = s.data();
-    cfg = {costoKm:Number(d.costoKm)||0, costoHora:Number(d.costoHora)||0};
-    if(document.activeElement !== $('costoKm')) $('costoKm').value = cfg.costoKm ? nf(cfg.costoKm) : '';
-    if(document.activeElement !== $('costoHora')) $('costoHora').value = cfg.costoHora ? nf(cfg.costoHora) : '';
-    pintarResumen();
+    cfg = {precio:Number(d.precio)||0, rinde:Number(d.rinde)||0, fijos:Number(d.fijos)||0, kmMes:Number(d.kmMes)||0, costoKm:Number(d.costoKm)||0, costoHora:Number(d.costoHora)||0};
+    Object.keys(CF).forEach(id => { if(document.activeElement !== $(id)) $(id).value = fmtCfg(CF[id], cfg[CF[id]]); });
+    pintarCalc(); pintar();
   }, () => {});
 })();
 </script>
