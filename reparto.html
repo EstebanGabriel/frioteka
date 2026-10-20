@@ -218,7 +218,7 @@ const nf = n => Math.round(n).toLocaleString('es-AR');
 const money = n => '$ ' + nf(n);
 const MOTIVO = {mayorista:'Mayorista', reposicion:'Reposición San Martín', ambas:'Mayorista + reposición'};
 
-let db = null, salidas = [], cfg = {precio:0, rinde:0, fijos:0, kmMes:0, costoKm:0, costoHora:0}, editId = null, motivo = null, periodo = '4', cargado = false;
+let db = null, salidas = [], cfg = {precio:2100, rinde:11, fijos:0, kmMes:0, costoKm:0, costoHora:6100}, editId = null, motivo = null, periodo = '4', cargado = false;
 
 /* ---------- utilidades de fecha y numeros ---------- */
 function hoy(){ const d = new Date(); return iso(d); }
@@ -476,6 +476,7 @@ Object.keys(CF).forEach(id => $(id).addEventListener('change', async () => {
 
 /* ---------- arranque ---------- */
 limpiar(); pintar();
+Object.keys(CF).forEach(id => { $(id).value = fmtCfg(CF[id], cfg[CF[id]]); }); pintarCalc();
 (async () => {
   db = window.RP || await new Promise(r => { window.addEventListener('rp-ready', () => r(window.RP), {once:true}); setTimeout(() => r(window.RP || null), 15000); });
   if(!db){ cargado = true; $('sinDb').hidden = false; pintar(); return; }
