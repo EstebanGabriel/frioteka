@@ -662,8 +662,12 @@ function fjConfigCard(){const cfg=FJC.cfg||{},L=cfg.locales||{},U=cfg.usuarios||
   const ll=k=>L[k]&&L[k].lat!=null?`${L[k].lat}, ${L[k].lng}`:"";
   let h=`<div class="card"><h2>Configuración del fichaje</h2><div class="f">
   <label>Ubicación de Cárcano</label><input id="fjLC" value="${ll("carcano")}" placeholder="Pegá el link de Google Maps o las coordenadas">
+  <button class="btn ghost full" style="margin-top:4px" onclick="fjAqui('fjLC')">Estoy adentro de Cárcano: usar mi ubicación</button>
   <label>Ubicación de San Martín</label><input id="fjLS" value="${ll("sanmartin")}" placeholder="Pegá el link de Google Maps o las coordenadas">
-  <button class="btn sec full" style="margin-top:8px" onclick="fjGuardarLocales()">Guardar ubicaciones</button>
+  <button class="btn ghost full" style="margin-top:4px" onclick="fjAqui('fjLS')">Estoy adentro de San Martín: usar mi ubicación</button>
+  <label>Distancia máxima para fichar (metros)</label><input id="fjRad" type="number" inputmode="numeric" min="10" max="200" value="${+cfg.radio>0?+cfg.radio:30}">
+  <button class="btn sec full" style="margin-top:8px" onclick="fjGuardarLocales()">Guardar ubicaciones y distancia</button>
+  <div class="muted" style="margin-top:4px">Lo mejor: parate adentro de cada local, con la ubicación del celular activada, y tocá el botón "Estoy adentro…". Después tocá Guardar.</div>
   <div class="muted" style="margin-top:4px">Si el link es corto (maps.app.goo.gl), abrilo, mantené apretado el punto del local y copiá las coordenadas que aparecen (ej: -31.4123, -64.4987).</div></div>
   <h3 style="margin-top:16px">Usuarios y PIN</h3>`;
   EMPS().forEach(id=>{const u=U[id]||id.toLowerCase();const s=id.replace(/\W/g,"_");
@@ -682,8 +686,14 @@ function fjParse(s){s=(s||"").trim();let m=s.match(/@(-?\d+\.\d+),(-?\d+\.\d+)/)
   return m?{lat:+m[1],lng:+m[2]}:null}
 async function fjGuardarLocales(){const c=fjParse($("#fjLC").value),s=fjParse($("#fjLS").value);
   if(($("#fjLC").value&&!c)||($("#fjLS").value&&!s))return toast("No reconozco alguna ubicación: pegá las coordenadas");
-  const loc={};if(c)loc.carcano=c;if(s)loc.sanmartin=s;
-  try{await FJ.setConfig({locales:loc});FJC.cfg=await FJ.config();toast("Ubicaciones guardadas");render()}catch(e){toast("No se pudo: "+e.message)}}
+  const loc={};if(c)loc.carcano=c;if(s)loc.sanmartin=s;const rad=Math.round(+$("#fjRad").value);
+  if(!(rad>=10&&rad<=200))return toast("La distancia tiene que ser entre 10 y 200 metros");
+  try{await FJ.setConfig({locales:loc,radio:rad});FJC.cfg=await FJ.config();toast("Ubicaciones guardadas");render()}catch(e){toast("No se pudo: "+e.message)}}
+function fjAqui(campo){if(!navigator.geolocation)return toast("Este celular no da ubicación");toast("Buscando ubicación…");
+  navigator.geolocation.getCurrentPosition(p=>{const a=Math.round(p.coords.accuracy||0);
+    if(a>30)return toast("Ubicación poco precisa (±"+a+" m). Esperá unos segundos y probá de nuevo");
+    $("#"+campo).value=p.coords.latitude.toFixed(6)+", "+p.coords.longitude.toFixed(6);toast("Listo (±"+a+" m). Ahora tocá Guardar")},
+    e=>toast("No pude ver la ubicación: "+e.message),{enableHighAccuracy:true,timeout:20000,maximumAge:0})}
 async function fjGuardarPin(id){const s=id.replace(/\W/g,"_"),u=$("#fjU_"+s).value.trim().toLowerCase().replace("@frioteka.app",""),p=$("#fjP_"+s).value.trim();
   if(!u)return toast("Falta el usuario");if(p&&!/^\d{4}$/.test(p))return toast("El PIN tiene que ser de 4 números");
   try{await FJ.setConfig({usuarios:{[id]:u}});if(p)await FJ.setPin(u,await fjHash(u,p));FJC.cfg=await FJ.config();FJC.pines=await FJ.pines();toast(p?"PIN guardado":"Usuario guardado");render()}catch(e){toast("No se pudo: "+e.message)}}

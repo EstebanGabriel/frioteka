@@ -71,7 +71,8 @@ const C = { marcas: "fj_marcas", estado: "fj_estado", pines: "fj_pines", horario
 const USUARIO = user.email.replace("@frioteka.app", "").toLowerCase();
 const TZ = "America/Argentina/Cordoba";
 const LOCALES = { carcano: "Cárcano", sanmartin: "San Martín" };
-const RADIO = 100, TOL = 10, HORAS_ABIERTA = 10;
+const RADIO_DEF = 30, PRECISION_MAX = 50, TOL = 10, HORAS_ABIERTA = 10;
+const radio = () => (cfg && +cfg.radio > 0) ? +cfg.radio : RADIO_DEF;
 const $ = s => document.querySelector(s);
 const pad = n => String(n).padStart(2, "0");
 const partes = d => { const p = Object.fromEntries(new Intl.DateTimeFormat("en-CA", { timeZone: TZ, year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false }).formatToParts(d).map(x => [x.type, x.value])); return { fecha: `${p.year}-${p.month}-${p.day}`, hm: `${p.hour === "24" ? "00" : p.hour}:${p.minute}` }; };
@@ -92,9 +93,11 @@ function cajaUbicacion() {
   const L = local ? LOCALES[local] : "";
   if (gps.estado === "buscando") return `<div class="box mut"><span class="dot"></span><div>Buscando tu ubicación…<small>Aceptá el permiso si el celular lo pide</small></div></div>`;
   if (gps.estado === "ok") return `<div class="box ok"><span class="dot"></span><div>Estás en ${L}<small>Ubicación confirmada · a ${Math.round(gps.dist)} m</small></div></div>`;
-  if (gps.estado === "lejos") return `<div class="box bad"><span class="dot"></span><div>Estás a ${gps.dist >= 1000 ? (gps.dist / 1000).toFixed(1).replace(".", ",") + " km" : Math.round(gps.dist) + " m"} de ${L}<small>Tenés que estar en el local para fichar</small></div></div>`;
+  const reint = `<button class="big" id="reint" style="margin-top:8px">Volver a buscar mi ubicación</button>`;
+  if (gps.estado === "lejos") return `<div class="box bad"><span class="dot"></span><div>Estás a ${gps.dist >= 1000 ? (gps.dist / 1000).toFixed(1).replace(".", ",") + " km" : Math.round(gps.dist) + " m"} de ${L}<small>Tenés que estar adentro del local para fichar</small></div></div>` + reint;
+  if (gps.estado === "impreciso") return `<div class="box warn"><span class="dot"></span><div>Tu ubicación no es precisa (±${Math.round(gps.acc)} m)<small>Acercate a la puerta o a una ventana, esperá unos segundos y volvé a buscar</small></div></div>` + reint;
   if (gps.estado === "sin-config") return `<div class="box mut"><span class="dot"></span><div>${L}<small>La ubicación del local todavía no está cargada</small></div></div>`;
-  return `<div class="box warn"><span class="dot"></span><div>No pudimos ver tu ubicación<small>Podés fichar igual; queda anotado</small></div></div>`;
+  return `<div class="box bad"><span class="dot"></span><div>No pudimos ver tu ubicación<small>Activá la ubicación del celular y dale permiso al navegador. Sin ubicación no se puede fichar.</small></div></div>` + reint;
 }
 function cabecera() { return `<div class="top"><span class="brand">FRIOTEKA · FICHAJE</span><span class="clock" id="clk">${partes(new Date()).hm}</span></div>`; }
 
@@ -135,7 +138,7 @@ function pantallaLocal() {
 }
 
 function pantallaPin() {
-  const bloq = Date.now() < bloqueoHasta, puede = gps.estado !== "lejos" && gps.estado !== "buscando" && !bloq;
+  const bloq = Date.now() < bloqueoHasta, puede = (gps.estado === "ok" || gps.estado === "sin-config") && !bloq;
   $("#app").innerHTML = cabecera() + cajaUbicacion() + `<div class="paso">${modo === "salida" ? "Vas a registrar tu SALIDA" : "Vas a registrar tu INGRESO"}</div><h1>${emp}, poné tu PIN</h1>
   <div class="pinrow">${[0, 1, 2, 3].map(i => `<span class="${i < pin.length ? "on" : ""}"></span>`).join("")}</div>
   <div class="msg ${pantallaPin.err ? "err" : ""}">${bloq ? "Demasiados intentos. Esperá un minuto." : pantallaPin.err || "4 números"}</div>
@@ -143,6 +146,7 @@ function pantallaPin() {
   <button class="big" data-k="volver" aria-label="Volver" title="Volver">←</button><button class="big" data-k="0" ${puede ? "" : "disabled"}>0</button><button class="big" data-k="del" aria-label="Borrar">⌫</button></div>
   <p class="note">Local: ${LOCALES[local]}</p>`;
   $("#app").onclick = teclado;
+  const rb = $("#reint"); if (rb) rb.onclick = ev => { ev.stopPropagation(); buscarUbicacion(); };
 }
 pantallaPin.err = "";
 
@@ -166,6 +170,7 @@ function turnosHoy(horario, fecha) { const v = horario && horario[`${emp}|${fech
 async function existe(id) { try { return (await getDoc(doc(fs, C.marcas, id))).exists(); } catch (e) { if (e.code === "permission-denied") return false; throw e; } }
 
 async function fichar() {
+  if (gps.estado !== "ok" && gps.estado !== "sin-config") return pantallaPin();
   $("#app").innerHTML = cabecera() + `<p class="note">Guardando…</p>`;
   try {
     const { abierta, est, ultimas } = await leerEstado();
@@ -239,8 +244,9 @@ function buscarUbicacion() {
   gps = { estado: "buscando" }; pantallaPin();
   navigator.geolocation.getCurrentPosition(p => {
     const a = { lat: p.coords.latitude, lng: p.coords.longitude }, d = dist(a, L), acc = p.coords.accuracy || 0;
-    gps = { ...a, acc, dist: d, estado: d - Math.min(acc, 100) <= RADIO ? "ok" : "lejos" }; pantallaPin();
-  }, () => { gps = { estado: "sin" }; pantallaPin(); }, { enableHighAccuracy: true, timeout: 12000, maximumAge: 30000 });
+    // Estricto: no se descuenta el error del GPS. Si el error es grande, se pide reintentar.
+    gps = { ...a, acc, dist: d, estado: d > radio() ? "lejos" : acc > PRECISION_MAX ? "impreciso" : "ok" }; pantallaPin();
+  }, () => { gps = { estado: "sin" }; pantallaPin(); }, { enableHighAccuracy: true, timeout: 20000, maximumAge: 0 });
 }
 
 async function iniciar() {
