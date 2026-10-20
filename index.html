@@ -1825,12 +1825,20 @@ function editarVenta(idx){
     var desc=parseFloat(modal.querySelector("#ev-desc").value)||0;
     var sub=itemsEdit.reduce(function(s,it){return s+it.precio*it.qty;},0);
     var total=sub*(1-desc/100);
-    pedidos[idx].cliente=modal.querySelector("#ev-cli").value.trim()||p.cliente;
+    var nuevoCliente=modal.querySelector("#ev-cli").value.trim()||p.cliente;
+    var nuevoFpago=modal.querySelector("#ev-fp").value;
+    var fpagoAnterior=p.fpago;
+    pedidos[idx].cliente=nuevoCliente;
     pedidos[idx].dir=modal.querySelector("#ev-dir").value.trim();
-    pedidos[idx].fpago=modal.querySelector("#ev-fp").value;
+    pedidos[idx].fpago=nuevoFpago;
     pedidos[idx].descuento=desc;
     pedidos[idx].items=itemsEdit;
     pedidos[idx].total=Math.round(total);
+    // Si cambió a Cta. Corriente, asegurarse de que el cliente tenga cc:true
+    if(nuevoFpago==="Cta. Corriente"){
+      var cliCC=clientes.find(function(c){return c.nombre===nuevoCliente;});
+      if(cliCC&&!cliCC.cc){cliCC.cc=true;window.guardarClientes();}
+    }
     window.guardarPedidos();
     toast("Venta actualizada ✓");
     document.body.removeChild(overlay);
