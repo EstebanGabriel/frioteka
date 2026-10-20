@@ -301,8 +301,13 @@ input:checked+.sw-sl:before{transform:translateX(20px);}
 .hist-fp{font-size:11px;color:var(--gris);margin-top:2px;}
 .cc-saldo{display:flex;justify-content:space-between;align-items:center;background:white;border-radius:12px;padding:14px;margin-bottom:12px;}
 .cc-val{font-size:24px;font-weight:800;color:var(--azul);}
-.cc-mov{display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--borde);font-size:13px;}
+.cc-mov{display:flex;justify-content:space-between;align-items:center;padding:8px 4px;border-bottom:1px solid var(--borde);font-size:13px;gap:6px;}
 .cc-mov.p{color:#16a34a;font-weight:600;}
+.cc-mov-saldo{font-size:11px;color:#888;min-width:80px;text-align:right;}
+.cc-mov-edit{background:none;border:none;cursor:pointer;font-size:14px;padding:2px 6px;opacity:0.5;}
+.cc-mov-edit:hover{opacity:1;}
+.cc-admin-bar{display:flex;align-items:center;gap:8px;background:#FFF3CD;border-radius:10px;padding:8px 12px;margin-bottom:10px;font-size:13px;}
+.cc-pin-input{padding:8px 12px;border:2px solid var(--borde);border-radius:8px;font-size:15px;width:110px;letter-spacing:4px;}
 .pend-badge{display:inline-block;background:#ef4444;color:white;border-radius:10px;font-size:11px;font-weight:700;padding:1px 7px;margin-left:6px;vertical-align:middle;}
 .pend-card{border-left:4px solid #f59e0b;background:#fffbeb;}
 .pend-card .pend-hdr{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;}
@@ -1862,37 +1867,126 @@ function renderListaCli(q){
   });
 }
 
+/* ===== CUENTAS CORRIENTES — PIN ADMIN ===== */
+var CC_PIN = "1234"; // PIN por defecto — se puede cambiar
+var _ccAdminMode = false;
+
+function ccVerificarPin(){
+  var input=document.getElementById('ccPinInput');
+  if(!input) return;
+  var val=input.value.trim();
+  if(val===CC_PIN){
+    _ccAdminMode=true;
+    renderGestion();
+    toast('🔓 Modo admin activado');
+  } else {
+    input.value='';
+    input.placeholder='PIN incorrecto';
+    setTimeout(function(){input.placeholder='PIN admin';},1500);
+  }
+}
+function ccSalirAdmin(){
+  _ccAdminMode=false;
+  renderGestion();
+}
+
 function renderCC(c){
   var ccCli=clientes.filter(function(c){return c.cc;});
-  if(!ccCli.length){c.innerHTML='<div class="vacio">No hay clientes con cuenta corriente.</div>';return;}
-  var h="";
+  // Barra de admin PIN
+  var adminBar='';
+  if(!_ccAdminMode){
+    adminBar='<div class="cc-admin-bar">🔒 <span>Modo normal</span>'
+      +'<input id="ccPinInput" class="cc-pin-input" type="password" maxlength="8" placeholder="PIN admin" onkeydown="if(event.key===\'Enter\')ccVerificarPin()">'
+      +'<button class="btn-sm" style="background:var(--rojo);color:white;" onclick="ccVerificarPin()">Ingresar</button>'
+      +'</div>';
+  } else {
+    adminBar='<div class="cc-admin-bar" style="background:#D4EDDA;">✏️ <b>Modo admin activo</b> — podés editar y agregar movimientos'
+      +'<button class="btn-sm" style="margin-left:auto;background:#dc3545;color:white;" onclick="ccSalirAdmin()">Salir</button>'
+      +'</div>';
+  }
+
+  if(!ccCli.length){c.innerHTML=adminBar+'<div class="vacio">No hay clientes con cuenta corriente.</div>';return;}
+  var h=adminBar;
   ccCli.forEach(function(cli){
     var mv=pedidos.filter(function(p){return p.cliente===cli.nombre&&p.fpago==="Cta. Corriente";});
-    var deuda=mv.reduce(function(s,p){return s+p.total;},0)+(cli.saldo||0);
-    var pagos=(cli.pagosCC||[]).reduce(function(s,p){return s+p.monto;},0);
-    var saldo=deuda-pagos;
-    var cliId=encodeURIComponent(cli.nombre);
-    h+='<div class="card"><div class="form-tit">'+cli.nombre+'</div>'
-      +'<div class="cc-saldo"><div><div style="font-size:12px;color:var(--gris)">Saldo pendiente</div><div class="cc-val" style="color:'+(saldo>0?'var(--rojo)':'#16a34a')+'">'+fmt(saldo)+'</div></div>'
-      +'<div style="display:flex;gap:8px;">'
-      +(cli.tel?'<a href="tel:'+cli.tel+'" class="btn-sm g">Llamar</a>':'')
-      +'<button class="btn-sm" style="background:var(--azul);color:white;" onclick="abrirPagoCC('+clientes.indexOf(cli)+')">💰 Registrar pago</button>'
-      +'</div></div>'
-      +'<div style="font-size:12px;color:var(--gris);margin-bottom:8px;">'+mv.length+' compras · '+((cli.pagosCC||[]).length)+' pagos registrados</div>';
-    // Mostrar movimientos mezclados (compras + pagos), últimos 8
+    // Construir lista completa de movimientos con saldo corrido
     var movs=[];
-    if(cli.saldo&&cli.saldo>0) movs.push({fecha:'00000000',desc:'Saldo anterior',monto:cli.saldo,tipo:'v'});
-    mv.forEach(function(v){movs.push({fecha:v.fecha,desc:v.nv,monto:v.total,tipo:'v'});});
-    (cli.pagosCC||[]).forEach(function(p){movs.push({fecha:p.fecha,desc:p.nota||'Pago',monto:p.monto,tipo:'p'});});
-    movs.sort(function(a,b){return b.fecha<a.fecha?-1:1;});
-    movs.slice(0,8).forEach(function(m){
-      h+='<div class="cc-mov '+m.tipo+'">'
-        +'<span>'+(m.tipo==='p'?'✅':'🛒')+' '+m.desc+' · '+m.fecha+'</span>'
-        +'<span>'+(m.tipo==='p'?'−':'+')+''+fmt(m.monto)+'</span>'
-        +'</div>';
+    // Saldo inicial (editable en modo admin)
+    if(cli.saldo&&cli.saldo!==0){
+      movs.push({fecha:'00000000',desc:'Saldo inicial',monto:Math.abs(cli.saldo),tipo:cli.saldo>0?'v':'p',esInicial:true});
+    }
+    // Movimientos manuales (cargos/abonos extra)
+    (cli.movCC||[]).forEach(function(m,idx){
+      movs.push({fecha:m.fecha||'00000001',desc:m.desc||'Movimiento',monto:Math.abs(m.monto),tipo:m.monto>0?'v':'p',esMov:true,movIdx:idx});
     });
+    // Ventas en cta cte
+    mv.forEach(function(v){movs.push({fecha:v.fecha,desc:v.nv,monto:v.total,tipo:'v',esVenta:true});});
+    // Pagos registrados
+    (cli.pagosCC||[]).forEach(function(p,idx){
+      movs.push({fecha:p.fecha,desc:p.nota||'Pago',monto:p.monto,tipo:'p',esPago:true,pagoIdx:idx});
+    });
+    movs.sort(function(a,b){return a.fecha<b.fecha?-1:a.fecha>b.fecha?1:0;});
+    // Calcular saldo corrido
+    var saldoCorrido=0;
+    movs.forEach(function(m){
+      if(m.tipo==='v') saldoCorrido+=m.monto; else saldoCorrido-=m.monto;
+      m.saldoTras=saldoCorrido;
+    });
+    var saldoFinal=saldoCorrido;
+    var cliIdx=clientes.indexOf(cli);
+
+    h+='<div class="card"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">'
+      +'<div class="form-tit" style="margin-bottom:0;">'+cli.nombre+'</div>'
+      +(cli.tel?'<a href="tel:'+cli.tel+'" class="btn-sm g" style="font-size:11px;">Llamar</a>':'')
+      +'</div>'
+      +'<div class="cc-saldo"><div><div style="font-size:12px;color:var(--gris)">Saldo pendiente</div>'
+      +'<div class="cc-val" style="color:'+(saldoFinal>0?'var(--rojo)':'#16a34a')+'">'+fmt(saldoFinal)+'</div></div>'
+      +'<div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end;">'
+      +'<button class="btn-sm" style="background:#1a73e8;color:white;" onclick="abrirPagoCC('+cliIdx+')">💰 Registrar pago</button>'
+      +(_ccAdminMode?'<button class="btn-sm" style="background:#6c757d;color:white;" onclick="abrirMovCC('+cliIdx+')">✏️ Agregar mov.</button>':'')
+      +(_ccAdminMode?'<button class="btn-sm" style="background:#ffc107;color:#333;" onclick="editarSaldoInicial('+cliIdx+')">⚙️ Saldo inicial</button>':'')
+      +'</div></div>';
+
+    // Tabla de movimientos
+    if(!movs.length){
+      h+='<div style="font-size:13px;color:#aaa;text-align:center;padding:12px 0;">Sin movimientos</div>';
+    } else {
+      h+='<div style="font-size:12px;color:#888;display:grid;grid-template-columns:1fr 2fr 80px 80px '+((_ccAdminMode)?'40px':'')+'};gap:2px;padding:4px 0;font-weight:700;border-bottom:2px solid var(--borde);">'
+        +'<span>Fecha</span><span>Descripción</span><span style="text-align:right;">Importe</span><span style="text-align:right;">Saldo</span>'
+        +(_ccAdminMode?'<span></span>':'')
+        +'</div>';
+      movs.forEach(function(m){
+        var colorTipo=m.tipo==='p'?'#16a34a':'var(--rojo)';
+        var icono=m.tipo==='p'?'✅':'🛒';
+        if(m.esInicial) icono='📌';
+        if(m.esMov&&m.tipo==='v') icono='➕';
+        if(m.esMov&&m.tipo==='p') icono='➖';
+        var montoStr=(m.tipo==='p'?'− ':'+ ')+fmt(m.monto);
+        var editBtn='';
+        if(_ccAdminMode){
+          if(m.esPago){
+            editBtn='<button class="cc-mov-edit" title="Editar pago" onclick="editarPagoCC('+cliIdx+','+m.pagoIdx+')">✏️</button>';
+          } else if(m.esMov){
+            editBtn='<button class="cc-mov-edit" title="Editar movimiento" onclick="editarMovCC('+cliIdx+','+m.movIdx+')">✏️</button>';
+          } else if(m.esInicial){
+            editBtn='<button class="cc-mov-edit" title="Editar saldo inicial" onclick="editarSaldoInicial('+cliIdx+')">✏️</button>';
+          } else {
+            editBtn='<span style="width:28px;display:inline-block;"></span>';
+          }
+        }
+        h+='<div class="cc-mov '+m.tipo+'" style="display:grid;grid-template-columns:1fr 2fr 80px 80px '+((_ccAdminMode)?'40px':'')+';">'
+          +'<span style="color:#555;">'+(m.fecha==='00000000'||m.fecha==='00000001'?'—':m.fecha)+'</span>'
+          +'<span>'+icono+' '+m.desc+'</span>'
+          +'<span style="text-align:right;color:'+colorTipo+';font-weight:700;">'+montoStr+'</span>'
+          +'<span class="cc-mov-saldo" style="color:'+(m.saldoTras>0?'var(--rojo)':'#16a34a')+';">'+fmt(m.saldoTras)+'</span>'
+          +(_ccAdminMode?editBtn:'')
+          +'</div>';
+      });
+    }
     h+='</div>';
   });
+
+  // Modal registrar pago
   h+='<div id="ccModal" class="cc-modal" style="display:none;" onclick="cerrarPagoCC(event)">'
     +'<div class="cc-modal-box" onclick="event.stopPropagation()">'
     +'<div style="font-size:18px;font-weight:700;margin-bottom:16px;">💰 Registrar pago</div>'
@@ -1905,20 +1999,44 @@ function renderCC(c){
     +'<div style="display:flex;gap:10px;">'
     +'<button class="btn-sm" style="flex:1;padding:14px;background:#f0f0f0;" onclick="cerrarPagoCC(null)">Cancelar</button>'
     +'<button class="btn-sm" style="flex:1;padding:14px;background:#16a34a;color:white;font-size:16px;" onclick="confirmarPagoCC()">✅ Confirmar pago</button>'
+    +'</div></div></div>';
+
+  // Modal agregar movimiento manual (admin)
+  h+='<div id="ccMovModal" class="cc-modal" style="display:none;" onclick="if(event.target===this)cerrarMovCC()">'
+    +'<div class="cc-modal-box" onclick="event.stopPropagation()">'
+    +'<div style="font-size:18px;font-weight:700;margin-bottom:4px;" id="ccMovModalTit">✏️ Agregar movimiento</div>'
+    +'<div id="ccMovModalNombre" style="font-size:13px;color:var(--gris);margin-bottom:16px;"></div>'
+    +'<div style="font-size:14px;color:var(--gris);margin-bottom:4px;">Tipo</div>'
+    +'<div style="display:flex;gap:8px;margin-bottom:16px;">'
+    +'<button id="ccMovTipoV" class="btn-sm" style="flex:1;padding:12px;background:var(--rojo);color:white;" onclick="ccMovSelTipo(\'v\')">➕ Cargo (suma deuda)</button>'
+    +'<button id="ccMovTipoP" class="btn-sm" style="flex:1;padding:12px;background:#f0f0f0;" onclick="ccMovSelTipo(\'p\')">➖ Abono (reduce deuda)</button>'
     +'</div>'
-    +'</div>'
-    +'</div>';
+    +'<div style="font-size:14px;color:var(--gris);margin-bottom:4px;">Descripción</div>'
+    +'<input id="ccMovDesc" type="text" placeholder="Ej: Devolución, Ajuste, Interés..." style="width:100%;padding:10px;font-size:14px;border:2px solid var(--borde);border-radius:12px;margin-bottom:12px;box-sizing:border-box;">'
+    +'<div style="font-size:14px;color:var(--gris);margin-bottom:4px;">Monto ($)</div>'
+    +'<input id="ccMovMonto" type="number" inputmode="numeric" placeholder="Ej: 50000" style="width:100%;padding:12px;font-size:18px;border:2px solid var(--borde);border-radius:12px;margin-bottom:12px;box-sizing:border-box;">'
+    +'<div style="font-size:14px;color:var(--gris);margin-bottom:4px;">Fecha</div>'
+    +'<input id="ccMovFecha" type="text" placeholder="dd/mm/aaaa" style="width:100%;padding:10px;font-size:14px;border:2px solid var(--borde);border-radius:12px;margin-bottom:20px;box-sizing:border-box;">'
+    +'<div style="display:flex;gap:10px;">'
+    +'<button class="btn-sm" style="flex:1;padding:14px;background:#f0f0f0;" onclick="cerrarMovCC()">Cancelar</button>'
+    +'<button id="ccMovBtnDel" class="btn-sm" style="flex:1;padding:14px;background:#dc3545;color:white;display:none;" onclick="eliminarMovCC()">🗑️ Eliminar</button>'
+    +'<button class="btn-sm" style="flex:1;padding:14px;background:#1a73e8;color:white;font-size:16px;" onclick="confirmarMovCC()">💾 Guardar</button>'
+    +'</div></div></div>';
+
   c.innerHTML=h;
 }
 
 var _ccModalCliente='';
+var _ccMovTipo='v';
+var _ccMovEditIdx=-1; // -1 = nuevo, >=0 = editar existente
+var _ccMovEditType=''; // 'pago' o 'mov'
+
 function abrirPagoCC(idx){
   var cli=clientes[idx];
   if(!cli){alert('Cliente no encontrado');return;}
-  var nombre=cli.nombre;
-  _ccModalCliente=nombre;
+  _ccModalCliente=cli.nombre;
   document.getElementById('ccModal').style.display='flex';
-  document.getElementById('ccModalNombre').textContent=nombre;
+  document.getElementById('ccModalNombre').textContent=cli.nombre;
   document.getElementById('ccModalMonto').value='';
   document.getElementById('ccModalNota').value='';
   setTimeout(function(){document.getElementById('ccModalMonto').focus();},100);
@@ -1937,9 +2055,142 @@ function confirmarPagoCC(){
   var hoy=new Date();
   var fecha=hoy.toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit',year:'numeric'});
   cli.pagosCC.push({fecha:fecha,monto:monto,nota:nota||'Pago registrado'});
+  // Impactar en panel: marcar como "en sistema" los pedidos de este cliente por el monto del pago
+  // Se busca el pedido más antiguo sin enSistema de este cliente y se lo marca
+  var montoPendiente=monto;
+  pedidos.filter(function(p){return p.cliente===_ccModalCliente&&p.fpago==="Cta. Corriente"&&!p.enSistema;})
+    .forEach(function(p){
+      if(montoPendiente>0){
+        p.enSistema=true;
+        p.fechaSistema=fecha;
+        montoPendiente-=p.total;
+      }
+    });
   window.guardarClientes();
+  window.guardarPedidos();
+  document.getElementById('ccModal').style.display='none';
   renderGestion();
   toast('✅ Pago de '+fmt(monto)+' registrado para '+_ccModalCliente);
+}
+
+// Admin: agregar / editar movimiento manual
+function abrirMovCC(cliIdx){
+  _ccModalCliente=clientes[cliIdx].nombre;
+  _ccMovEditIdx=-1;
+  _ccMovEditType='mov';
+  document.getElementById('ccMovModalTit').textContent='✏️ Agregar movimiento';
+  document.getElementById('ccMovModalNombre').textContent=clientes[cliIdx].nombre;
+  document.getElementById('ccMovDesc').value='';
+  document.getElementById('ccMovMonto').value='';
+  var hoy=new Date();
+  document.getElementById('ccMovFecha').value=hoy.toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit',year:'numeric'});
+  document.getElementById('ccMovBtnDel').style.display='none';
+  ccMovSelTipo('v');
+  document.getElementById('ccMovModal').style.display='flex';
+  setTimeout(function(){document.getElementById('ccMovDesc').focus();},100);
+}
+function editarMovCC(cliIdx,movIdx){
+  var cli=clientes[cliIdx];
+  var m=(cli.movCC||[])[movIdx];
+  if(!m) return;
+  _ccModalCliente=cli.nombre;
+  _ccMovEditIdx=movIdx;
+  _ccMovEditType='mov';
+  document.getElementById('ccMovModalTit').textContent='✏️ Editar movimiento';
+  document.getElementById('ccMovModalNombre').textContent=cli.nombre;
+  document.getElementById('ccMovDesc').value=m.desc||'';
+  document.getElementById('ccMovMonto').value=Math.abs(m.monto);
+  document.getElementById('ccMovFecha').value=m.fecha||'';
+  document.getElementById('ccMovBtnDel').style.display='';
+  ccMovSelTipo(m.monto>0?'v':'p');
+  document.getElementById('ccMovModal').style.display='flex';
+}
+function editarPagoCC(cliIdx,pagoIdx){
+  var cli=clientes[cliIdx];
+  var p=(cli.pagosCC||[])[pagoIdx];
+  if(!p) return;
+  _ccModalCliente=cli.nombre;
+  _ccMovEditIdx=pagoIdx;
+  _ccMovEditType='pago';
+  document.getElementById('ccMovModalTit').textContent='✏️ Editar pago';
+  document.getElementById('ccMovModalNombre').textContent=cli.nombre;
+  document.getElementById('ccMovDesc').value=p.nota||'';
+  document.getElementById('ccMovMonto').value=p.monto;
+  document.getElementById('ccMovFecha').value=p.fecha||'';
+  document.getElementById('ccMovBtnDel').style.display='';
+  ccMovSelTipo('p');
+  document.getElementById('ccMovModal').style.display='flex';
+}
+function editarSaldoInicial(cliIdx){
+  var cli=clientes[cliIdx];
+  _ccModalCliente=cli.nombre;
+  _ccMovEditIdx=-99; // especial: saldo inicial
+  _ccMovEditType='saldo';
+  document.getElementById('ccMovModalTit').textContent='⚙️ Saldo inicial';
+  document.getElementById('ccMovModalNombre').textContent=cli.nombre+' — ingresá el saldo con el que arranca la cuenta';
+  document.getElementById('ccMovDesc').value='Saldo inicial';
+  document.getElementById('ccMovMonto').value=Math.abs(cli.saldo||0);
+  document.getElementById('ccMovFecha').value='—';
+  document.getElementById('ccMovBtnDel').style.display='none';
+  ccMovSelTipo((cli.saldo||0)>=0?'v':'p');
+  document.getElementById('ccMovModal').style.display='flex';
+}
+function ccMovSelTipo(t){
+  _ccMovTipo=t;
+  var bv=document.getElementById('ccMovTipoV');
+  var bp=document.getElementById('ccMovTipoP');
+  if(!bv||!bp) return;
+  bv.style.background=t==='v'?'var(--rojo)':'#f0f0f0';
+  bv.style.color=t==='v'?'white':'#333';
+  bp.style.background=t==='p'?'#16a34a':'#f0f0f0';
+  bp.style.color=t==='p'?'white':'#333';
+}
+function cerrarMovCC(){
+  document.getElementById('ccMovModal').style.display='none';
+}
+function confirmarMovCC(){
+  var monto=parseFloat(document.getElementById('ccMovMonto').value.replace(',','.'));
+  if(!monto||monto<=0){alert('Ingresá un monto válido.');return;}
+  var desc=document.getElementById('ccMovDesc').value.trim()||'Movimiento';
+  var fecha=document.getElementById('ccMovFecha').value.trim();
+  var cli=clientes.find(function(c){return c.nombre===_ccModalCliente;});
+  if(!cli) return;
+  var montoFinal=_ccMovTipo==='v'?monto:-monto;
+
+  if(_ccMovEditType==='saldo'){
+    cli.saldo=montoFinal;
+  } else if(_ccMovEditType==='pago'){
+    if(!cli.pagosCC) cli.pagosCC=[];
+    if(_ccMovEditIdx>=0&&_ccMovEditIdx<cli.pagosCC.length){
+      cli.pagosCC[_ccMovEditIdx]={fecha:fecha,monto:monto,nota:desc};
+    } else {
+      cli.pagosCC.push({fecha:fecha,monto:monto,nota:desc});
+    }
+  } else {
+    if(!cli.movCC) cli.movCC=[];
+    if(_ccMovEditIdx>=0&&_ccMovEditIdx<cli.movCC.length){
+      cli.movCC[_ccMovEditIdx]={fecha:fecha,monto:montoFinal,desc:desc};
+    } else {
+      cli.movCC.push({fecha:fecha,monto:montoFinal,desc:desc});
+    }
+  }
+  window.guardarClientes();
+  cerrarMovCC();
+  renderGestion();
+  toast('✅ Guardado');
+}
+function eliminarMovCC(){
+  var cli=clientes.find(function(c){return c.nombre===_ccModalCliente;});
+  if(!cli) return;
+  if(_ccMovEditType==='pago'&&_ccMovEditIdx>=0){
+    cli.pagosCC.splice(_ccMovEditIdx,1);
+  } else if(_ccMovEditType==='mov'&&_ccMovEditIdx>=0){
+    if(cli.movCC) cli.movCC.splice(_ccMovEditIdx,1);
+  }
+  window.guardarClientes();
+  cerrarMovCC();
+  renderGestion();
+  toast('🗑️ Eliminado');
 }
 
 function renderNuevaVenta(c){
