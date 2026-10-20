@@ -1868,9 +1868,18 @@ function renderListaCli(q){
       +(c.cuit?'<div class="card-det">CUIT: '+c.cuit+'</div>':'')
       +(c.cc?(function(){var mv=pedidos.filter(function(p){return p.cliente===c.nombre&&p.fpago==="Cta. Corriente";});var deuda=mv.reduce(function(s,p){return s+p.total;},0)+(c.saldo||0);var pag=(c.pagosCC||[]).reduce(function(s,p){return s+p.monto;},0);var saldoCC=deuda-pag;return '<div class="card-det" style="color:'+(saldoCC>0?'var(--rojo)':'#16a34a')+';">Cta. Cte. · Debe: '+fmt(saldoCC)+'</div>';})():'')
       +(tc>0?'<div class="card-det" style="color:var(--verde);">Total comprado: '+fmt(tc)+'</div>':'')
-      +'<div class="card-acc"><button class="btn-sm b" data-i="'+ri+'">Editar</button><button class="btn-sm r" data-i="'+ri+'">Historial</button></div>';
+      +'<div class="card-acc"><button class="btn-sm b" data-i="'+ri+'">Editar</button><button class="btn-sm r" data-i="'+ri+'">Historial</button><button class="btn-sm" style="background:#888;color:white;border-color:#888;" data-i="'+ri+'">Eliminar</button></div>';
     card.querySelector(".btn-sm.b").onclick=function(){abrirFormCli(parseInt(this.dataset.i));};
     card.querySelector(".btn-sm.r").onclick=function(){verCliente(parseInt(this.dataset.i));};
+    card.querySelectorAll(".btn-sm")[2].onclick=function(){
+      var i=parseInt(this.dataset.i);
+      var nombre=clientes[i]?clientes[i].nombre:"este cliente";
+      if(!confirm('¿Eliminar a '+nombre+'? Esta acción no se puede deshacer.')) return;
+      clientes.splice(i,1);
+      window.guardarClientes();
+      renderGestion();
+      toast('Cliente eliminado');
+    };
     lc.appendChild(card);
   });
 }
