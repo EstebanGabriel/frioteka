@@ -514,7 +514,7 @@ const fjInicio=()=>(DB.fj&&DB.fj.inicio)||"2026-10-19";
 // ¿Este turno es el primero del día en ese local? (le toca abrir)
 function fjAbre(f,loc,a){let m=null;for(const k in (DB.horarios||{})){if(k.split("|")[1]!==f)continue;const v=DB.horarios[k];if(!Array.isArray(v))continue;
   v.forEach(([l,hi])=>{if(l===loc){const x=hmMin(hi);if(m==null||x<m)m=x}})}return m!=null&&a<=m}
-function fjAseg(){DB.fj=DB.fj||{};DB.fj.aprob=DB.fj.aprob||{};DB.fj.corr=DB.fj.corr||{};DB.fj.nov=DB.fj.nov||{};DB.fj.ed=DB.fj.ed||{}}
+function fjAseg(){DB.fj=DB.fj||{};DB.fj.aprob=DB.fj.aprob||{};DB.fj.corr=DB.fj.corr||{};DB.fj.nov=DB.fj.nov||{};DB.fj.ed=DB.fj.ed||{};DB.fj.extra=DB.fj.extra||{}}
 async function fjCargar(lun,forzar){
   if(!window.FJ){FJC.err="esperando";return}
   if(FJC.lun===lun&&FJC.marcas&&!forzar)return;
@@ -556,7 +556,10 @@ function fjCruceBase(id,lun){
         const ov=Math.min(b,x.sal?x.sal.m:b)-Math.max(a,x.ent?x.ent.m:a);if((d<180||ov>0)&&d<bd){bd=d;best=j}});
       const x=best>=0?iv[best]:null;if(best>=0)usado.add(best);
       out.push(fjFila(id,f,ti,loc,a,b,x,ahora))});
-    iv.forEach((x,j)=>{if(!usado.has(j))out.push(fjFila(id,f,"x"+j,(x.ent||x.sal).local==="sanmartin"?"San Martín":"Cárcano",null,null,x,ahora))})}
+    iv.forEach((x,j)=>{if(!usado.has(j))out.push(fjFila(id,f,"x"+j,(x.ent||x.sal).local==="sanmartin"?"San Martín":"Cárcano",null,null,x,ahora))});
+    // Turnos agregados a mano por Banchi (no estaban en el horario ni se ficharon)
+    (DB.fj.extra[id+"|"+f]||[]).forEach((m,i)=>{const e=hmMin(m.ent),s2=hmMin(m.sal);
+      out.push({key:`${id}|${f}|m${i}`,id,f,loc:m.loc,a:null,b:null,ent:e,sal:s2,cuenta:Math.max(0,s2-e),est:[[`Agregado a mano${m.mot?": "+m.mot:""}`,"info"]],acc:null,hecho:false,fuera:true,man:true,mi:i})})}
   return out}
 function fjFila(id,f,ti,loc,a,b,x,ahora){
   const key=`${id}|${f}|${ti}`,est=[];let acc=null;const fuera=a==null;
@@ -565,7 +568,9 @@ function fjFila(id,f,ti,loc,a,b,x,ahora){
   if(ed.ent)ent=hmMin(ed.ent);if(ed.sal)sal=hmMin(ed.sal);
   const pasado=f<ahora.f||(f===ahora.f&&a!=null&&ahora.m>a+FJTOL);const terminado=f<ahora.f||(f===ahora.f&&b!=null&&ahora.m>b+30);
   let cuenta=0;
-  if(fuera){est.push(["Fuera de horario","warn"]);if(ent!=null&&sal!=null){const ex=sal-ent;if(!DB.fj.aprob[key])acc={a:"apr",min:ex,t:`Aprobar ${fhm(ex)}`};cuenta=DB.fj.aprob[key]||0}}
+  if(fuera){est.push(["Fuera de horario","warn"]);if(ent!=null&&sal!=null){const ex=sal-ent;
+    if(ed.ent||ed.sal||ed.just)cuenta=Math.max(0,ex); // si Banchi lo editó, cuenta lo que puso
+    else{if(!DB.fj.aprob[key])acc={a:"apr",min:ex,t:`Aprobar ${fhm(ex)}`};cuenta=DB.fj.aprob[key]||0}}}
   else if(ent==null&&sal==null){if(pasado){est.push(["Falta","bad"]);est.push(["Sin aviso es falta grave","mut"]);acc={a:"nov",nov:"Falta",t:"Pasar a novedades"}}else est.push(["Todavía no","mut"])}
   else{
     if(ent!=null){const d=ent-a;if(d>FJTOL){est.push([`Tarde +${d} min`,"warn"]);acc={a:"nov",nov:"Tarde",min:d,t:"Pasar a novedades"};
@@ -614,7 +619,7 @@ function vFichaje(){
   ver.forEach(id=>filas[id].forEach(r=>{
     const btn=!r.acc?"":r.hecho?`<span class="tag ok">En novedades ✓</span>`:r.acc.a==="corr"?`<input id="c_${r.key.replace(/\W/g,"_")}" type="time" style="width:110px"><button class="btn sm" onclick="fjCorregir('${r.key}')">Guardar</button>`:`<button class="btn sm" onclick="fjAccion('${r.key}')">${r.acc.t}</button>`;
     const kk=r.key.replace(/\W/g,"_");
-    const edBtn=`<button class="btn ghost sm" style="margin-top:4px" onclick="st.fjEd=st.fjEd==='${r.key}'?null:'${r.key}';render()">${r.ed?"Editado ✎":"Editar"}</button>`;
+    const edBtn=r.man?`<button class="btn ghost sm" style="margin-top:4px" onclick="fjQuitarManual('${id}','${r.f}',${r.mi})">Quitar</button>`:`<button class="btn ghost sm" style="margin-top:4px" onclick="st.fjEd=st.fjEd==='${r.key}'?null:'${r.key}';render()">${r.ed?"Editado ✎":"Editar"}</button>`;
     h+=`<tr class="${esFer(r.f)?"fer":""}"><td>${DIAS[D(r.f).getDay()]} ${dm(r.f)}</td>${st.fjEmp==="todos"?`<td>${id}</td>`:""}<td>${r.loc}</td><td class="num">${r.a==null?"—":minHm(r.a)+"–"+minHm(r.b)}</td>
     <td class="num">${r.ent==null?"—":`<b>${minHm(r.ent)}</b><br><span class="muted">${fjDif(r.ent,r.a,true)}</span>`}</td>
     <td class="num">${r.sal==null?"—":`<b>${minHm(r.sal)}</b><br><span class="muted">${fjDif(r.sal,r.b,false)}</span>`}</td>
@@ -629,6 +634,13 @@ function vFichaje(){
       <div class="two" style="margin-top:8px"><button class="btn" onclick="fjEditar('${r.key}')">Guardar</button><button class="btn ghost" onclick="fjEditar('${r.key}',true)">Quitar edición</button></div>
       <div class="muted" style="margin-top:4px">Las horas a mano reemplazan a las fichadas solo en este turno. Si lo justificás y no trabajó, dejá las horas vacías.</div></div></td></tr>`}}));
   h+=`</table></div><div class="muted" style="margin-top:8px">Cuenta desde la hora de entrada del horario hasta la de salida. Llegar antes no suma; quedarse de más suma solo si lo aprobás. Hasta ${FJTOL} min tarde no es llegada tarde, pero igual se descuenta. Según el reglamento: 3 tolerancias en el mes cuentan como una llegada tarde; 30 min o más tarde sin aviso, llegar tarde cuando le toca abrir o faltar sin aviso es falta grave.</div></div>`;
+  {const dd=[0,1,2,3,4,5,6].map(i=>addD(lun,i)),e0=st.fjEmp==="todos"?emps[0]:st.fjEmp;
+   h+=`<div class="card"><h2>Agregar un turno a mano</h2><div class="muted">Para un turno que no estaba en el horario y no se fichó (ej: Ramiro volvió de 18 a 21). Cuenta las horas que pongas.</div>
+   <div class="f"><div class="two"><div><label>Empleado</label><select id="amE">${emps.map(e=>`<option ${e===e0?"selected":""}>${e}</option>`).join("")}</select></div>
+   <div><label>Día</label><select id="amF">${dd.map(f=>`<option value="${f}" ${f===HOY?"selected":""}>${DIAS[D(f).getDay()]} ${dm(f)}</option>`).join("")}</select></div></div>
+   <div class="two"><div><label>Local</label><select id="amL"><option>Cárcano</option><option>San Martín</option></select></div><div><label>Motivo / nota</label><input id="amM" placeholder="Ej: turno de la tarde"></div></div>
+   <div class="two"><div><label>Entró</label><input type="time" id="amA"></div><div><label>Salió</label><input type="time" id="amB"></div></div>
+   <button class="btn full" style="margin-top:8px" onclick="fjAgregarManual()">Agregar turno</button></div></div>`}
   h+=fjMarcasCard(ver);
   h+=fjConfigCard();
   $("#main").innerHTML=h}
@@ -671,6 +683,12 @@ function fjBuscar(key){const[id,f]=key.split("|");return fjCruce(id,lunes(f)).fi
 function fjAccion(key){const r=fjBuscar(key);if(!r||!r.acc)return;const a=r.acc;
   if(a.a==="apr"){DB.fj.aprob[key]=a.min;save("fichaje: aprobado "+key);toast("Aprobado");return render()}
   if(a.a==="nov"){const k=r.id+"|"+r.f,d=DB.horas[k]||{};d.nov=a.nov;if(a.min)d.min=(+d.min||0)+a.min;if(a.obs)d.obs=(d.obs?d.obs+" · ":"")+a.obs;DB.horas[k]=d;DB.fj.nov[key]=true;save("fichaje: novedad "+key);toast("Pasado a novedades");return render()}}
+function fjAgregarManual(){fjAseg();const id=$("#amE").value,f=$("#amF").value,loc=$("#amL").value,a=$("#amA").value,b=$("#amB").value,mot=$("#amM").value.trim();
+  if(!a||!b)return toast("Poné la hora de entrada y de salida");if(hmMin(b)<=hmMin(a))return toast("La salida tiene que ser después de la entrada");
+  const k=id+"|"+f;(DB.fj.extra[k]=DB.fj.extra[k]||[]).push({loc,ent:a,sal:b,...(mot?{mot}:{})});
+  save("fichaje: turno a mano "+k);toast(`Agregado: ${id} ${dm(f)} ${a}–${b}`);render()}
+function fjQuitarManual(id,f,i){if(!confirm("¿Quitar este turno agregado a mano?"))return;const k=id+"|"+f;
+  (DB.fj.extra[k]||[]).splice(i,1);if(!DB.fj.extra[k].length)delete DB.fj.extra[k];save("fichaje: turno a mano quitado "+k);toast("Quitado");render()}
 function fjEditar(key,quitar){fjAseg();const kk=key.replace(/\W/g,"_");
   if(quitar){delete DB.fj.ed[key];st.fjEd=null;save("fichaje: edición quitada "+key);toast("Edición quitada");return render()}
   const ent=$("#ee_"+kk).value,sal=$("#es_"+kk).value,just=$("#ej_"+kk).checked,mot=$("#em_"+kk).value.trim();
