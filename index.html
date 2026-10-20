@@ -1920,7 +1920,7 @@ function renderCC(c){
       movs.push({fecha:m.fecha||'00000001',desc:m.desc||'Movimiento',monto:Math.abs(m.monto),tipo:m.monto>0?'v':'p',esMov:true,movIdx:idx});
     });
     // Ventas en cta cte
-    mv.forEach(function(v){movs.push({fecha:v.fecha,desc:v.nv,monto:v.total,tipo:'v',esVenta:true});});
+    mv.forEach(function(v){var t=parseFloat(v.total)||0;movs.push({fecha:v.fecha,desc:v.nv,monto:t,tipo:'v',esVenta:true});});
     // Pagos registrados
     (cli.pagosCC||[]).forEach(function(p,idx){
       movs.push({fecha:p.fecha,desc:p.nota||'Pago',monto:p.monto,tipo:'p',esPago:true,pagoIdx:idx});
