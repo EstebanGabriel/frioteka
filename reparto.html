@@ -51,6 +51,9 @@ label,.lbl{font-size:12px;font-weight:600;text-transform:uppercase;letter-spacin
 input[type=date],input[type=time],input[type=text]{width:100%;min-width:0;font:500 18px var(--body);font-variant-numeric:tabular-nums;padding:11px 10px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink)}
 .seg{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
 .seg.m4{grid-template-columns:repeat(2,1fr)}
+.seg.p4{grid-template-columns:repeat(4,1fr)}
+.dia{display:grid;grid-template-columns:52px 1fr 52px;gap:6px}
+.dia .ghost{font-size:22px;padding:6px}
 .seg button,.step button{font:600 15px var(--body);border:1px solid var(--line);background:var(--bg);color:var(--ink);border-radius:8px;cursor:pointer}
 .seg button{padding:11px 4px;line-height:1.15}
 .seg button[aria-pressed="true"]{background:var(--accent-soft);border-color:var(--accent);color:var(--accent)}
@@ -146,10 +149,16 @@ input[type=date],input[type=time],input[type=text]{width:100%;min-width:0;font:5
   </section>
 
   <section id="p-resumen" hidden>
-    <div class="seg" id="periodos" role="group" aria-label="Período">
+    <div class="seg p4" id="periodos" role="group" aria-label="Período">
+      <button type="button" data-p="dia" aria-pressed="false">Un día</button>
       <button type="button" data-p="sem" aria-pressed="false">Esta semana</button>
       <button type="button" data-p="4" aria-pressed="true">4 semanas</button>
       <button type="button" data-p="todo" aria-pressed="false">Todo</button>
+    </div>
+    <div class="dia" id="diaSel" hidden>
+      <button type="button" class="ghost" id="diaAnt" aria-label="Día anterior">‹</button>
+      <input type="date" id="diaFecha">
+      <button type="button" class="ghost" id="diaSig" aria-label="Día siguiente">›</button>
     </div>
     <div id="resumen"></div>
     <div class="panel" id="exportar" hidden>
@@ -222,7 +231,7 @@ const money = n => '$ ' + nf(n);
 const MOTIVO = {mayorista:'Mayorista', reposicion:'Reposición San Martín', ambas:'Mayorista + reposición', casa:'Camioneta a casa y vuelta'};
 const esCasa = x => x.motivo === 'casa';
 
-let db = null, salidas = [], cfg = {precio:2100, rinde:11, fijos:0, kmMes:0, costoKm:0, costoHora:6100}, editId = null, motivo = null, periodo = '4', cargado = false;
+let db = null, salidas = [], cfg = {precio:2100, rinde:11, fijos:0, kmMes:0, costoKm:0, costoHora:6100}, editId = null, motivo = null, periodo = '4', cargado = false, diaVer = '';
 
 /* ---------- utilidades de fecha y numeros ---------- */
 function hoy(){ const d = new Date(); return iso(d); }
@@ -308,6 +317,7 @@ function ordenadas(){ return salidas.slice().sort((a,b) => (a.fecha+a.sale).loca
 function delPeriodo(){
   const all = ordenadas();
   if(periodo==='todo') return all;
+  if(periodo==='dia') return all.filter(x => x.fecha === diaVer);
   const desde = parseF(lunes(hoy())); if(periodo==='4') desde.setDate(desde.getDate() - 21);
   const d = iso(desde);
   return all.filter(x => x.fecha >= d);
@@ -326,7 +336,7 @@ function pintarResumen(){
   const hCasa = CASA.length ? '<div class="panel"><h2>Camioneta a casa del repartidor</h2>' + kv('Viajes anotados', CASA.length + ' · ' + nf(kmCasa) + ' km') + (P0.porKm ? kv('Costo de esos km', money(kmCasa*P0.porKm)) : '') + '<p class="note" style="margin:0">Estos km no cuentan como reparto: no suman horas, entregas ni salidas. Sí suman al costo de la camioneta.</p></div>' : '';
   if(!L.length && CASA.length){ el.innerHTML = hCasa; return; }
   if(!LL.length){
-    el.innerHTML = '<div class="panel"><div class="empty">' + (salidas.length ? 'No hay salidas en este período.' : 'Todavía no hay salidas cargadas. Con dos o tres semanas anotadas acá vas a ver las horas por semana, el costo por km y por salida, y cuántos viajes fueron por una sola entrega.') + '</div></div>';
+    el.innerHTML = '<div class="panel"><div class="empty">' + (salidas.length ? (periodo==='dia' ? 'No hay salidas el ' + diaCorto(diaVer) + '.' : 'No hay salidas en este período.') : 'Todavía no hay salidas cargadas. Con dos o tres semanas anotadas acá vas a ver las horas por semana, el costo por km y por salida, y cuántos viajes fueron por una sola entrega.') + '</div></div>';
     return;
   }
   const tm = L.reduce((s,x) => s+minutos(x),0), tk = L.reduce((s,x) => s+kms(x),0), te = L.reduce((s,x) => s+x.entregas,0);
@@ -341,7 +351,7 @@ function pintarResumen(){
   const por = {}; L.forEach(x => { (por[x.motivo] ||= {n:0,m:0,k:0}); por[x.motivo].n++; por[x.motivo].m += minutos(x); por[x.motivo].k += kms(x); });
 
   let h = '<div class="panel"><div class="stats">'
-    + st(dur(tm/nSem), 'por semana en reparto')
+    + (periodo==='dia' ? st(dur(tm), 'en reparto ese día') : st(dur(tm/nSem), 'por semana en reparto'))
     + st(L.length, L.length===1 ? 'salida' : 'salidas')
     + st(nf(tk) + ' km', 'recorridos')
     + st(te, 'entregas en total')
@@ -367,7 +377,7 @@ function pintarResumen(){
   h += '<div class="panel"><h2>Para qué se salió</h2>' + Object.keys(MOTIVO).filter(k => por[k]).map(k =>
       kv(MOTIVO[k], por[k].n + (por[k].n===1?' salida':' salidas') + ' · ' + dur(por[k].m) + ' · ' + nf(por[k].k) + ' km')).join('') + '</div>';
 
-  h += '<div class="panel"><h2>Horas por semana</h2>' + semanas.map(k =>
+  if(periodo!=='dia') h += '<div class="panel"><h2>Horas por semana</h2>' + semanas.map(k =>
       '<div class="week"><span>Sem. ' + corta(k) + '</span><div class="bar"><i style="width:' + Math.max(3, sem[k].m/maxM*100) + '%"></i></div><span>' + (sem[k].m/60).toLocaleString('es-AR',{maximumFractionDigits:1}) + ' h</span></div>').join('') + '</div>';
 
   h += hCasa;
@@ -375,7 +385,7 @@ function pintarResumen(){
   el.innerHTML = h;
 }
 /* ---------- WhatsApp y Excel ---------- */
-const PER = {sem:'Esta semana', '4':'Últimas 4 semanas', todo:'Todas las salidas'};
+const PER = {dia:'Día', sem:'Esta semana', '4':'Últimas 4 semanas', todo:'Todas las salidas'};
 function wa(t){ return 'https://wa.me/?text=' + encodeURIComponent(t); }
 function diaCorto(f){ const d = parseF(f); return DIAS[d.getDay()] + ' ' + corta(f); }
 function txtSalida(x){
@@ -394,9 +404,9 @@ function txtResumen(LL){
   const unas = L.filter(x => x.entregas===1).length, nSem = new Set(L.map(x => lunes(x.fecha))).size;
   const P = partes(), costo = tk*P.porKm + (tm/60)*P.porHora;
   let t = '*Reparto FRIOTEKA · ' + PER[periodo] + '*\n'
-    + 'Del ' + corta(L[0].fecha) + ' al ' + corta(L[L.length-1].fecha) + '\n'
+    + (periodo==='dia' ? diaCorto(diaVer) : 'Del ' + corta(L[0].fecha) + ' al ' + corta(L[L.length-1].fecha)) + '\n'
     + L.length + (L.length===1?' salida':' salidas') + ' · ' + dur(tm) + ' · ' + nf(tk) + ' km · ' + te + ' entregas\n'
-    + 'Por semana: ' + dur(tm/nSem) + '\n'
+    + (periodo==='dia' ? '' : 'Por semana: ' + dur(tm/nSem) + '\n')
     + 'Viajes por una sola entrega: ' + unas + ' de ' + L.length + '\n';
   if(hayCostos()) t += 'Costo total: ' + money(costo) + ' · por salida: ' + money(costo/L.length) + (te ? ' · por entrega: ' + money(costo/te) : '') + '\n';
   if(CASA.length) t += 'Camioneta a casa y vuelta: ' + CASA.length + ' viajes · ' + nf(kmCasa) + ' km' + (partes().porKm ? ' · ' + money(kmCasa*partes().porKm) : '') + '\n';
@@ -480,8 +490,14 @@ $('historial').addEventListener('click', async e => {
 
 /* ---------- periodo y costos ---------- */
 document.querySelectorAll('#periodos button').forEach(b => b.onclick = () => {
-  periodo = b.dataset.p; document.querySelectorAll('#periodos button').forEach(o => o.setAttribute('aria-pressed', o===b)); pintarResumen();
+  periodo = b.dataset.p; document.querySelectorAll('#periodos button').forEach(o => o.setAttribute('aria-pressed', o===b));
+  $('diaSel').hidden = periodo !== 'dia'; pintarResumen();
 });
+function verDia(f){ diaVer = f; $('diaFecha').value = f; pintarResumen(); }
+function moverDia(n){ const d = parseF(diaVer || hoy()); d.setDate(d.getDate() + n); verDia(iso(d)); }
+$('diaAnt').onclick = () => moverDia(-1);
+$('diaSig').onclick = () => moverDia(1);
+$('diaFecha').addEventListener('change', () => { if($('diaFecha').value) verDia($('diaFecha').value); });
 Object.keys(CF).forEach(id => $(id).addEventListener('change', async () => {
   const k = CF[id]; cfg = {...cfg, [k]: num($(id).value, k==='rinde')}; $(id).value = fmtCfg(k, cfg[k]);
   pintarCalc(); pintar();
@@ -492,6 +508,7 @@ Object.keys(CF).forEach(id => $(id).addEventListener('change', async () => {
 }));
 
 /* ---------- arranque ---------- */
+diaVer = hoy(); $('diaFecha').value = diaVer;
 limpiar(); pintar();
 Object.keys(CF).forEach(id => { $(id).value = fmtCfg(CF[id], cfg[CF[id]]); }); pintarCalc();
 (async () => {
