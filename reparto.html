@@ -128,6 +128,7 @@ input[type=date],input[type=time],input[type=text]{width:100%;min-width:0;font:5
           <button type="button" data-m="reposicion" aria-pressed="false">Reposición San Martín</button>
           <button type="button" data-m="ambas" aria-pressed="false">Las dos</button>
           <button type="button" data-m="casa" aria-pressed="false">A casa y vuelta</button>
+          <button type="button" data-m="lore" aria-pressed="false" style="grid-column:1/-1">Llevar a Lorena a San Martín (mañana)</button>
         </div>
       </div>
       <p class="note" id="notaCasa" hidden style="margin:0">Km al salir: los que marca cuando se va del local a la casa. Km al volver: los que marca cuando vuelve al local al otro día. Así queda anotada la ida y la vuelta en una sola carga, sin horas ni entregas.</p>
@@ -228,10 +229,12 @@ const $ = id => document.getElementById(id);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const nf = n => Math.round(n).toLocaleString('es-AR');
 const money = n => '$ ' + nf(n);
-const MOTIVO = {mayorista:'Mayorista', reposicion:'Reposición San Martín', ambas:'Mayorista + reposición', casa:'Camioneta a casa y vuelta'};
+const MOTIVO = {mayorista:'Mayorista', reposicion:'Reposición San Martín', ambas:'Mayorista + reposición', casa:'Camioneta a casa y vuelta', lore:'Traslado de Lorena a San Martín'};
 const esCasa = x => x.motivo === 'casa';
+const esLore = x => x.motivo === 'lore';
+const esFuera = x => esCasa(x) || esLore(x);
 
-let db = null, salidas = [], cfg = {precio:2100, rinde:11, fijos:0, kmMes:0, costoKm:0, costoHora:6100}, editId = null, motivo = null, periodo = '4', cargado = false, diaVer = '';
+let db = null, salidas = [], cfg = {precio:2100, rinde:15, fijos:0, kmMes:0, costoKm:0, costoHora:6100}, editId = null, motivo = null, periodo = '4', cargado = false, diaVer = '';
 
 /* ---------- utilidades de fecha y numeros ---------- */
 function hoy(){ const d = new Date(); return iso(d); }
@@ -256,7 +259,7 @@ document.querySelectorAll('.tabs button').forEach(b => b.onclick = () => tab(b.d
 
 /* ---------- formulario ---------- */
 function setMotivo(m){ motivo = m; document.querySelectorAll('.seg button[data-m]').forEach(b => b.setAttribute('aria-pressed', b.dataset.m===m));
-  const c = m === 'casa'; $('sale').closest('.row2').hidden = c; $('fEntregas').hidden = c; $('notaCasa').hidden = !c; calc(); }
+  const c = m === 'casa'; $('sale').closest('.row2').hidden = c; $('fEntregas').hidden = c || m === 'lore'; $('notaCasa').hidden = !c; calc(); }
 document.querySelectorAll('.seg button[data-m]').forEach(b => b.onclick = () => setMotivo(b.dataset.m));
 $('menos').onclick = () => { const n = ent($('entregas').value); $('entregas').value = Math.max(0, (isNaN(n)?1:n) - 1); };
 $('mas').onclick = () => { const n = ent($('entregas').value); $('entregas').value = (isNaN(n)?0:n) + 1; };
@@ -288,6 +291,7 @@ $('form').addEventListener('submit', async e => {
   if(!x.fecha) return msg('Falta la fecha.','err');
   if(!x.motivo) return msg('Elegí para qué fue la salida.','err');
   if(x.motivo === 'casa'){ x.sale = ''; x.vuelve = ''; x.entregas = 0; }
+  if(x.motivo === 'lore') x.entregas = 0;
   else {
     if(!x.sale || !x.vuelve) return msg('Faltan la hora de salida y la de vuelta.','err');
     if(mins(x.vuelve) <= mins(x.sale)) return msg('La hora de vuelta tiene que ser posterior a la de salida.','err');
@@ -328,13 +332,15 @@ function pintar(){ pintarResumen(); pintarHistorial(); }
 function pintarResumen(){
   const el = $('resumen');
   if(!cargado){ el.innerHTML = '<div class="panel"><div class="empty">Cargando salidas…</div></div>'; return; }
-  const LL = delPeriodo(), L = LL.filter(x => !esCasa(x)), CASA = LL.filter(esCasa);
+  const LL = delPeriodo(), L = LL.filter(x => !esFuera(x)), CASA = LL.filter(esCasa), LORE = LL.filter(esLore);
   $('exportar').hidden = !salidas.length;
   $('waResumen').hidden = !LL.length;
   if(LL.length) $('waResumen').href = wa(txtResumen(LL));
   const P0 = partes(), kmCasa = CASA.reduce((s,x) => s+kms(x),0);
   const hCasa = CASA.length ? '<div class="panel"><h2>Camioneta a casa del repartidor</h2>' + kv('Viajes anotados', CASA.length + ' · ' + nf(kmCasa) + ' km') + (P0.porKm ? kv('Costo de esos km', money(kmCasa*P0.porKm)) : '') + '<p class="note" style="margin:0">Estos km no cuentan como reparto: no suman horas, entregas ni salidas. Sí suman al costo de la camioneta.</p></div>' : '';
-  if(!L.length && CASA.length){ el.innerHTML = hCasa; return; }
+  const mLore = LORE.reduce((s,x) => s+minutos(x),0), kmLore = LORE.reduce((s,x) => s+kms(x),0), cLore = LORE.reduce((s,x) => s+costoDe(x).tot,0);
+  const hLore = LORE.length ? '<div class="panel"><h2>Traslado de Lorena</h2>' + kv('Viajes', LORE.length + ' · ' + dur(mLore) + ' · ' + nf(kmLore) + ' km') + (hayCostos() ? kv('Costo', money(cLore)) : '') + '<p class="note" style="margin:0">Primer viaje de la mañana a San Martín. Es costo de la empresa, no de reparto: no suma a salidas, horas ni entregas del reparto.</p></div>' : '';
+  if(!L.length && (CASA.length || LORE.length)){ el.innerHTML = hLore + hCasa; return; }
   if(!LL.length){
     el.innerHTML = '<div class="panel"><div class="empty">' + (salidas.length ? (periodo==='dia' ? 'No hay salidas el ' + diaCorto(diaVer) + '.' : 'No hay salidas en este período.') : 'Todavía no hay salidas cargadas. Con dos o tres semanas anotadas acá vas a ver las horas por semana, el costo por km y por salida, y cuántos viajes fueron por una sola entrega.') + '</div></div>';
     return;
@@ -380,7 +386,7 @@ function pintarResumen(){
   if(periodo!=='dia') h += '<div class="panel"><h2>Horas por semana</h2>' + semanas.map(k =>
       '<div class="week"><span>Sem. ' + corta(k) + '</span><div class="bar"><i style="width:' + Math.max(3, sem[k].m/maxM*100) + '%"></i></div><span>' + (sem[k].m/60).toLocaleString('es-AR',{maximumFractionDigits:1}) + ' h</span></div>').join('') + '</div>';
 
-  h += hCasa;
+  h += hLore + hCasa;
   if(huecos > 0) h += '<div class="banner">Hay ' + nf(huecos) + ' km del cuentakilómetros sin anotar entre una carga y la siguiente. Pueden ser salidas que faltan o viajes a casa sin anotar (opción "A casa y vuelta").</div>';
   el.innerHTML = h;
 }
@@ -398,8 +404,9 @@ function txtSalida(x){
     + (x.nota ? '\nNota: ' + x.nota : '');
 }
 function txtResumen(LL){
-  const L = LL.filter(x => !esCasa(x)), CASA = LL.filter(esCasa), kmCasa = CASA.reduce((s,x) => s+kms(x),0);
-  if(!L.length) return '*Reparto FRIOTEKA · ' + PER[periodo] + '*\nCamioneta a casa y vuelta: ' + CASA.length + ' viajes · ' + nf(kmCasa) + ' km' + (partes().porKm ? ' · ' + money(kmCasa*partes().porKm) : '');
+  const L = LL.filter(x => !esFuera(x)), CASA = LL.filter(esCasa), kmCasa = CASA.reduce((s,x) => s+kms(x),0), LORE = LL.filter(esLore);
+  const tLore = LORE.length ? 'Traslado de Lorena: ' + LORE.length + ' viajes · ' + nf(LORE.reduce((s,x) => s+kms(x),0)) + ' km' + (hayCostos() ? ' · ' + money(LORE.reduce((s,x) => s+costoDe(x).tot,0)) : '') + '\n' : '';
+  if(!L.length) return '*Reparto FRIOTEKA · ' + PER[periodo] + '*\n' + tLore + (CASA.length ? 'Camioneta a casa y vuelta: ' + CASA.length + ' viajes · ' + nf(kmCasa) + ' km' + (partes().porKm ? ' · ' + money(kmCasa*partes().porKm) : '') : '');
   const tm = L.reduce((s,x) => s+minutos(x),0), tk = L.reduce((s,x) => s+kms(x),0), te = L.reduce((s,x) => s+x.entregas,0);
   const unas = L.filter(x => x.entregas===1).length, nSem = new Set(L.map(x => lunes(x.fecha))).size;
   const P = partes(), costo = tk*P.porKm + (tm/60)*P.porHora;
@@ -409,6 +416,7 @@ function txtResumen(LL){
     + (periodo==='dia' ? '' : 'Por semana: ' + dur(tm/nSem) + '\n')
     + 'Viajes por una sola entrega: ' + unas + ' de ' + L.length + '\n';
   if(hayCostos()) t += 'Costo total: ' + money(costo) + ' · por salida: ' + money(costo/L.length) + (te ? ' · por entrega: ' + money(costo/te) : '') + '\n';
+  t += tLore;
   if(CASA.length) t += 'Camioneta a casa y vuelta: ' + CASA.length + ' viajes · ' + nf(kmCasa) + ' km' + (partes().porKm ? ' · ' + money(kmCasa*partes().porKm) : '') + '\n';
   t += '\n' + L.map(x => '- ' + diaCorto(x.fecha) + ' ' + x.sale + '-' + x.vuelve + ' · ' + nf(kms(x)) + ' km · ' + (MOTIVO[x.motivo]||x.motivo) + ' · ' + x.entregas + ' ent.' + (hayCostos() ? ' · ' + money(costoDe(x).tot) : '')).join('\n');
   return t;
@@ -465,7 +473,7 @@ function pintarHistorial(){
   el.innerHTML = L.map(x => {
     const d = parseF(x.fecha);
     return '<div class="item"><div class="hd"><b>' + DIAS[d.getDay()] + ' ' + corta(x.fecha) + (esCasa(x) ? '' : ' · ' + esc(x.sale) + ' a ' + esc(x.vuelve)) + '</b>'
-      + (esCasa(x) ? '<span class="chip">A casa</span>' : '<span class="chip' + (x.entregas===1?' one':'') + '">' + x.entregas + (x.entregas===1?' entrega':' entregas') + '</span>') + '</div>'
+      + (esCasa(x) ? '<span class="chip">A casa</span>' : esLore(x) ? '<span class="chip">Lorena</span>' : '<span class="chip' + (x.entregas===1?' one':'') + '">' + x.entregas + (x.entregas===1?' entrega':' entregas') + '</span>') + '</div>'
       + (hayCostos() ? (() => { const c = costoDe(x); return '<div class="cost"><b>' + money(c.tot) + '</b>' + (esCasa(x) ? ' de camioneta' : ' camioneta ' + money(c.cam) + ' + repartidor ' + money(c.rep)) + '</div>'; })() : '')
       + '<div class="meta">' + esc(MOTIVO[x.motivo]||x.motivo) + (esCasa(x) ? '' : ' · ' + dur(minutos(x))) + ' · ' + nf(kms(x)) + ' km (' + nf(x.kmSale) + ' a ' + nf(x.kmVuelve) + ')' + (x.nota ? '<br>' + esc(x.nota) : '') + '</div>'
       + '<div class="acts"><button class="ghost" data-ed="' + esc(x.id) + '">Corregir</button><button class="ghost del" data-del="' + esc(x.id) + '">Borrar</button></div></div>';
