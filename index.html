@@ -1962,6 +1962,20 @@ function ccSalirAdmin(){
   renderGestion();
 }
 
+function eliminarCC(cliIdx){
+  var cli=clientes[cliIdx];
+  if(!cli) return;
+  if(!confirm('¿Eliminar la cuenta corriente de '+cli.nombre+'?\nSe borrarán todos los movimientos y pagos. Esta acción no se puede deshacer.')) return;
+  cli.cc=false;
+  cli.saldo=0;
+  cli.movCC=[];
+  cli.pagosCC=[];
+  window.guardarClientes();
+  var cont=document.getElementById('gContent');
+  if(cont) renderCC(cont);
+  toast('Cuenta corriente de '+cli.nombre+' eliminada');
+}
+
 function renderCC(c){
   var ccCli=clientes.filter(function(c){return c.cc;});
   // Barra de admin PIN
@@ -2018,6 +2032,7 @@ function renderCC(c){
       +'<button class="btn-sm" style="background:#1a73e8;color:white;" onclick="abrirPagoCC('+cliIdx+')">💰 Registrar pago</button>'
       +(_ccAdminMode?'<button class="btn-sm" style="background:#6c757d;color:white;" onclick="abrirMovCC('+cliIdx+')">✏️ Agregar mov.</button>':'')
       +(_ccAdminMode?'<button class="btn-sm" style="background:#ffc107;color:#333;" onclick="editarSaldoInicial('+cliIdx+')">⚙️ Saldo inicial</button>':'')
+      +(_ccAdminMode?'<button class="btn-sm" style="background:#dc3545;color:white;" onclick="eliminarCC('+cliIdx+')">🗑️ Eliminar CC</button>':'')
       +'</div></div>';
 
     // Tabla de movimientos
