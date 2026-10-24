@@ -193,11 +193,11 @@ function importarHist(file){if(!file)return;file.text().then(txt=>{const H=JSON.
   save("importación de históricos");render();toast(n+" datos históricos cargados")}).catch(e=>toast("No pude leer el archivo: "+e.message))}
 
 /* ---------- navegación ---------- */
-const TABS=[["inicio","🏠","Inicio"],["empleado","👤","Empleado"],["cargar","➕","Cargar"],["fichaje","⏱️","Fichaje"],["cierre","📋","Cierre"],["datos","⚙️","Datos"]];
+const TABS=[["inicio","🏠","Inicio"],["empleado","👤","Empleado"],["cargar","➕","Cargar"],["cc","💳","Cta. cte."],["fichaje","⏱️","Fichaje"],["cierre","📋","Cierre"],["datos","⚙️","Datos"]];
 function renderNav(){$("#nav").innerHTML=TABS.map(([k,i,t])=>`<button class="${st.tab===k?"on":""}" onclick="go('${k}')"><span class="ic">${i}</span>${t}</button>`).join("")}
 function go(t,emp){st.tab=t;if(emp){st.emp=emp;st.per=null}render();window.scrollTo(0,0)}
 function render(){if(DB)asegurar();renderNav();setEstado(estado||"guardado ✓");
-  ({inicio:vInicio,empleado:vEmp,cargar:vCargar,fichaje:vFichaje,cierre:vCierre,datos:vDatos})[st.tab]()}
+  ({inicio:vInicio,empleado:vEmp,cargar:vCargar,cc:vCC,fichaje:vFichaje,cierre:vCierre,datos:vDatos})[st.tab]()}
 
 /* ---------- INICIO ---------- */
 function vInicio(){
@@ -393,8 +393,8 @@ function vCargar(){
     <button class="btn full" style="margin-top:14px" onclick="guardarNov()">Guardar</button>`}
   else{
     h+=`<h2>Importar Excel del POS</h2>
-    <div class="muted">Subí el Excel de ventas a cuenta corriente (el que tiene la hoja "Ventas" con la columna Cliente). La app reconoce a cada empleado por su nombre y no duplica compras ya cargadas.</div>
-    <input type="file" id="fx" accept=".xlsx,.xls" style="margin-top:12px" onchange="leerPOS(this.files[0])">
+    <div class="muted">Elegí los reportes de ventas del sistema (podés elegir los dos locales juntos). La app toma solo las ventas a cuenta corriente de los empleados, del período que elijas, y saltea las que ya están cargadas. Antes de guardar te muestra la lista.</div>
+    <input type="file" id="fx" accept=".xlsx,.xls" multiple style="margin-top:12px" onchange="st.posD=null;st.posH=null;leerPOS(this.files)">
     <div id="posOut"></div>`}
   $("#main").innerHTML=h+`</div>`}
 function vNum(id){const v=parseFloat(($(id).value||"").replace(",","."));return isNaN(v)?0:v}
@@ -407,25 +407,65 @@ function guardarMov(c){const m=vNum("#fm");if(!m)return toast("Falta el importe"
 function guardarNov(){const emp=$("#fe").value,f=$("#ff").value,key=emp+"|"+f,r=DB.horas[key]||{};
   r.nov=$("#ft").value;r.min=$("#fmin").value?+$("#fmin").value:null;r.obs=$("#fn").value;DB.horas[key]=r;save();toast("Novedad guardada");
   st.per=regimen(emp,f)==="mensual"?{t:"m",v:f.slice(0,7)}:{t:"s",v:lunes(f)};st.emp=emp;st.tab="empleado";render()}
-let POS=[];
-function leerPOS(file){if(!file)return;const rd=new FileReader();rd.onload=e=>{
-  try{const wb=XLSX.read(new Uint8Array(e.target.result),{type:"array"});const ws=wb.Sheets["Ventas"]||wb.Sheets[wb.SheetNames[0]];
-    const rows=XLSX.utils.sheet_to_json(ws,{defval:null,raw:false});POS=[];const sin=new Set();
-    for(const r of rows){const cli=(r["Cliente"]||"").toString().trim();if(!cli)continue;
-      const emp=DB.empleados.find(x=>x.id.toLowerCase()===cli.toLowerCase()||x.alias.some(a=>cli.toLowerCase().includes(a.toLowerCase())));
+
+function posNum(v){if(v==null||v==="")return 0;if(typeof v==="number")return v;let s=String(v).trim().replace(/\$/g,"").replace(/\s/g,"");
+  if(s.includes(",")&&s.lastIndexOf(",")>s.lastIndexOf("."))s=s.replace(/\./g,"").replace(",",".");else s=s.replace(/,/g,"");return parseFloat(s)||0}
+function posFecha(v){if(v instanceof Date)return iso(v);if(typeof v==="number"){const d=new Date(Math.round((v-25569)*864e5));return iso(new Date(d.getUTCFullYear(),d.getUTCMonth(),d.getUTCDate()))}
+  const m=String(v||"").match(/(\d{1,2})\/(\d{1,2})\/(\d{4})/);return m?`${m[3]}-${m[2].padStart(2,"0")}-${m[1].padStart(2,"0")}`:null}
+const posCol=(r,...ks)=>{for(const k of ks)if(r[k]!=null&&r[k]!=="")return r[k];return null};
+let POSFILAS=[];
+// Lee uno o varios reportes de ventas del sistema (uno por local). Toma solo ventas a cuenta corriente de empleados.
+async function leerPOS(files){if(!files||!files.length)return;if(!window.XLSX)return toast("No cargó la librería de Excel");POSFILAS=[];const sin=new Set();
+  for(const file of files){const buf=await file.arrayBuffer();const wb=XLSX.read(new Uint8Array(buf),{type:"array"});const ws=wb.Sheets["Ventas"]||wb.Sheets[wb.SheetNames[0]];
+    const RR=XLSX.utils.sheet_to_json(ws,{defval:null,raw:true});const pvF=((RR.find(x=>x["Comprobante"])||{})["Comprobante"]||"").toString().slice(0,4);const locF=pvF==="0009"?"San Martín":pvF?"Cárcano":"";
+    for(const r of RR){const cli=(r["Cliente"]||"").toString().trim();if(!cli)continue;
+      const cc=posNum(posCol(r,"Cta Cte","Cta. Cte.","CTA CTE","Cta.Cte."));if(!(cc>0))continue;
+      const emp=DB.empleados.find(x=>x.id.toLowerCase()===cli.toLowerCase()||(x.alias||[]).some(a=>cli.toLowerCase().includes(a.toLowerCase())));
       if(!emp){sin.add(cli);continue}
-      const [d,m,y]=(r["Fecha"]||"").split("/");const f=`${y}-${(m||"").padStart(2,"0")}-${(d||"").padStart(2,"0")}`;
-      const imp=parseFloat(String(r["Cta. Cte."]||r["TOTAL"]||0).replace(/\./g,"").replace(",","."))||parseFloat(r["TOTAL"])||0;
-      const ref=`POS ${r["Hora"]||""}`;const dup=DB.movs.some(x=>x.emp===emp.id&&x.fecha===f&&Math.abs(x.importe-imp)<0.01);
-      POS.push({emp:emp.id,fecha:f,importe:Math.round(imp*100)/100,detalle:ref,dup})}
-    const nuevos=POS.filter(p=>!p.dup);const por={};nuevos.forEach(p=>{por[p.emp]=(por[p.emp]||0)+p.importe});
-    $("#posOut").innerHTML=`<h3>Encontré ${POS.length} compras</h3>${Object.keys(por).map(k=>R(k,fmt(por[k]))).join("")}
-      ${POS.length-nuevos.length?`<div class="muted">${POS.length-nuevos.length} ya estaban cargadas y se saltean.</div>`:""}
-      ${sin.size?`<div class="note">Clientes que no reconozco: ${[...sin].join(", ")}. Agregalos como nombre del POS en Datos.</div>`:""}
-      ${nuevos.length?`<button class="btn full" style="margin-top:10px" onclick="confirmarPOS()">Cargar ${nuevos.length} compras</button>`:""}`}
-  catch(err){$("#posOut").innerHTML=`<div class="note">No pude leer el archivo: ${err.message}</div>`}};rd.readAsArrayBuffer(file)}
-function confirmarPOS(){const n=POS.filter(p=>!p.dup);n.forEach(p=>DB.movs.push({id:uid("m"),emp:p.emp,fecha:p.fecha,tipo:"compra",detalle:p.detalle,importe:p.importe,imputa:null}));
-  save();toast(n.length+" compras cargadas");POS=[];render()}
+      const f=posFecha(r["Fecha"]);if(!f)continue;const comp=posCol(r,"Comprobante");const pv=comp?String(comp).slice(0,4):"";void locF;
+      POSFILAS.push({emp:emp.id,fecha:f,importe:Math.round(cc*100)/100,detalle:"Compra"+((pv||pvF)==="0009"?" · San Martín":(pv||pvF)?" · Cárcano":"")+(comp?" · "+comp:""),archivo:file.name})}}
+  POSFILAS.sort((a,b)=>a.emp<b.emp?-1:a.emp>b.emp?1:a.fecha<b.fecha?-1:1);
+  const fs=POSFILAS.map(p=>p.fecha).sort();st.posSin=[...sin];
+  if(!st.posD){const ult=DB.movs.filter(m=>m.tipo==="compra").map(m=>m.fecha).sort().pop();st.posD=ult||fs[0]}
+  if(!st.posH)st.posH=fs[fs.length-1];posVista()}
+// Marca cuáles ya están cargadas (mismo empleado, día e importe; cuenta las repetidas)
+function posMarcar(){const usados={};const cnt={};DB.movs.forEach(m=>{if(m.tipo!=="compra")return;const k=m.emp+"|"+m.fecha+"|"+m.importe.toFixed(2);cnt[k]=(cnt[k]||0)+1});
+  return POSFILAS.filter(p=>p.fecha>=st.posD&&p.fecha<=st.posH).map(p=>{const k=p.emp+"|"+p.fecha+"|"+p.importe.toFixed(2);usados[k]=(usados[k]||0)+1;return{...p,dup:usados[k]<=(cnt[k]||0)}})}
+function posVista(){const out=$("#posOut");if(!out)return;if(!POSFILAS.length){out.innerHTML=`<div class="note">No encontré ventas a cuenta corriente de empleados en ese archivo.</div>`;return}
+  st.posSel=st.posSel||{};POSFILAS.forEach(p=>{if(st.posSel[p.emp]==null)st.posSel[p.emp]=regimen(p.emp,HOY)!=="mensual"});
+  const L=posMarcar(),todos=L.filter(p=>!p.dup),nuevos=todos.filter(p=>st.posSel[p.emp]),por={};todos.forEach(p=>{(por[p.emp]=por[p.emp]||[]).push(p)});
+  out.innerHTML=`<div class="two" style="margin-top:10px"><div><label>Compras desde</label><input type="date" value="${st.posD}" onchange="st.posD=this.value;posVista()"></div><div><label>hasta</label><input type="date" value="${st.posH}" onchange="st.posH=this.value;posVista()"></div></div>
+    <h3>${nuevos.length} compras nuevas para cargar</h3>
+    <div class="muted">Destildá a quien no quieras cargar ahora (los que cobran por mes vienen destildados: se cargan a fin de mes).</div>
+    ${Object.keys(por).map(k=>`<div style="margin-top:6px"><label style="display:inline-flex;gap:6px;align-items:center;margin:0"><input type="checkbox" style="width:auto" ${st.posSel[k]?"checked":""} onchange="st.posSel['${k}']=this.checked;posVista()"><b>${k}</b></label> · ${fmt2(por[k].reduce((a,p)=>a+p.importe,0))}
+      <div class="muted" style="font-size:12px">${por[k].map(p=>`${dm(p.fecha)} ${fmt2(p.importe)}`).join(" · ")}</div></div>`).join("")}
+    ${L.filter(p=>p.dup).length?`<div class="muted" style="margin-top:6px">${L.filter(p=>p.dup).length} ya estaban cargadas y se saltean.</div>`:""}
+    ${(st.posSin||[]).length?`<div class="muted" style="margin-top:6px">No son empleados (no se cargan): ${st.posSin.join(", ")}.</div>`:""}
+    ${nuevos.length?`<button class="btn full" style="margin-top:10px" onclick="confirmarPOS()">Cargar ${nuevos.length} compras</button>`:""}`}
+function confirmarPOS(){const n=posMarcar().filter(p=>!p.dup&&st.posSel[p.emp]);n.forEach(p=>DB.movs.push({id:uid("m"),emp:p.emp,fecha:p.fecha,tipo:"compra",detalle:p.detalle,importe:p.importe,imputa:null}));
+  save("cta. cte.: "+n.length+" compras del POS");toast(n.length+" compras cargadas");POSFILAS=[];st.posD=null;st.posH=null;st.posSel=null;st.tab="cc";render()}
+
+/* ---------- CUENTAS CORRIENTES (todas) ---------- */
+function vCC(){const lun=lunes(HOY);let tot=0;st.ccAb=st.ccAb||{};
+  const ult=DB.movs.filter(m=>m.tipo==="compra").map(m=>m.fecha).sort().pop();
+  let h=`<div class="card"><h2>Cuentas corrientes</h2><div class="muted">Saldo de hoy de cada empleado, con lo cargado del sistema hasta el ${ult?dmy(ult):"—"}.</div>
+    <button class="btn sec full" style="margin-top:10px" onclick="st.tab='cargar';st.cargar='pos';render()">Importar reporte de ventas del sistema</button></div>`;
+  EMPS().forEach(id=>{const M=movsDe(id).slice().sort((a,b)=>a.fecha<b.fecha?-1:a.fecha>b.fecha?1:0);const s=saldoCC(id);tot+=s;
+    const ds=M.filter(m=>m.tipo==="descuento");const ud=ds[ds.length-1];
+    const semC=M.filter(m=>m.tipo==="compra"&&m.fecha>=lun&&m.fecha<=addD(lun,6)).reduce((a,m)=>a+m.importe,0);
+    const desde=ud?ud.fecha:null;const abierto=st.ccAb[id];
+    h+=`<div class="card" style="padding:0;overflow:hidden;border-left:5px solid var(--pri)"><div onclick="st.ccAb['${id}']=!st.ccAb['${id}'];render()" style="cursor:pointer;padding:12px 14px;background:var(--pri-l)">
+      <div class="row" style="border:0;padding:0"><b style="font-size:16px">${id}</b><b class="num ${s>0.5?"neg":""}">${s<-0.5?"A favor "+fmt2(-s):fmt2(s)}</b></div>
+      <div class="muted" style="font-size:12px;margin-top:2px">Esta semana: ${fmt2(semC)} en compras · Último descuento: ${ud?`${fmt2(ud.importe)} el ${dm(ud.fecha)}`:"—"} · ${abierto?"▲ cerrar":"▼ ver detalle"}</div></div>`;
+    if(abierto){let sa=0;const desdeD=desde||"0000";M.forEach(m=>{if(m.fecha<desdeD)sa+=DEBE(m)?m.importe:-m.importe});
+      const det=M.filter(m=>m.fecha>=desdeD);let run=sa;
+      h+=`<div class="scroll" style="padding:6px 10px 10px"><table><tr><th>Fecha</th><th>Detalle</th><th class="num">Debe</th><th class="num">Haber</th><th class="num">Saldo</th></tr>
+        <tr><td colspan="4"><b>Saldo ${desde?"antes del último descuento":"inicial"}</b></td><td class="num"><b>${fmt2(sa)}</b></td></tr>
+        ${det.map(m=>{run+=DEBE(m)?m.importe:-m.importe;return`<tr><td>${dm(m.fecha)}</td><td>${m.tipo==="descuento"?"Descuento en sueldo"+(m.imputa?" ("+m.imputa.replace("S","semana del ").replace(/(\d{4})-(\d\d)-(\d\d)/,"$3/$2")+")":""):m.detalle||m.tipo}</td><td class="num">${DEBE(m)?fmt2(m.importe):""}</td><td class="num">${!DEBE(m)?fmt2(m.importe):""}</td><td class="num">${fmt2(run)}</td></tr>`}).join("")}
+        <tr><td colspan="4"><b>Saldo hoy</b></td><td class="num ${s>0.5?"neg":""}"><b>${fmt2(s)}</b></td></tr></table></div>`}
+    h+=`</div>`});
+  h+=`<div class="card"><div class="row tot"><span>Total que deben</span><span class="num">${fmt2(tot)}</span></div></div>`;
+  $("#main").innerHTML=h}
 
 /* ---------- CIERRE DE MES ---------- */
 const FORMA={efectivo:"efectivo",transferencia:"transferencia",deposito:"depósito Banco de Córdoba",incluido:"incluido en otro pago"};
