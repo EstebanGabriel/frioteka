@@ -457,10 +457,10 @@ function vCC(){const lun=lunes(HOY);let tot=0;st.ccAb=st.ccAb||{};
     h+=`<div class="card" style="padding:0;overflow:hidden;border-left:5px solid var(--pri)"><div onclick="st.ccAb['${id}']=!st.ccAb['${id}'];render()" style="cursor:pointer;padding:12px 14px;background:var(--pri-l)">
       <div class="row" style="border:0;padding:0"><b style="font-size:16px">${id}</b><b class="num ${s>0.5?"neg":""}">${s<-0.5?"A favor "+fmt2(-s):fmt2(s)}</b></div>
       <div class="muted" style="font-size:12px;margin-top:2px">Esta semana: ${fmt2(semC)} en compras · Último descuento: ${ud?`${fmt2(ud.importe)} el ${dm(ud.fecha)}`:"—"} · ${abierto?"▲ cerrar":"▼ ver detalle"}</div></div>`;
-    if(abierto){let sa=0;const desdeD=desde||"0000";M.forEach(m=>{if(m.fecha<desdeD)sa+=DEBE(m)?m.importe:-m.importe});
+    if(abierto){let sa=0;st.ccDesde=st.ccDesde||addD(lun,-7);const desdeD=st.ccDesde;M.forEach(m=>{if(m.fecha<desdeD)sa+=DEBE(m)?m.importe:-m.importe});
       const det=M.filter(m=>m.fecha>=desdeD);let run=sa;
       h+=`<div class="scroll" style="padding:6px 10px 10px"><table><tr><th>Fecha</th><th>Detalle</th><th class="num">Debe</th><th class="num">Haber</th><th class="num">Saldo</th></tr>
-        <tr><td colspan="4"><b>Saldo ${desde?"antes del último descuento":"inicial"}</b></td><td class="num"><b>${fmt2(sa)}</b></td></tr>
+        <tr><td colspan="4"><b>Saldo al ${dm(addD(desdeD,-1))}</b> <span class="muted" style="font-size:12px">· ver desde <input type="date" value="${desdeD}" onclick="event.stopPropagation()" onchange="st.ccDesde=this.value;render()" style="width:auto;display:inline-block;padding:2px 4px"></span></td><td class="num"><b>${fmt2(sa)}</b></td></tr>
         ${det.map(m=>{run+=DEBE(m)?m.importe:-m.importe;return`<tr><td>${dm(m.fecha)}</td><td>${m.tipo==="descuento"?"Descuento en sueldo"+(m.imputa?" ("+m.imputa.replace("S","semana del ").replace(/(\d{4})-(\d\d)-(\d\d)/,"$3/$2")+")":""):m.detalle||m.tipo}</td><td class="num">${DEBE(m)?fmt2(m.importe):""}</td><td class="num">${!DEBE(m)?fmt2(m.importe):""}</td><td class="num">${fmt2(run)}</td></tr>`}).join("")}
         <tr><td colspan="4"><b>Saldo hoy</b></td><td class="num ${s>0.5?"neg":""}"><b>${fmt2(s)}</b></td></tr></table></div>`}
     h+=`</div>`});
