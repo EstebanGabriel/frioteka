@@ -304,7 +304,7 @@ function liqCard(id,L,isM,reg){
   pg.forEach(p=>h+=R(`${dm(p.fecha)} · ${FORMA[p.forma]||p.forma}${p.cond?" · "+p.cond:""}`,fmt(p.importe)));
   const pend=isM?L.saldo-L.pagado:L.pend;
   if(!L.falta&&(pg.length||Math.abs(pend)>0.5))h+=R("Pendiente de pago",`<span class="${Math.abs(pend)>0.5?"neg":"pos"}">${Math.abs(pend)<0.5?"✓ pagado":fmt(pend)}</span>`,"tot");
-  h+=`<div style="display:flex;gap:8px;margin-top:10px"><button class="btn sm" onclick="nuevoPago('${id}','${L.key}')">+ Pago</button><button class="btn sec sm" onclick="nuevoDesc('${id}','${L.key}')">+ Descuento cta. cte.</button>${isM?`<button class="btn sec sm" onclick="nuevoAdel('${id}','${L.key}')">+ Adelanto</button>`:""}</div></div>`;
+  h+=`<div style="display:flex;gap:8px;margin-top:10px"><button class="btn sm" onclick="nuevoPago('${id}','${L.key}')">+ Pago</button><button class="btn sec sm" onclick="nuevoDesc('${id}','${L.key}')">+ Descuento cta. cte.</button>${isM?`<button class="btn sec sm" onclick="nuevoAdel('${id}','${L.key}')">+ Adelanto</button>`:`<button class="btn sec sm" onclick="imprimirRecibo('${id}','${L.key.slice(1)}')">🖨 Imprimir recibo</button>`}</div></div>`;
   return h}
 const NOVS=["","Tarde","Falta","Falta con aviso","Suspensión","Otro"];
 
@@ -675,7 +675,7 @@ function fjDatos(id,lun){const FF=fjCruce(id,lun);const pend=[];
   return{X,pend}}
 // Pantalla previa a exportar / liquidar: redondeos y motivos que faltan + período de cuenta corriente
 function fjPrevio(id,tipo){fjAseg();st.fjPrev={id,tipo};st.fjAb=st.fjAb||{};st.fjAb[id]=true;
-  const lun=st.fjLun;st.fjCC=st.fjCC||{};const ck=id+"|"+lun;if(!st.fjCC[ck])st.fjCC[ck]={desde:lun,hasta:addD(lun,6)};
+  const lun=st.fjLun;st.fjCC=st.fjCC||{};const ck=id+"|"+lun;if(!st.fjCC[ck])st.fjCC[ck]=ccDef(lun);
   const {pend}=fjDatos(id,lun);if(!pend.length&&tipo==="liq")return fjAplicarUno(id);render()}
 function fjPrevioCard(id){const P=st.fjPrev;if(!P||P.id!==id)return"";const {pend}=fjDatos(id,st.fjLun);const cc=(st.fjCC||{})[id+"|"+st.fjLun]||{};
   const dd=f=>`${DIAS[D(f).getDay()]} ${dm(f)}`;
@@ -702,7 +702,19 @@ function fjAplicarUno(id){const lun=st.fjLun;const {X,pend}=fjDatos(id,lun);if(p
   const por={};for(let i=0;i<7;i++)por[addD(lun,i)]=0;X.forEach(o=>{por[o.r.f]=(por[o.r.f]||0)+o.c});let n=0;
   for(const f in por){const k=id+"|"+f,d=DB.horas[k]||{};if(!por[f]&&!d.h)continue;d.h=por[f]/60;DB.horas[k]=d;n++}
   st.fjPrev=null;save("fichaje: horas de "+id+" semana "+lun);toast(`${id}: ${n} días pasados a la liquidación`);render()}
-function fjExport(id,tipo){const lun=st.fjLun,key="S"+lun,{X,pend}=fjDatos(id,lun);
+// Desde la ficha del empleado: imprime el resumen de pago de esa semana (si falta decidir algo, lo pregunta en Fichaje)
+// Período de cuenta corriente: lunes a domingo. Excepción de transición (pago 24/10): compras del 17 al 23/10.
+const ccDef=lun=>lun==="2026-10-19"?{desde:"2026-10-17",hasta:"2026-10-23"}:{desde:lun,hasta:addD(lun,6)};
+async function imprimirRecibo(id,lun){st.fjLun=lun;st.fjAb=st.fjAb||{};st.fjAb[id]=true;st.fjCC=st.fjCC||{};const ck=id+"|"+lun;
+  if(!st.fjCC[ck])st.fjCC[ck]=ccDef(lun);
+  const w=window.open("","_blank");if(!w)return toast("El navegador bloqueó la ventana: permití ventanas emergentes");
+  w.document.write("<p style='font-family:Arial;margin:30px'>Preparando el recibo…</p>");
+  if(!window.FJ){w.close();return toast("Todavía conectando con el fichaje, probá en unos segundos")}
+  if(FJC.lun!==lun||!FJC.marcas)await fjCargar(lun,true);
+  if(FJC.err){w.close();return toast("No pude leer el fichaje: "+FJC.err)}
+  const {pend}=fjDatos(id,lun);if(pend.length){w.close();st.tab="fichaje";st.fjEmp="todos";fjPrevio(id,"pdf");toast("Antes de imprimir, contestá lo que falta");window.scrollTo(0,0);return}
+  fjExport(id,"pdf",w)}
+function fjExport(id,tipo,pre){const lun=st.fjLun,key="S"+lun,{X,pend}=fjDatos(id,lun);
   if(pend.length||!(st.fjCC&&st.fjCC[id+"|"+lun]))return fjPrevio(id,tipo);
   const sem=`Semana del ${dmy(lun)} al ${dmy(addD(lun,6))}`,nombre=(E(id)&&E(id).nombre)||id;
   const arch=`RESUMEN_PAGO_${id.toUpperCase()}_${dm(lun).replace("/","-")}_AL_${dm(addD(lun,6)).replace("/","-")}`;
@@ -722,7 +734,7 @@ function fjExport(id,tipo){const lun=st.fjLun,key="S"+lun,{X,pend}=fjDatos(id,lu
   const totComp=compras.reduce((a,m)=>a+m.importe,0),totCC=antes+totComp,desc=descImp(id,key),queda=totCC-desc;
   // 4) adelantos de este pago
   const adel=pagosImp(id,key,"adelanto"),totAdel=adel.reduce((a,p)=>a+p.importe,0);
-  const aPagar=bruto-desc-totAdel;
+  const aPagar=bruto-desc-totAdel;const pagosS=pagosImp(id,key,"pago"),totPag=pagosS.reduce((a,p)=>a+p.importe,0);
   const esc=s=>String(s==null?"":s).replace(/&/g,"&amp;").replace(/</g,"&lt;");
   if(tipo==="xlsx"){if(!window.XLSX)return toast("No cargó la librería de Excel");
     const a1=[["FRIOTEKA · Culasso Izaguirre S.A.S."],[`Resumen de pago de ${nombre}`],[sem],[],["Día","Local","Horario","Entrada","Salida","Horas","Observaciones"]];
@@ -736,7 +748,7 @@ function fjExport(id,tipo){const lun=st.fjLun,key="S"+lun,{X,pend}=fjDatos(id,lu
     const wb=XLSX.utils.book_new();const w1=XLSX.utils.aoa_to_sheet(a1);w1["!cols"]=[{wch:12},{wch:20},{wch:13},{wch:8},{wch:8},{wch:9},{wch:60}];
     XLSX.utils.book_append_sheet(wb,w1,"Horas");const w2=XLSX.utils.aoa_to_sheet(a2);w2["!cols"]=[{wch:24},{wch:28},{wch:16},{wch:12},{wch:14}];XLSX.utils.book_append_sheet(wb,w2,"Pago");
     XLSX.writeFile(wb,arch+".xlsx");return}
-  const w=window.open("","_blank");if(!w)return toast("El navegador bloqueó la ventana: permití ventanas emergentes");
+  const w=pre||window.open("","_blank");if(!w)return toast("El navegador bloqueó la ventana: permití ventanas emergentes");if(pre)w.document.open();
   const $$=n=>fmt2(n);
   const T=(rows)=>`<table class="m">${rows}</table>`;
   w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>${arch}</title><style>
@@ -763,6 +775,7 @@ function fjExport(id,tipo){const lun=st.fjLun,key="S"+lun,{X,pend}=fjDatos(id,lu
     <h2>4. Adelantos</h2>
     ${adel.length?T(adel.map(p=>`<tr><td>${dmy(p.fecha)} · ${esc(FORMA[p.forma]||p.forma||"")}${p.nota?" · "+esc(p.nota):""}</td><td class="n">− ${$$(p.importe)}</td></tr>`).join("")+`<tr class="k"><td>Total adelantos</td><td class="n">− ${$$(totAdel)}</td></tr>`):`<div class="sub">No hubo adelantos.</div>`}
     <div class="big"><span>Total a cobrar = ganado − cuenta corriente descontada − adelantos</span><b>${$$(aPagar)}</b></div>
+    ${pagosS.length?T(pagosS.map(p=>`<tr><td>Pagado el ${dmy(p.fecha)} · ${esc(FORMA[p.forma]||p.forma||"")}${p.nota?" · "+esc(p.nota):""}</td><td class="n">${$$(p.importe)}</td></tr>`).join("")+(Math.abs(aPagar-totPag)>0.5?`<tr class="k"><td>${aPagar-totPag>0?"Queda pendiente de pago":"Pagado de más"}</td><td class="n">${$$(Math.abs(aPagar-totPag))}</td></tr>`:"")):""}
     <div class="nor"><b>Normas</b><ol>${NORMAS_PAGO.map(n=>`<li>${n}</li>`).join("")}</ol></div>
     <div class="sub">Con mi firma declaro haber recibido el detalle de horas, cuenta corriente y adelantos, y el pago indicado.</div>
     <div class="fir"><div>Firma</div><div>Aclaración</div><div>Fecha</div></div>
