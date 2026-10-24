@@ -722,7 +722,7 @@ function fjExport(id,tipo,pre){const lun=st.fjLun,key="S"+lun,{X,pend}=fjDatos(i
   const filas=[];let totSem=0;const horasDia={};
   X.forEach((o,ix)=>{const r=o.r;
     filas.push({dia:`${DIAS[D(r.f).getDay()]} ${dm(r.f)}`,loc:r.loc,hor:r.a==null?"—":minHm(r.a)+"–"+minHm(r.b),ent:o.ini==null?"—":minHm(o.ini),sal:o.fin==null?"—":minHm(o.fin),cta:o.c?fhm(o.c):"—",obs:o.obs.join(" · ")});
-    if(!X[ix+1]||X[ix+1].r.f!==r.f){const t=X.filter(y=>y.r.f===r.f).reduce((s,y)=>s+y.c,0);totSem+=t;horasDia[r.f]=t;filas.push({tot:true,dia:`Total ${DIAS[D(r.f).getDay()]} ${dm(r.f)}`,cta:t?fhm(t):"—"})}});
+    if(!X[ix+1]||X[ix+1].r.f!==r.f){const t=X.filter(y=>y.r.f===r.f).reduce((s,y)=>s+y.c,0);totSem+=t;horasDia[r.f]=t;filas.push({tot:true,f:r.f,dia:`Total ${DIAS[D(r.f).getDay()]} ${dm(r.f)}`,cta:t?fhm(t):"—"})}});
   // 2) lo que se le paga (solo los que cobran por semana)
   const sem7=[0,1,2,3,4,5,6].map(i=>addD(lun,i));const semanal=regimen(id,lun)==="semanal";
   const pagoDias=sem7.filter(f=>horasDia[f]).map(f=>{const h=horasDia[f]/60,hp=hsPagas(id,f,h),v=tarifa(id,f).hora;return{f,h,hp,v,imp:hp*v,fer:esFer(f)}});
@@ -761,18 +761,19 @@ function fjExport(id,tipo,pre){const lun=st.fjLun,key="S"+lun,{X,pend}=fjDatos(i
     .fir{display:flex;gap:40px;margin-top:50px;font-size:11px;color:#666}.fir div{flex:1;border-top:1px solid #444;padding-top:4px;text-align:center}
     @media print{body{margin:10mm}h2{break-after:avoid}}</style></head><body>
     <div class="sub">FRIOTEKA · Culasso Izaguirre S.A.S.</div><h1>Resumen de pago · ${esc(nombre)}</h1><div class="sub">${sem}</div>
-    <h2>1. Horas trabajadas</h2>
-    <table><tr><th>Día</th><th>Local</th><th>Horario</th><th>Entrada</th><th>Salida</th><th>Horas</th><th>Observaciones</th></tr>
-    ${filas.map(f=>f.tot?`<tr class="t"><td colspan="5" style="text-align:right">${f.dia}</td><td class="n">${f.cta}</td><td></td></tr>`:`<tr><td>${f.dia}</td><td>${f.loc}</td><td>${f.hor}</td><td>${f.ent}</td><td>${f.sal}</td><td class="n">${f.cta}</td><td>${esc(f.obs)}</td></tr>`).join("")}
-    <tr class="k"><td colspan="5" style="text-align:right">Total de la semana</td><td class="n">${fhm(totSem)}</td><td></td></tr></table>
-    <h2>2. Lo que se le paga</h2>
-    ${semanal?T(pagoDias.map(x=>`<tr><td>${DIAS[D(x.f).getDay()]} ${dm(x.f)}${x.fer?" (feriado: horas dobles)":""} · ${fh(x.hp)} h × ${$$(x.v)}</td><td class="n">${$$(x.imp)}</td></tr>`).join("")+
-      (tras?`<tr><td>Traslado</td><td class="n">${$$(tras)}</td></tr>`:"")+`<tr class="k"><td>Total ganado</td><td class="n">${$$(bruto)}</td></tr>`):`<div class="sub">Cobra por mes: el sueldo se liquida aparte.</div>`}
-    <h2>3. Cuenta corriente <span class="sub">(compras del ${dmy(cc.desde)} al ${dmy(cc.hasta)})</span></h2>
+    <h2>1. Horas trabajadas y lo que se le paga</h2>
+    <table><tr><th>Día</th><th>Local</th><th>Horario</th><th>Entrada</th><th>Salida</th><th>Horas</th>${semanal?"<th>Importe</th>":""}<th>Observaciones</th></tr>
+    ${filas.map(f=>{if(!f.tot)return `<tr><td>${f.dia}</td><td>${f.loc}</td><td>${f.hor}</td><td>${f.ent}</td><td>${f.sal}</td><td class="n">${f.cta}</td>${semanal?"<td></td>":""}<td>${esc(f.obs)}</td></tr>`;
+      const pd=pagoDias.find(x=>x.f===f.f);const det=semanal&&pd?` <span style="font-weight:normal;color:#666">(${fh(pd.hp)} h × ${$$(pd.v)}${pd.fer?", feriado: horas dobles":""})</span>`:"";
+      return `<tr class="t"><td colspan="5" style="text-align:right">${f.dia}${det}</td><td class="n">${f.cta}</td>${semanal?`<td class="n">${pd?$$(pd.imp):"—"}</td>`:""}<td></td></tr>`}).join("")}
+    <tr class="k"><td colspan="5" style="text-align:right">Total de la semana</td><td class="n">${fhm(totSem)}</td>${semanal?`<td class="n">${$$(ganado)}</td>`:""}<td></td></tr>
+    ${semanal?(tras?`<tr><td colspan="5" style="text-align:right">Traslado</td><td></td><td class="n">${$$(tras)}</td><td></td></tr>`:"")+`<tr class="k"><td colspan="5" style="text-align:right">Total ganado</td><td></td><td class="n">${$$(bruto)}</td><td></td></tr>`:""}</table>
+    ${semanal?"":`<div class="sub">Cobra por mes: el sueldo se liquida aparte.</div>`}
+    <h2>2. Cuenta corriente <span class="sub">(compras del ${dmy(cc.desde)} al ${dmy(cc.hasta)})</span></h2>
     ${T(`<tr><td>Saldo anterior${antes<0?" (a favor)":""}</td><td class="n">${$$(antes)}</td></tr>`+
       `<tr><td>Compras del período (${compras.length})</td><td class="n">${$$(totComp)}</td></tr>`+
       `<tr class="k"><td>Total cuenta corriente</td><td class="n">${$$(totCC)}</td></tr><tr><td>Se descuenta en este pago</td><td class="n">− ${$$(desc)}</td></tr><tr class="k"><td>Saldo que queda para el próximo pago</td><td class="n">${$$(queda)}</td></tr>`)}
-    <h2>4. Adelantos</h2>
+    <h2>3. Adelantos</h2>
     ${adel.length?T(adel.map(p=>`<tr><td>${dmy(p.fecha)} · ${esc(FORMA[p.forma]||p.forma||"")}${p.nota?" · "+esc(p.nota):""}</td><td class="n">− ${$$(p.importe)}</td></tr>`).join("")+`<tr class="k"><td>Total adelantos</td><td class="n">− ${$$(totAdel)}</td></tr>`):`<div class="sub">No hubo adelantos.</div>`}
     <div class="big"><span>Total a cobrar = ganado − cuenta corriente descontada − adelantos</span><b>${$$(aPagar)}</b></div>
     ${pagosS.length?T(pagosS.map(p=>`<tr><td>Pagado el ${dmy(p.fecha)} · ${esc(FORMA[p.forma]||p.forma||"")}${p.nota?" · "+esc(p.nota):""}</td><td class="n">${$$(p.importe)}</td></tr>`).join("")+(Math.abs(aPagar-totPag)>0.5?`<tr class="k"><td>${aPagar-totPag>0?"Queda pendiente de pago":"Pagado de más"}</td><td class="n">${$$(Math.abs(aPagar-totPag))}</td></tr>`:"")):""}
