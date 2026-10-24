@@ -625,7 +625,7 @@ function vFichaje(){
     h+=`<div class="card" style="padding:0;overflow:hidden;border-left:5px solid var(--pri)"><div onclick="st.fjAb['${id}']=!(${abierto?"true":"false"});if(!st.fjAb['${id}']&&st.fjEd&&st.fjEd.startsWith('${id}|'))st.fjEd=null;render()" style="cursor:pointer;padding:12px 14px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;background:var(--pri-l)">
       <b style="font-size:16px">${id}</b><span class="muted">${fhm(real)} que cuentan</span><span style="flex:1">${tg}</span><b style="color:var(--pri)">${abierto?"▲ Cerrar":"▼ Ver turnos"}</b></div>`;
     if(abierto){h+=`<div class="scroll" style="padding:0 10px 10px"><table><tr><th>Día</th><th>Local</th><th>Horario</th><th>Entró</th><th>Salió</th><th>Cuenta</th><th>Qué pasó</th><th></th></tr>`;
-    FF.forEach(r=>{
+    FF.forEach((r,ix)=>{
     const btn=!r.acc?"":r.hecho?`<span class="tag ok">En novedades ✓</span>`:r.acc.a==="corr"?`<input id="c_${r.key.replace(/\W/g,"_")}" type="time" style="width:110px"><button class="btn sm" onclick="fjCorregir('${r.key}')">Guardar</button>`:`<button class="btn sm" onclick="fjAccion('${r.key}')">${r.acc.t}</button>`;
     const kk=r.key.replace(/\W/g,"_");
     const edBtn=r.man?`<button class="btn ghost sm" style="margin-top:4px" onclick="fjQuitarManual('${id}','${r.f}',${r.mi})">Quitar</button>`:`<button class="btn ghost sm" style="margin-top:4px" onclick="st.fjEd=st.fjEd==='${r.key}'?null:'${r.key}';render()">${r.ed?"Editado ✎":"Editar"}</button>`;
@@ -649,7 +649,9 @@ function vFichaje(){
       <div class="muted" style="margin-top:4px">Se borra: ${r.mids.map(m=>`${m.tipo} ${minHm(m.m)}`).join(" y ")}. Queda una copia en "Marcas borradas", que no cuenta.</div>
       ${FJC.clave?"":`<div class="note" style="margin-top:6px">Primero creá tu código de borrado en "Configuración del fichaje", más abajo.</div>`}
       <div class="two" style="margin-top:6px"><div><label>Motivo</label><input id="bm_${kk}" placeholder="Ej: prueba"></div><div><label>Código de borrado</label><input id="bc_${kk}" type="password" inputmode="numeric" autocomplete="off"></div></div>
-      <button class="btn full" style="margin-top:8px;background:#c0392b" onclick="fjBorrarTurno('${r.key}')">Borrar este fichaje</button></div>`:""}</div></td></tr>`}});
+      <button class="btn full" style="margin-top:8px;background:#c0392b" onclick="fjBorrarTurno('${r.key}')">Borrar este fichaje</button></div>`:""}</div></td></tr>`}
+    if(!FF[ix+1]||FF[ix+1].f!==r.f){const tot=FF.filter(x=>x.f===r.f&&(!x.fuera||x.cuenta)).reduce((s,x)=>s+x.cuenta,0); // total del día (mañana + tarde)
+      h+=`<tr style="background:var(--pri-l)"><td colspan="5" style="text-align:right"><b>Total ${DIAS[D(r.f).getDay()]} ${dm(r.f)}</b></td><td class="num"><b>${tot?fhm(tot):"—"}</b></td><td colspan="2"></td></tr>`}});
     h+=`</table></div>`}
     h+=`</div>`});
   h+=`<div class="card"><div class="muted">Cuenta desde la hora de entrada del horario hasta la de salida. Llegar antes no suma; quedarse de más suma solo si lo aprobás. Hasta ${FJTOL} min tarde no es llegada tarde, pero igual se descuenta. Según el reglamento: 3 tolerancias en el mes cuentan como una llegada tarde; 30 min o más tarde sin aviso, llegar tarde cuando le toca abrir o faltar sin aviso es falta grave.</div></div>`;
