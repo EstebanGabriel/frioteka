@@ -164,7 +164,7 @@ async function teclado(e) {
   await fichar();
 }
 
-function turnosHoy(horario, fecha) { const v = horario && horario[`${emp}|${fecha}`]; return Array.isArray(v) ? v : []; }
+function turnosHoy(horario, fecha) { const v = horario && horario[`${emp}|${fecha}`]; return Array.isArray(v) ? v.map(x => Array.isArray(x) ? x : [x.l, x.i, x.s]) : []; }
 
 // ¿Sigue existiendo la marca? Si fue borrada, Firestore niega la lectura (no hay documento con su usuario).
 async function existe(id) { try { return (await getDoc(doc(fs, C.marcas, id))).exists(); } catch (e) { if (e.code === "permission-denied") return false; throw e; } }

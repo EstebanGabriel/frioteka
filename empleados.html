@@ -580,7 +580,7 @@ function fjFila(id,f,ti,loc,a,b,x,ahora){
     else{if(corr)est.push([`Salida corregida ${corr}`,"info"]);const d=sal-b;
       if(d<-5){est.push([`Salió ${-d} min antes`,"warn"]);if(!acc)acc={a:"nov",nov:"Otro",obs:`Salió ${-d} min antes`,t:"Pasar a novedades"}}
       else if(d>5){est.push([`Se quedó ${d} min`,"info"]);if(!DB.fj.aprob[key]&&!acc)acc={a:"apr",min:d,t:`Aprobar ${d} min`}}}
-    if(ent!=null&&sal!=null)cuenta=Math.max(0,Math.min(sal,b)-Math.max(ent,a))+(DB.fj.aprob[key]||0)}
+    if(ent!=null&&sal!=null){const ini=ed.ent?ent:Math.max(ent,a),fin=ed.sal?sal:Math.min(sal,b);cuenta=Math.max(0,fin-ini)+(ed.sal?0:(DB.fj.aprob[key]||0))}} // si Banchi editó la entrada o la salida, cuenta la hora que puso
   if(DB.fj.aprob[key])est.push([`Aprobado +${DB.fj.aprob[key]} min`,"ok"]);
   const ms=[x&&x.ent,x&&x.sal].filter(Boolean);
   if(ms.some(m=>m.ubicacion!=="ok"))est.push(["Sin ubicación","info"]);
@@ -616,16 +616,24 @@ function vFichaje(){
     h+=R(`<b>${id}</b> <span class="muted">· ${meta}</span><br>${tags}${mesTxt}`,`<b>${fhm(real)}</b>`)});
   h+=`<button class="btn sec full" style="margin-top:10px" onclick="fjAplicar()">Usar estas horas en la liquidación</button><div class="muted" style="margin-top:6px">Pasa las horas que cuentan a la ficha de cada uno (menos Gonzalo, que cobra el recibo). Revisá antes las faltas y salidas sin fichar.</div></div>`;
   const ver=st.fjEmp==="todos"?emps:[st.fjEmp];
-  h+=`<div class="card"><h2>Turno por turno</h2><div class="scroll"><table><tr><th>Día</th>${st.fjEmp==="todos"?"<th>Empleado</th>":""}<th>Local</th><th>Horario</th><th>Entró</th><th>Salió</th><th>Cuenta</th><th>Qué pasó</th><th></th></tr>`;
-  ver.forEach(id=>filas[id].forEach(r=>{
+  h+=`<div class="card" style="margin-bottom:8px"><h2 style="margin:0">Turno por turno</h2><div class="muted" style="margin-top:4px">Un recuadro por empleado. Tocá el nombre para abrir o cerrar sus turnos.</div></div>`;
+  st.fjAb=st.fjAb||{};
+  ver.forEach(id=>{const FF=filas[id];const real=FF.filter(r=>!r.fuera||r.cuenta).reduce((s,r)=>s+r.cuenta,0);
+    const n=k=>FF.filter(r=>r.est.some(x=>x[0].startsWith(k))).length;const pend=FF.filter(r=>r.acc&&!r.hecho).length;
+    const abierto=st.fjEmp!=="todos"||st.fjAb[id]||(st.fjEd&&st.fjEd.startsWith(id+"|"));
+    const tg=[pend&&`<span class="tag warn">${pend} para revisar</span>`,n("Tarde")&&`<span class="tag warn">${n("Tarde")} tarde</span>`,n("Falta")&&`<span class="tag bad">${n("Falta")} falta</span>`,n("No fichó")&&`<span class="tag bad">${n("No fichó")} sin fichar</span>`].filter(Boolean).join(" ")||`<span class="tag ok">Todo en orden</span>`;
+    h+=`<div class="card" style="padding:0;overflow:hidden;border-left:5px solid var(--pri)"><div onclick="st.fjAb['${id}']=!(${abierto?"true":"false"});if(!st.fjAb['${id}']&&st.fjEd&&st.fjEd.startsWith('${id}|'))st.fjEd=null;render()" style="cursor:pointer;padding:12px 14px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;background:var(--pri-l)">
+      <b style="font-size:16px">${id}</b><span class="muted">${fhm(real)} que cuentan</span><span style="flex:1">${tg}</span><b style="color:var(--pri)">${abierto?"▲ Cerrar":"▼ Ver turnos"}</b></div>`;
+    if(abierto){h+=`<div class="scroll" style="padding:0 10px 10px"><table><tr><th>Día</th><th>Local</th><th>Horario</th><th>Entró</th><th>Salió</th><th>Cuenta</th><th>Qué pasó</th><th></th></tr>`;
+    FF.forEach(r=>{
     const btn=!r.acc?"":r.hecho?`<span class="tag ok">En novedades ✓</span>`:r.acc.a==="corr"?`<input id="c_${r.key.replace(/\W/g,"_")}" type="time" style="width:110px"><button class="btn sm" onclick="fjCorregir('${r.key}')">Guardar</button>`:`<button class="btn sm" onclick="fjAccion('${r.key}')">${r.acc.t}</button>`;
     const kk=r.key.replace(/\W/g,"_");
     const edBtn=r.man?`<button class="btn ghost sm" style="margin-top:4px" onclick="fjQuitarManual('${id}','${r.f}',${r.mi})">Quitar</button>`:`<button class="btn ghost sm" style="margin-top:4px" onclick="st.fjEd=st.fjEd==='${r.key}'?null:'${r.key}';render()">${r.ed?"Editado ✎":"Editar"}</button>`;
-    h+=`<tr class="${esFer(r.f)?"fer":""}"><td>${DIAS[D(r.f).getDay()]} ${dm(r.f)}</td>${st.fjEmp==="todos"?`<td>${id}</td>`:""}<td>${r.loc}</td><td class="num">${r.a==null?"—":minHm(r.a)+"–"+minHm(r.b)}</td>
+    h+=`<tr class="${esFer(r.f)?"fer":""}"><td>${DIAS[D(r.f).getDay()]} ${dm(r.f)}</td><td>${r.loc}</td><td class="num">${r.a==null?"—":minHm(r.a)+"–"+minHm(r.b)}</td>
     <td class="num">${r.ent==null?"—":`<b>${minHm(r.ent)}</b><br><span class="muted">${fjDif(r.ent,r.a,true)}</span>`}</td>
     <td class="num">${r.sal==null?"—":`<b>${minHm(r.sal)}</b><br><span class="muted">${fjDif(r.sal,r.b,false)}</span>`}</td>
     <td class="num">${r.cuenta?fhm(r.cuenta):"—"}</td><td>${r.est.map(([t,c])=>`<span class="tag ${c}">${t}</span>`).join(" ")}</td><td>${btn}${btn?"<br>":""}${edBtn}</td></tr>`;
-    if(st.fjEd===r.key){const ed=DB.fj.ed[r.key]||{};const cols=st.fjEmp==="todos"?9:8;
+    if(st.fjEd===r.key){const ed=DB.fj.ed[r.key]||{};const cols=8;
       h+=`<tr><td colspan="${cols}" style="background:var(--sf2,rgba(0,0,0,.03))"><div class="f" style="max-width:520px">
       <b>Editar ${id} · ${DIAS[D(r.f).getDay()]} ${dm(r.f)}${r.a!=null?` · turno ${minHm(r.a)}–${minHm(r.b)}`:""}</b>
       <label style="display:flex;gap:8px;align-items:center;margin-top:8px"><input type="checkbox" id="ej_${kk}" ${ed.just?"checked":""} style="width:auto"> Justificado: no cuenta como falta, tarde ni grave</label>
@@ -641,8 +649,10 @@ function vFichaje(){
       <div class="muted" style="margin-top:4px">Se borra: ${r.mids.map(m=>`${m.tipo} ${minHm(m.m)}`).join(" y ")}. Queda una copia en "Marcas borradas", que no cuenta.</div>
       ${FJC.clave?"":`<div class="note" style="margin-top:6px">Primero creá tu código de borrado en "Configuración del fichaje", más abajo.</div>`}
       <div class="two" style="margin-top:6px"><div><label>Motivo</label><input id="bm_${kk}" placeholder="Ej: prueba"></div><div><label>Código de borrado</label><input id="bc_${kk}" type="password" inputmode="numeric" autocomplete="off"></div></div>
-      <button class="btn full" style="margin-top:8px;background:#c0392b" onclick="fjBorrarTurno('${r.key}')">Borrar este fichaje</button></div>`:""}</div></td></tr>`}}));
-  h+=`</table></div><div class="muted" style="margin-top:8px">Cuenta desde la hora de entrada del horario hasta la de salida. Llegar antes no suma; quedarse de más suma solo si lo aprobás. Hasta ${FJTOL} min tarde no es llegada tarde, pero igual se descuenta. Según el reglamento: 3 tolerancias en el mes cuentan como una llegada tarde; 30 min o más tarde sin aviso, llegar tarde cuando le toca abrir o faltar sin aviso es falta grave.</div></div>`;
+      <button class="btn full" style="margin-top:8px;background:#c0392b" onclick="fjBorrarTurno('${r.key}')">Borrar este fichaje</button></div>`:""}</div></td></tr>`}});
+    h+=`</table></div>`}
+    h+=`</div>`});
+  h+=`<div class="card"><div class="muted">Cuenta desde la hora de entrada del horario hasta la de salida. Llegar antes no suma; quedarse de más suma solo si lo aprobás. Hasta ${FJTOL} min tarde no es llegada tarde, pero igual se descuenta. Según el reglamento: 3 tolerancias en el mes cuentan como una llegada tarde; 30 min o más tarde sin aviso, llegar tarde cuando le toca abrir o faltar sin aviso es falta grave.</div></div>`;
   {const dd=[0,1,2,3,4,5,6].map(i=>addD(lun,i)),e0=st.fjEmp==="todos"?emps[0]:st.fjEmp;
    h+=`<div class="card"><h2>Agregar un turno a mano</h2><div class="muted">Para un turno que no estaba en el horario y no se fichó (ej: Ramiro volvió de 18 a 21). Cuenta las horas que pongas.</div>
    <div class="f"><div class="two"><div><label>Empleado</label><select id="amE">${emps.map(e=>`<option ${e===e0?"selected":""}>${e}</option>`).join("")}</select></div>
@@ -836,7 +846,7 @@ window.FJ = {
   async setConfig(o) { await setDoc(doc(fs, C.config, "general"), o, { merge: true }); },
   async setPin(usuario, hash) { await setDoc(doc(fs, C.pines, usuario), { hash, actualizado: new Date().toISOString() }); },
   async pines() { const s = await getDocs(collection(fs, C.pines)); return Object.fromEntries(s.docs.map(d => [d.id, true])); },
-  async syncHorarios(lun, turnos) { await setDoc(doc(fs, C.horarios, lun), { turnos, actualizado: new Date().toISOString() }); },
+  async syncHorarios(lun, turnos) { const t = {}; for (const k in turnos) { const v = turnos[k]; t[k] = Array.isArray(v) ? v.map(([l, i, s]) => ({ l, i, s })) : v; } /* Firestore no acepta listas dentro de listas */ await setDoc(doc(fs, C.horarios, lun), { turnos: t, actualizado: new Date().toISOString() }); },
   // Código de borrado
   async clave() { return ((await getDoc(doc(fs, C.pines, CLAVE))).data() || {}).hash || null; },
   async setClave(hash) { await setDoc(doc(fs, C.pines, CLAVE), { hash, actualizado: new Date().toISOString() }); },
