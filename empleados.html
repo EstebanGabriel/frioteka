@@ -361,6 +361,12 @@ function impOpts(emp,sel){
   if(sel&&!o.find(x=>x[0]===sel))o.push([sel,sel]);
   const def=sel||(reg==="mensual"?HOY.slice(0,7):"S"+lunes(HOY));
   return o.map(([v,t])=>`<option value="${v}" ${v===def?"selected":""}>${t}</option>`).join("")}
+// Pago de sueldo: propone lo que falta pagar de esa semana o mes
+function pendPago(){const fe=$("#fe"),fi=$("#fi"),fm=$("#fm"),tx=$("#pendTxt");if(!fe||!fi||!fm||!tx)return;
+  const emp=fe.value,imp=fi.value;let L=null;try{L=imp.startsWith("S")?liqSemana(emp,imp.slice(1)):liqMes(emp,imp)}catch(e){}
+  if(!L){tx.textContent="";return}const p=Math.round(L.pend*100)/100;
+  if(p>0.005){fm.value=p.toFixed(2);tx.innerHTML=`Falta pagar <b>${fmt2(p)}</b> (a pagar ${fmt2(L.pagar!=null?L.pagar:L.saldo)} − ya pagado ${fmt2(L.pagado)}). Si le pagás otro monto, cambialo.`}
+  else{fm.value="";tx.innerHTML=`No queda nada pendiente de esa ${imp.startsWith("S")?"semana":"liquidación"}.`}}
 function empOpts(sel){return EMPS().map(e=>`<option ${e===sel?"selected":""}>${e}</option>`).join("")}
 function vCargar(){
   const pre=st.pre||{};const emp=pre.emp||st.emp;
@@ -370,12 +376,13 @@ function vCargar(){
   if(c==="adelanto"||c==="pago"){
     h+=`<h2>${c==="pago"?"Registrar un pago de sueldo":"Registrar un adelanto"}</h2>
     <label>Empleado</label><select id="fe" onchange="st.pre={emp:this.value};render()">${empOpts(emp)}</select>
-    <label>A cuenta de</label><select id="fi">${impOpts(emp,pre.imp)}</select>
-    <div class="two"><div><label>Fecha</label><input id="ff" type="date" value="${HOY}"></div><div><label>Importe</label><input id="fm" type="number" inputmode="decimal" placeholder="0"></div></div>
+    <label>A cuenta de</label><select id="fi" ${c==="pago"?`onchange="pendPago()"`:""}>${impOpts(emp,pre.imp)}</select>
+    <div class="two"><div><label>Fecha</label><input id="ff" type="date" value="${HOY}"></div><div><label>Importe</label><input id="fm" type="number" inputmode="decimal" step="0.01" placeholder="0"></div></div>
+    ${c==="pago"?`<div class="muted" id="pendTxt" style="margin-top:4px"></div>`:""}
     <div class="two"><div><label>Forma</label><select id="fo"><option value="efectivo">Efectivo</option><option value="transferencia">Transferencia</option><option value="deposito">Depósito Banco de Córdoba</option></select></div>
     <div><label>Condición</label><select id="fc"><option value="">—</option><option>blanco</option><option>negro</option></select></div></div>
     <label>Nota (opcional)</label><input id="fn">
-    <button class="btn full" style="margin-top:14px" onclick="guardarPago('${c}')">Guardar</button>`}
+    <button class="btn full" style="margin-top:14px" onclick="guardarPago('${c}')">Guardar</button>`;if(c==="pago")setTimeout(pendPago,0)}
   else if(c==="desc"||c==="compra"){
     h+=`<h2>${c==="desc"?"Descuento de cuenta corriente":"Compra o cargo a cuenta corriente"}</h2>
     <label>Empleado</label><select id="fe" onchange="st.pre={emp:this.value};render()">${empOpts(emp)}</select>
