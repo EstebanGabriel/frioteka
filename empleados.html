@@ -591,36 +591,133 @@ function fjFila(id,f,ti,loc,a,b,x,ahora){
     E2.push([`Justificado${ed.mot?": "+ed.mot:""}`,"ok"]);acc=null}
   else if(ed.mot)E2.push([`Nota: ${ed.mot}`,"info"]);
   if(ed.ent||ed.sal)E2.push(["Horario editado a mano","info"]);
+  {const nfE=ed.ent&&!(x&&x.ent),nfS=ed.sal&&!(x&&x.sal);if(nfE||nfS)E2.push([nfE&&nfS?"No fichó · se editó a mano":nfE?"No fichó la entrada · se editó a mano":"No fichó la salida · se editó a mano","warn"])}
   const hecho=acc&&acc.a==="nov"&&DB.fj.nov[key];
   const mids=[x&&x.ent,x&&x.sal].filter(Boolean).map(m=>({id:m.id,tipo:m.tipo,m:m.m}));
   return{key,id,f,loc,a,b,ent,sal,cuenta,est:E2,acc,hecho,fuera,mids,ed:!!(ed.just||ed.ent||ed.sal||ed.mot)}}
 function fjDif(real,plan,esEnt){if(real==null)return"";if(plan==null)return"";const d=real-plan;if(Math.abs(d)<1)return"a horario";
   return esEnt?(d<0?`${-d} min antes`:`${d} min tarde`):(d<0?`${-d} min antes`:`${d} min después`)}
-// Exportar la semana de un empleado (lo que se ve en Turno por turno): hoja para imprimir/PDF o Excel
-function fjExport(id,tipo){const lun=st.fjLun,FF=fjCruce(id,lun);const sem=`Semana del ${dmy(lun)} al ${dmy(addD(lun,6))}`;
-  const filas=[];let totSem=0;
-  FF.forEach((r,ix)=>{const c=(!r.fuera||r.cuenta)?r.cuenta:0;
-    filas.push({dia:`${DIAS[D(r.f).getDay()]} ${dm(r.f)}`,loc:r.loc,hor:r.a==null?"—":minHm(r.a)+"–"+minHm(r.b),ent:r.ent==null?"—":minHm(r.ent),sal:r.sal==null?"—":minHm(r.sal),cta:c?fhm(c):"—",obs:r.est.map(x=>x[0]).join(" · ")});
-    if(!FF[ix+1]||FF[ix+1].f!==r.f){const t=FF.filter(x=>x.f===r.f&&(!x.fuera||x.cuenta)).reduce((s,x)=>s+x.cuenta,0);totSem+=t;filas.push({tot:true,dia:`Total ${DIAS[D(r.f).getDay()]} ${dm(r.f)}`,cta:t?fhm(t):"—"})}});
-  const nombre=(E(id)&&E(id).nombre)||id,arch=`FICHAJE_${id.toUpperCase()}_${dm(lun).replace("/","-")}_AL_${dm(addD(lun,6)).replace("/","-")}`;
+// ===== Resumen de pago por empleado (Fichaje › recuadro del empleado) =====
+// Horas de a 30 min. Lo editado a mano queda como está. Lo que no cae en punto o y media lo decide Banchi (se guarda como editado a mano).
+// Cambios de 30 min o más respecto del horario van con su motivo.
+const NORMAS_PAGO=[
+  "Se paga los lunes la semana anterior (lunes a domingo).",
+  "La cuenta corriente de cada pago incluye las compras de lunes a domingo de esa semana, más el saldo anterior si lo hubiera."];
+const durTxt=m=>{m=Math.round(m);const h=Math.floor(m/60),r=m%60;return h&&r?`${h} h ${r} min`:h?`${h} h`:`${r} min`};
+function fjDatos(id,lun){const FF=fjCruce(id,lun);const pend=[];
+  const X=FF.map(r=>{const ed=DB.fj.ed[r.key]||{},ap=DB.fj.aprob[r.key]||0;const tip=(r.mids||[]).map(m=>m.tipo);
+    let ini=null,fin=null,obs=[];
+    if(r.man){ini=r.ent;fin=r.sal;obs.push("Agregado a mano")}
+    else if(r.fuera){if(r.cuenta){ini=r.ent;fin=r.ent+r.cuenta;obs.push("Fuera de horario")}}
+    else if(r.ent!=null&&r.sal!=null){ini=ed.ent?r.ent:Math.max(r.ent,r.a);fin=ed.sal?r.sal:Math.min(r.sal,r.b)+(ed.sal?0:ap)}
+    // horas sueltas: las decide Banchi
+    if(ini!=null&&!ed.ent&&!r.man&&ini%30)pend.push({k:"r",key:r.key,campo:"ent",f:r.f,m:ini});
+    if(fin!=null&&!ed.sal&&!r.man&&fin%30)pend.push({k:"r",key:r.key,campo:"sal",f:r.f,m:fin});
+    // cambios grandes (30 min o más) respecto del horario
+    const big=[];if(r.a!=null&&ini!=null&&fin!=null){
+      if(r.a-ini>=30)big.push(`Entró ${durTxt(r.a-ini)} antes`);if(ini-r.a>=30)big.push(`Llegó ${durTxt(ini-r.a)} tarde`);
+      if(fin-r.b>=30)big.push(`Se quedó ${durTxt(fin-r.b)} después`);if(r.b-fin>=30)big.push(`Salió ${durTxt(r.b-fin)} antes`)}
+    if(big.length&&!ed.mot&&!ed.just)pend.push({k:"m",key:r.key,f:r.f,txt:big.join(" · ")});
+    const nfE=ed.ent&&!tip.includes("entrada"),nfS=ed.sal&&!tip.includes("salida");
+    if(nfE&&nfS)obs.push("No fichó · se editó a mano");else if(nfE)obs.push("No fichó la entrada · se editó a mano");else if(nfS)obs.push("No fichó la salida · se editó a mano");
+    if(big.length)obs.push(big.join(" · ")+(ed.mot?": "+ed.mot:""));else if(ed.mot&&!ed.just)obs.push(ed.mot);
+    if(ed.just)obs.push("Justificado"+(ed.mot?": "+ed.mot:""));
+    else if(r.est.some(x=>x[0]==="Falta"))obs.push("Falta");
+    else if(!r.fuera&&!r.man&&r.ent!=null&&r.sal==null&&!ed.sal)obs.push(r.est.some(x=>x[0]==="Trabajando")?"Trabajando":"No fichó la salida");
+    const c=(ini!=null&&fin!=null)?Math.max(0,fin-ini):0;return{r,ini,fin,c,obs}}).filter(o=>!(o.r.fuera&&!o.c));
+  return{X,pend}}
+// Pantalla previa a exportar / liquidar: redondeos y motivos que faltan + período de cuenta corriente
+function fjPrevio(id,tipo){fjAseg();st.fjPrev={id,tipo};st.fjAb=st.fjAb||{};st.fjAb[id]=true;
+  const lun=st.fjLun;st.fjCC=st.fjCC||{};const ck=id+"|"+lun;if(!st.fjCC[ck])st.fjCC[ck]={desde:lun,hasta:addD(lun,6)};
+  const {pend}=fjDatos(id,lun);if(!pend.length&&tipo==="liq")return fjAplicarUno(id);render()}
+function fjPrevioCard(id){const P=st.fjPrev;if(!P||P.id!==id)return"";const {pend}=fjDatos(id,st.fjLun);const cc=(st.fjCC||{})[id+"|"+st.fjLun]||{};
+  const dd=f=>`${DIAS[D(f).getDay()]} ${dm(f)}`;
+  let h=`<div style="margin:10px;padding:12px;border:2px solid var(--pri);border-radius:12px;background:#fff">
+    <b>${P.tipo==="liq"?"Antes de pasar las horas a la liquidación":"Antes de exportar el resumen de "+id}</b>`;
+  if(pend.length)h+=`<div class="muted" style="margin:4px 0 8px">Lo que elijas queda guardado como editado a mano y no se vuelve a preguntar.</div>`;
+  pend.forEach((p,i)=>{if(p.k==="r"){const lo=Math.floor(p.m/30)*30,hi=lo+30;
+      h+=`<div style="padding:6px 0;border-top:1px solid var(--bd)">${dd(p.f)} · ${p.campo==="ent"?"entrada":"salida"} <b>${minHm(p.m)}</b> →
+      <label style="display:inline-flex;gap:4px;align-items:center;margin-right:10px"><input type="radio" name="pr_${i}" value="${minHm(lo)}" style="width:auto"> ${minHm(lo)}</label>
+      <label style="display:inline-flex;gap:4px;align-items:center"><input type="radio" name="pr_${i}" value="${minHm(hi)}" style="width:auto"> ${minHm(hi)}</label></div>`}
+    else h+=`<div style="padding:6px 0;border-top:1px solid var(--bd)">${dd(p.f)} · <b>${p.txt}</b>. ¿Por qué?<input id="pm_${i}" placeholder="Motivo (sale en el resumen)" style="margin-top:4px"></div>`});
+  if(P.tipo!=="liq")h+=`<div style="padding:8px 0;border-top:1px solid var(--bd)"><b>Cuenta corriente de este pago</b>
+    <div class="two" style="margin-top:4px"><div><label>Compras desde</label><input type="date" id="ccD" value="${cc.desde}"></div><div><label>hasta</label><input type="date" id="ccH" value="${cc.hasta}"></div></div></div>`;
+  h+=`<div class="two" style="margin-top:8px"><button class="btn" onclick="fjPrevioOk('${id}')">${P.tipo==="liq"?"Guardar y pasar horas":"Guardar y exportar"}</button><button class="btn ghost" onclick="st.fjPrev=null;render()">Cancelar</button></div></div>`;
+  return h}
+function fjPrevioOk(id){const P=st.fjPrev;const {pend}=fjDatos(id,st.fjLun);
+  for(let i=0;i<pend.length;i++){const p=pend[i];const o=DB.fj.ed[p.key]=DB.fj.ed[p.key]||{};
+    if(p.k==="r"){const v=(document.querySelector(`input[name="pr_${i}"]:checked`)||{}).value;if(!v)return toast("Elegí la hora en todos los casos");o[p.campo]=v}
+    else{const v=($("#pm_"+i).value||"").trim();if(!v)return toast("Falta el motivo de "+DIAS[D(p.f).getDay()]+" "+dm(p.f));o.mot=v}}
+  if(pend.length)save("fichaje: redondeos y motivos "+id);
+  if(P.tipo!=="liq"){const d=$("#ccD").value,h=$("#ccH").value;if(!d||!h||h<d)return toast("Revisá las fechas de la cuenta corriente");st.fjCC[id+"|"+st.fjLun]={desde:d,hasta:h}}
+  st.fjPrev=null;if(P.tipo==="liq")return fjAplicarUno(id);render();fjExport(id,P.tipo)}
+function fjAplicarUno(id){const lun=st.fjLun;const {X,pend}=fjDatos(id,lun);if(pend.some(p=>p.k==="r"))return fjPrevio(id,"liq");
+  const por={};for(let i=0;i<7;i++)por[addD(lun,i)]=0;X.forEach(o=>{por[o.r.f]=(por[o.r.f]||0)+o.c});let n=0;
+  for(const f in por){const k=id+"|"+f,d=DB.horas[k]||{};if(!por[f]&&!d.h)continue;d.h=por[f]/60;DB.horas[k]=d;n++}
+  st.fjPrev=null;save("fichaje: horas de "+id+" semana "+lun);toast(`${id}: ${n} días pasados a la liquidación`);render()}
+function fjExport(id,tipo){const lun=st.fjLun,key="S"+lun,{X,pend}=fjDatos(id,lun);
+  if(pend.length||!(st.fjCC&&st.fjCC[id+"|"+lun]))return fjPrevio(id,tipo);
+  const sem=`Semana del ${dmy(lun)} al ${dmy(addD(lun,6))}`,nombre=(E(id)&&E(id).nombre)||id;
+  const arch=`RESUMEN_PAGO_${id.toUpperCase()}_${dm(lun).replace("/","-")}_AL_${dm(addD(lun,6)).replace("/","-")}`;
+  // 1) horas
+  const filas=[];let totSem=0;const horasDia={};
+  X.forEach((o,ix)=>{const r=o.r;
+    filas.push({dia:`${DIAS[D(r.f).getDay()]} ${dm(r.f)}`,loc:r.loc,hor:r.a==null?"—":minHm(r.a)+"–"+minHm(r.b),ent:o.ini==null?"—":minHm(o.ini),sal:o.fin==null?"—":minHm(o.fin),cta:o.c?fhm(o.c):"—",obs:o.obs.join(" · ")});
+    if(!X[ix+1]||X[ix+1].r.f!==r.f){const t=X.filter(y=>y.r.f===r.f).reduce((s,y)=>s+y.c,0);totSem+=t;horasDia[r.f]=t;filas.push({tot:true,dia:`Total ${DIAS[D(r.f).getDay()]} ${dm(r.f)}`,cta:t?fhm(t):"—"})}});
+  // 2) lo que se le paga (solo los que cobran por semana)
+  const sem7=[0,1,2,3,4,5,6].map(i=>addD(lun,i));const semanal=regimen(id,lun)==="semanal";
+  const pagoDias=sem7.filter(f=>horasDia[f]).map(f=>{const h=horasDia[f]/60,hp=hsPagas(id,f,h),v=tarifa(id,f).hora;return{f,h,hp,v,imp:hp*v,fer:esFer(f)}});
+  const ganado=pagoDias.reduce((a,x)=>a+x.imp,0),tras=pagoDias.length?tarifa(id,lun).trasSem||0:0,bruto=ganado+tras;
+  // 3) cuenta corriente con detalle
+  const cc=st.fjCC[id+"|"+lun],M=movsDe(id);
+  const antes=M.filter(m=>m.tipo!=="descuento"&&m.fecha<cc.desde).reduce((a,m)=>a+m.importe,0)-M.filter(m=>m.tipo==="descuento"&&(m.imputa||"")<key).reduce((a,m)=>a+m.importe,0);
+  const compras=M.filter(m=>m.tipo!=="descuento"&&m.fecha>=cc.desde&&m.fecha<=cc.hasta).sort((a,b)=>a.fecha<b.fecha?-1:1);
+  const totComp=compras.reduce((a,m)=>a+m.importe,0),totCC=antes+totComp,desc=descImp(id,key),queda=totCC-desc;
+  // 4) adelantos de este pago
+  const adel=pagosImp(id,key,"adelanto"),totAdel=adel.reduce((a,p)=>a+p.importe,0);
+  const aPagar=bruto-desc-totAdel;
+  const esc=s=>String(s==null?"":s).replace(/&/g,"&amp;").replace(/</g,"&lt;");
   if(tipo==="xlsx"){if(!window.XLSX)return toast("No cargó la librería de Excel");
-    const aoa=[["FRIOTEKA · Culasso Izaguirre S.A.S."],[`Fichaje de ${nombre}`],[sem],[],["Día","Local","Horario","Entró","Salió","Cuenta","Qué pasó"]];
-    filas.forEach(f=>aoa.push(f.tot?["",f.dia,"","","",f.cta,""]:[f.dia,f.loc,f.hor,f.ent,f.sal,f.cta,f.obs]));
-    aoa.push([],["","TOTAL DE LA SEMANA","","","",fhm(totSem),""]);
-    const ws=XLSX.utils.aoa_to_sheet(aoa);ws["!cols"]=[{wch:12},{wch:20},{wch:13},{wch:8},{wch:8},{wch:9},{wch:60}];
-    const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,id.slice(0,30));XLSX.writeFile(wb,arch+".xlsx");return}
+    const a1=[["FRIOTEKA · Culasso Izaguirre S.A.S."],[`Resumen de pago de ${nombre}`],[sem],[],["Día","Local","Horario","Entrada","Salida","Horas","Observaciones"]];
+    filas.forEach(f=>a1.push(f.tot?["",f.dia,"","","",f.cta,""]:[f.dia,f.loc,f.hor,f.ent,f.sal,f.cta,f.obs]));a1.push([],["","TOTAL DE LA SEMANA","","","",fhm(totSem),""]);
+    const a2=[["LO QUE SE LE PAGA"]];if(semanal){a2.push(["Día","Horas","Horas que se pagan","Valor hora","Importe"]);pagoDias.forEach(x=>a2.push([`${DIAS[D(x.f).getDay()]} ${dm(x.f)}${x.fer?" (feriado)":""}`,x.h,x.hp,x.v,Math.round(x.imp*100)/100]));
+      a2.push(["Traslado","","","",tras],["TOTAL GANADO","","","",Math.round(bruto*100)/100])}else a2.push(["Cobra por mes: se liquida aparte."]);
+    a2.push([],["CUENTA CORRIENTE",`compras del ${dmy(cc.desde)} al ${dmy(cc.hasta)}`],["Saldo anterior","","","",Math.round(antes*100)/100]);
+    compras.forEach(m=>a2.push([dmy(m.fecha),m.detalle||"Compra","","",m.importe]));
+    a2.push(["Total cuenta corriente","","","",Math.round(totCC*100)/100],["Se descuenta en este pago","","","",-desc],["Saldo que queda","","","",Math.round(queda*100)/100],[],["ADELANTOS"]);
+    adel.forEach(p=>a2.push([dmy(p.fecha),FORMA[p.forma]||p.forma||"","","",-p.importe]));a2.push(["Total adelantos","","","",-totAdel],[],["TOTAL A COBRAR","","","",Math.round(aPagar*100)/100]);
+    const wb=XLSX.utils.book_new();const w1=XLSX.utils.aoa_to_sheet(a1);w1["!cols"]=[{wch:12},{wch:20},{wch:13},{wch:8},{wch:8},{wch:9},{wch:60}];
+    XLSX.utils.book_append_sheet(wb,w1,"Horas");const w2=XLSX.utils.aoa_to_sheet(a2);w2["!cols"]=[{wch:24},{wch:28},{wch:16},{wch:12},{wch:14}];XLSX.utils.book_append_sheet(wb,w2,"Pago");
+    XLSX.writeFile(wb,arch+".xlsx");return}
   const w=window.open("","_blank");if(!w)return toast("El navegador bloqueó la ventana: permití ventanas emergentes");
-  const esc=s=>String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;");
+  const $$=n=>fmt2(n);
+  const T=(rows)=>`<table class="m">${rows}</table>`;
   w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>${arch}</title><style>
-    body{font-family:Arial,sans-serif;margin:24px;color:#222}h1{font-size:18px;margin:4px 0}.sub{color:#666;font-size:12px}
-    table{border-collapse:collapse;width:100%;margin-top:14px;font-size:12px}th{background:#c2185b;color:#fff;text-align:left;padding:6px}
-    td{border-bottom:1px solid #ddd;padding:5px 6px;vertical-align:top}tr.t td{background:#f8d7e3;font-weight:bold}td.n{text-align:right;white-space:nowrap}
-    .tot{margin-top:12px;font-size:15px;text-align:right}.fir{display:flex;gap:40px;margin-top:60px;font-size:11px;color:#666}.fir div{flex:1;border-top:1px solid #444;padding-top:4px;text-align:center}
-    @media print{body{margin:10mm}}</style></head><body>
-    <div class="sub">FRIOTEKA · Culasso Izaguirre S.A.S.</div><h1>Fichaje de ${esc(nombre)}</h1><div class="sub">${sem}</div>
-    <table><tr><th>Día</th><th>Local</th><th>Horario</th><th>Entró</th><th>Salió</th><th>Cuenta</th><th>Qué pasó</th></tr>
+    body{font-family:Arial,sans-serif;margin:24px;color:#222;font-size:12px}h1{font-size:18px;margin:4px 0}h2{font-size:14px;color:#c2185b;margin:18px 0 4px;border-bottom:2px solid #c2185b;padding-bottom:3px}.sub{color:#666;font-size:12px}
+    table{border-collapse:collapse;width:100%;margin-top:6px}th{background:#c2185b;color:#fff;text-align:left;padding:5px}
+    td{border-bottom:1px solid #ddd;padding:4px 6px;vertical-align:top}tr.t td{background:#f8d7e3;font-weight:bold}td.n{text-align:right;white-space:nowrap}
+    table.m td:first-child{width:60%}tr.k td{font-weight:bold;border-top:2px solid #999}
+    .big{margin-top:14px;padding:10px;border:2px solid #c2185b;border-radius:8px;font-size:15px;display:flex;justify-content:space-between}
+    .nor{margin-top:14px;font-size:10.5px;color:#444}.nor li{margin:2px 0}
+    .fir{display:flex;gap:40px;margin-top:50px;font-size:11px;color:#666}.fir div{flex:1;border-top:1px solid #444;padding-top:4px;text-align:center}
+    @media print{body{margin:10mm}h2{break-after:avoid}}</style></head><body>
+    <div class="sub">FRIOTEKA · Culasso Izaguirre S.A.S.</div><h1>Resumen de pago · ${esc(nombre)}</h1><div class="sub">${sem}</div>
+    <h2>1. Horas trabajadas</h2>
+    <table><tr><th>Día</th><th>Local</th><th>Horario</th><th>Entrada</th><th>Salida</th><th>Horas</th><th>Observaciones</th></tr>
     ${filas.map(f=>f.tot?`<tr class="t"><td colspan="5" style="text-align:right">${f.dia}</td><td class="n">${f.cta}</td><td></td></tr>`:`<tr><td>${f.dia}</td><td>${f.loc}</td><td>${f.hor}</td><td>${f.ent}</td><td>${f.sal}</td><td class="n">${f.cta}</td><td>${esc(f.obs)}</td></tr>`).join("")}
-    </table><div class="tot">Total de la semana: <b>${fhm(totSem)}</b></div>
+    <tr class="k"><td colspan="5" style="text-align:right">Total de la semana</td><td class="n">${fhm(totSem)}</td><td></td></tr></table>
+    <h2>2. Lo que se le paga</h2>
+    ${semanal?T(pagoDias.map(x=>`<tr><td>${DIAS[D(x.f).getDay()]} ${dm(x.f)}${x.fer?" (feriado: horas dobles)":""} · ${fh(x.hp)} h × ${$$(x.v)}</td><td class="n">${$$(x.imp)}</td></tr>`).join("")+
+      (tras?`<tr><td>Traslado</td><td class="n">${$$(tras)}</td></tr>`:"")+`<tr class="k"><td>Total ganado</td><td class="n">${$$(bruto)}</td></tr>`):`<div class="sub">Cobra por mes: el sueldo se liquida aparte.</div>`}
+    <h2>3. Cuenta corriente <span class="sub">(compras del ${dmy(cc.desde)} al ${dmy(cc.hasta)})</span></h2>
+    ${T(`<tr><td>Saldo anterior${antes<0?" (a favor)":""}</td><td class="n">${$$(antes)}</td></tr>`+
+      compras.map(m=>`<tr><td>${DIAS[D(m.fecha).getDay()]} ${dmy(m.fecha)} · ${esc(m.tipo==="compra"?"Compra":m.detalle||m.tipo)}</td><td class="n">${$$(m.importe)}</td></tr>`).join("")+
+      `<tr class="k"><td>Total cuenta corriente</td><td class="n">${$$(totCC)}</td></tr><tr><td>Se descuenta en este pago</td><td class="n">− ${$$(desc)}</td></tr><tr class="k"><td>Saldo que queda para el próximo pago</td><td class="n">${$$(queda)}</td></tr>`)}
+    <h2>4. Adelantos</h2>
+    ${adel.length?T(adel.map(p=>`<tr><td>${dmy(p.fecha)} · ${esc(FORMA[p.forma]||p.forma||"")}${p.nota?" · "+esc(p.nota):""}</td><td class="n">− ${$$(p.importe)}</td></tr>`).join("")+`<tr class="k"><td>Total adelantos</td><td class="n">− ${$$(totAdel)}</td></tr>`):`<div class="sub">No hubo adelantos.</div>`}
+    <div class="big"><span>Total a cobrar = ganado − cuenta corriente descontada − adelantos</span><b>${$$(aPagar)}</b></div>
+    <div class="nor"><b>Normas</b><ol>${NORMAS_PAGO.map(n=>`<li>${n}</li>`).join("")}</ol></div>
+    <div class="sub">Con mi firma declaro haber recibido el detalle de horas, cuenta corriente y adelantos, y el pago indicado.</div>
     <div class="fir"><div>Firma</div><div>Aclaración</div><div>Fecha</div></div>
     <script>window.onload=()=>setTimeout(()=>window.print(),300)<\/script></body></html>`);w.document.close()}
 function vFichaje(){
@@ -651,7 +748,7 @@ function vFichaje(){
     const tg=[pend&&`<span class="tag warn">${pend} para revisar</span>`,n("Tarde")&&`<span class="tag warn">${n("Tarde")} tarde</span>`,n("Falta")&&`<span class="tag bad">${n("Falta")} falta</span>`,n("No fichó")&&`<span class="tag bad">${n("No fichó")} sin fichar</span>`].filter(Boolean).join(" ")||`<span class="tag ok">Todo en orden</span>`;
     h+=`<div class="card" style="padding:0;overflow:hidden;border-left:5px solid var(--pri)"><div onclick="st.fjAb['${id}']=!(${abierto?"true":"false"});if(!st.fjAb['${id}']&&st.fjEd&&st.fjEd.startsWith('${id}|'))st.fjEd=null;render()" style="cursor:pointer;padding:12px 14px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;background:var(--pri-l)">
       <b style="font-size:16px">${id}</b><span class="muted">${fhm(real)} que cuentan</span><span style="flex:1">${tg}</span><b style="color:var(--pri)">${abierto?"▲ Cerrar":"▼ Ver turnos"}</b></div>`;
-    if(abierto){h+=`<div style="padding:10px 10px 0;display:flex;gap:8px;flex-wrap:wrap"><button class="btn sec sm" onclick="fjExport('${id}','pdf')">Imprimir / PDF de ${id}</button><button class="btn sec sm" onclick="fjExport('${id}','xlsx')">Excel de ${id}</button></div>`;
+    if(abierto){h+=`<div style="padding:10px 10px 0;display:flex;gap:8px;flex-wrap:wrap"><button class="btn sec sm" onclick="fjExport('${id}','pdf')">Resumen de pago de ${id} (PDF)</button><button class="btn sec sm" onclick="fjExport('${id}','xlsx')">Excel</button><button class="btn ghost sm" onclick="fjPrevio('${id}','liq')">Pasar horas de ${id} a la liquidación</button></div>${fjPrevioCard(id)}`;
     h+=`<div class="scroll" style="padding:0 10px 10px"><table><tr><th>Día</th><th>Local</th><th>Horario</th><th>Entró</th><th>Salió</th><th>Cuenta</th><th>Qué pasó</th><th></th></tr>`;
     FF.forEach((r,ix)=>{
     const btn=!r.acc?"":r.hecho?`<span class="tag ok">En novedades ✓</span>`:r.acc.a==="corr"?`<input id="c_${r.key.replace(/\W/g,"_")}" type="time" style="width:110px"><button class="btn sm" onclick="fjCorregir('${r.key}')">Guardar</button>`:`<button class="btn sm" onclick="fjAccion('${r.key}')">${r.acc.t}</button>`;
@@ -756,10 +853,13 @@ function fjEditar(key,quitar){fjAseg();const kk=key.replace(/\W/g,"_");
   if(Object.keys(o).length)DB.fj.ed[key]=o;else delete DB.fj.ed[key];
   st.fjEd=null;save("fichaje: editado "+key);toast("Guardado");render()}
 function fjCorregir(key){const v=$("#c_"+key.replace(/\W/g,"_")).value;if(!v)return toast("Poné la hora de salida");DB.fj.corr[key]=v;save("fichaje: salida corregida "+key);toast("Salida corregida");render()}
-function fjAplicar(){const lun=st.fjLun;let n=0;
-  if(!confirm("¿Pasar las horas del fichaje a la ficha de cada empleado para esta semana? Reemplaza las horas cargadas a mano de esos días."))return;
-  EMPS().filter(id=>!(E(id)||{}).hsSemana&&id!=="Gonzalo").forEach(id=>{const por={};fjCruce(id,lun).forEach(r=>{if(r.a!=null||r.cuenta)por[r.f]=(por[r.f]||0)+r.cuenta});
-    for(const f in por){const k=id+"|"+f,d=DB.horas[k]||{};d.h=Math.round(por[f]/60*100)/100;DB.horas[k]=d;n++}});
+function fjAplicar(){const lun=st.fjLun;
+  const ids=EMPS().filter(id=>!(E(id)||{}).hsSemana&&id!=="Gonzalo");
+  const falta=ids.find(id=>fjDatos(id,lun).pend.some(p=>p.k==="r"));
+  if(falta){toast(`Primero decidí el redondeo de ${falta}`);return fjPrevio(falta,"liq")}
+  if(!confirm("¿Pasar las horas del fichaje (de a 30 min) a la ficha de cada empleado para esta semana? Reemplaza las horas cargadas a mano de esos días."))return;
+  let n=0;ids.forEach(id=>{const {X}=fjDatos(id,lun);const por={};X.forEach(o=>{if(o.r.a!=null||o.c)por[o.r.f]=(por[o.r.f]||0)+o.c});
+    for(const f in por){const k=id+"|"+f,d=DB.horas[k]||{};d.h=por[f]/60;DB.horas[k]=d;n++}});
   save("fichaje: horas semana "+lun);toast(n+" días actualizados");render()}
 function fjConfigCard(){const cfg=FJC.cfg||{},L=cfg.locales||{},U=cfg.usuarios||{},P=FJC.pines||{};
   const ll=k=>L[k]&&L[k].lat!=null?`${L[k].lat}, ${L[k].lng}`:"";
