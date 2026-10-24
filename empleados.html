@@ -596,6 +596,33 @@ function fjFila(id,f,ti,loc,a,b,x,ahora){
   return{key,id,f,loc,a,b,ent,sal,cuenta,est:E2,acc,hecho,fuera,mids,ed:!!(ed.just||ed.ent||ed.sal||ed.mot)}}
 function fjDif(real,plan,esEnt){if(real==null)return"";if(plan==null)return"";const d=real-plan;if(Math.abs(d)<1)return"a horario";
   return esEnt?(d<0?`${-d} min antes`:`${d} min tarde`):(d<0?`${-d} min antes`:`${d} min después`)}
+// Exportar la semana de un empleado (lo que se ve en Turno por turno): hoja para imprimir/PDF o Excel
+function fjExport(id,tipo){const lun=st.fjLun,FF=fjCruce(id,lun);const sem=`Semana del ${dmy(lun)} al ${dmy(addD(lun,6))}`;
+  const filas=[];let totSem=0;
+  FF.forEach((r,ix)=>{const c=(!r.fuera||r.cuenta)?r.cuenta:0;
+    filas.push({dia:`${DIAS[D(r.f).getDay()]} ${dm(r.f)}`,loc:r.loc,hor:r.a==null?"—":minHm(r.a)+"–"+minHm(r.b),ent:r.ent==null?"—":minHm(r.ent),sal:r.sal==null?"—":minHm(r.sal),cta:c?fhm(c):"—",obs:r.est.map(x=>x[0]).join(" · ")});
+    if(!FF[ix+1]||FF[ix+1].f!==r.f){const t=FF.filter(x=>x.f===r.f&&(!x.fuera||x.cuenta)).reduce((s,x)=>s+x.cuenta,0);totSem+=t;filas.push({tot:true,dia:`Total ${DIAS[D(r.f).getDay()]} ${dm(r.f)}`,cta:t?fhm(t):"—"})}});
+  const nombre=(E(id)&&E(id).nombre)||id,arch=`FICHAJE_${id.toUpperCase()}_${dm(lun).replace("/","-")}_AL_${dm(addD(lun,6)).replace("/","-")}`;
+  if(tipo==="xlsx"){if(!window.XLSX)return toast("No cargó la librería de Excel");
+    const aoa=[["FRIOTEKA · Culasso Izaguirre S.A.S."],[`Fichaje de ${nombre}`],[sem],[],["Día","Local","Horario","Entró","Salió","Cuenta","Qué pasó"]];
+    filas.forEach(f=>aoa.push(f.tot?["",f.dia,"","","",f.cta,""]:[f.dia,f.loc,f.hor,f.ent,f.sal,f.cta,f.obs]));
+    aoa.push([],["","TOTAL DE LA SEMANA","","","",fhm(totSem),""]);
+    const ws=XLSX.utils.aoa_to_sheet(aoa);ws["!cols"]=[{wch:12},{wch:20},{wch:13},{wch:8},{wch:8},{wch:9},{wch:60}];
+    const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,id.slice(0,30));XLSX.writeFile(wb,arch+".xlsx");return}
+  const w=window.open("","_blank");if(!w)return toast("El navegador bloqueó la ventana: permití ventanas emergentes");
+  const esc=s=>String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;");
+  w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>${arch}</title><style>
+    body{font-family:Arial,sans-serif;margin:24px;color:#222}h1{font-size:18px;margin:4px 0}.sub{color:#666;font-size:12px}
+    table{border-collapse:collapse;width:100%;margin-top:14px;font-size:12px}th{background:#c2185b;color:#fff;text-align:left;padding:6px}
+    td{border-bottom:1px solid #ddd;padding:5px 6px;vertical-align:top}tr.t td{background:#f8d7e3;font-weight:bold}td.n{text-align:right;white-space:nowrap}
+    .tot{margin-top:12px;font-size:15px;text-align:right}.fir{display:flex;gap:40px;margin-top:60px;font-size:11px;color:#666}.fir div{flex:1;border-top:1px solid #444;padding-top:4px;text-align:center}
+    @media print{body{margin:10mm}}</style></head><body>
+    <div class="sub">FRIOTEKA · Culasso Izaguirre S.A.S.</div><h1>Fichaje de ${esc(nombre)}</h1><div class="sub">${sem}</div>
+    <table><tr><th>Día</th><th>Local</th><th>Horario</th><th>Entró</th><th>Salió</th><th>Cuenta</th><th>Qué pasó</th></tr>
+    ${filas.map(f=>f.tot?`<tr class="t"><td colspan="5" style="text-align:right">${f.dia}</td><td class="n">${f.cta}</td><td></td></tr>`:`<tr><td>${f.dia}</td><td>${f.loc}</td><td>${f.hor}</td><td>${f.ent}</td><td>${f.sal}</td><td class="n">${f.cta}</td><td>${esc(f.obs)}</td></tr>`).join("")}
+    </table><div class="tot">Total de la semana: <b>${fhm(totSem)}</b></div>
+    <div class="fir"><div>Firma</div><div>Aclaración</div><div>Fecha</div></div>
+    <script>window.onload=()=>setTimeout(()=>window.print(),300)<\/script></body></html>`);w.document.close()}
 function vFichaje(){
   fjAseg();if(!st.fjLun)st.fjLun=lunes(HOY);if(!st.fjEmp)st.fjEmp="todos";const lun=st.fjLun;
   let h=`<div class="per"><button class="btn sec sm" onclick="st.fjLun=addD(st.fjLun,-7);render()">◀</button><b>Semana ${dm(lun)} al ${dm(addD(lun,6))}</b><button class="btn sec sm" onclick="st.fjLun=addD(st.fjLun,7);render()">▶</button></div>
@@ -624,7 +651,8 @@ function vFichaje(){
     const tg=[pend&&`<span class="tag warn">${pend} para revisar</span>`,n("Tarde")&&`<span class="tag warn">${n("Tarde")} tarde</span>`,n("Falta")&&`<span class="tag bad">${n("Falta")} falta</span>`,n("No fichó")&&`<span class="tag bad">${n("No fichó")} sin fichar</span>`].filter(Boolean).join(" ")||`<span class="tag ok">Todo en orden</span>`;
     h+=`<div class="card" style="padding:0;overflow:hidden;border-left:5px solid var(--pri)"><div onclick="st.fjAb['${id}']=!(${abierto?"true":"false"});if(!st.fjAb['${id}']&&st.fjEd&&st.fjEd.startsWith('${id}|'))st.fjEd=null;render()" style="cursor:pointer;padding:12px 14px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;background:var(--pri-l)">
       <b style="font-size:16px">${id}</b><span class="muted">${fhm(real)} que cuentan</span><span style="flex:1">${tg}</span><b style="color:var(--pri)">${abierto?"▲ Cerrar":"▼ Ver turnos"}</b></div>`;
-    if(abierto){h+=`<div class="scroll" style="padding:0 10px 10px"><table><tr><th>Día</th><th>Local</th><th>Horario</th><th>Entró</th><th>Salió</th><th>Cuenta</th><th>Qué pasó</th><th></th></tr>`;
+    if(abierto){h+=`<div style="padding:10px 10px 0;display:flex;gap:8px;flex-wrap:wrap"><button class="btn sec sm" onclick="fjExport('${id}','pdf')">Imprimir / PDF de ${id}</button><button class="btn sec sm" onclick="fjExport('${id}','xlsx')">Excel de ${id}</button></div>`;
+    h+=`<div class="scroll" style="padding:0 10px 10px"><table><tr><th>Día</th><th>Local</th><th>Horario</th><th>Entró</th><th>Salió</th><th>Cuenta</th><th>Qué pasó</th><th></th></tr>`;
     FF.forEach((r,ix)=>{
     const btn=!r.acc?"":r.hecho?`<span class="tag ok">En novedades ✓</span>`:r.acc.a==="corr"?`<input id="c_${r.key.replace(/\W/g,"_")}" type="time" style="width:110px"><button class="btn sm" onclick="fjCorregir('${r.key}')">Guardar</button>`:`<button class="btn sm" onclick="fjAccion('${r.key}')">${r.acc.t}</button>`;
     const kk=r.key.replace(/\W/g,"_");
