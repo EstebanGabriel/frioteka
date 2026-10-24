@@ -240,7 +240,7 @@ select optgroup{font-style:normal}
     <div class="panel exp">
       <h2 class="sub">Exportar mes a Excel</h2>
       <div class="actions"><input type="month" id="eMes" aria-label="Mes a exportar"><button type="button" class="btn" id="eBtn">Exportar mes</button></div>
-      <p class="hint">Baja ELABORACIONES_AAAA-MM.xlsx con las hojas PRODUCCIÓN y RESUMEN DEL MES. Todo sin IVA. Guardalo en TODO CLAUDE › ELABORACIONES.</p>
+      <p class="hint">Baja ELABORACIONES_AAAA-MM.xlsx con las hojas PRODUCCIÓN y RESUMEN DEL MES. Costos con IVA (precio pagado final), mano de obra sin IVA, venta sin IVA. Guardalo en TODO CLAUDE › ELABORACIONES.</p>
       <div id="eMsg"></div>
     </div>
     <div class="list" id="histList"></div>
@@ -292,9 +292,12 @@ var CODIGOS = {'Salame de Milán':['1008','1028'],'Jamón cocido':['1005','1025'
  'Queso cremoso Santa María':['1035','1035'],'Queso sardo':['1071','1071'],'Queso por salut':['1075','1075'],'Queso pategrás':['1076','1076'],'Queso romano':['1072','1072'],'Queso azul':['1097','1097'],'Mozzarella':['1094','1094'],'Ricota':['1083','1083'],'Queso cremoso Punta de Agua':['1017','1017'],
  'Pizzita Especial':['90-47','90-47'],'Pizzita Muzza':['90-45','90-45'],'Pizzita Queso Azul':['90-46','90-46'],'Pizzita Fugazza':['','']};
 function codigoOf(e){ var c=CODIGOS[e.producto]; return c?(e.canal==='may'?c[1]:c[0]):''; }
+// Criterio de costos (igual que TOGO): precio pagado final (con IVA) para materia prima, bolsas y film; la mano de obra y la amortización van sin IVA; la venta va sin IVA.
 // Costo de referencia del Excel: vacío = costo total $/kg (precio local / 1,6); pizzita = costo total $/u; quesos no tienen costo total en el Excel.
 function refCosto(p){
-  if(VAC[p]) return {v:VAC[p].min/MARKUP_LOCAL, u:'kg'};
+  if(VAC[p]){ // costo total $/kg del Excel (sin IVA) pasado a criterio TOGO (con IVA) y ajustado al precio de compra vigente, para que la alerta mida merma y tiempo y no el cambio de precio
+    var d=VAC[p], base=d.min/MARKUP_LOCAL*1.21, adj=(d.compraRef!=null)?(d.compra-d.compraRef*1.21)/(1-d.merma/100):0;
+    return {v:base+adj, u:'kg'}; }
   if(PIZ[p]) return {v:PIZ[p].ing+PIZ_ENV+PIZ_MIN_REF*HORA/60, u:'unidad'};
   return null;
 }
@@ -334,9 +337,10 @@ function detalleDe(e){
   if(!piz) ln(e.tipo==='queso'?(e.canal==='min'?'Porciones hechas':'Cuartos / mitades'):'Bolsas hechas',fmt(e.unidades));
   ln('Minutos',fmt(e.minutos,0)+' ('+money(e.cMO)+')');
   if(e.nota) ln('Nota',e.nota);
-  d.appendChild(el('p','sub','Cómo salió la cuenta (sin IVA, precios vigentes)'));
+  d.appendChild(el('p','sub','Cómo salió la cuenta (costos con IVA, venta sin IVA, precios vigentes)'));
   if(!piz) ln('Precio de venta por kg',money(e.precioKg)); else ln('Precio de venta por unidad',money(e.precioKg));
   ln('Venta posible',money(e.venta)+(piz?'':'  ('+fmt(kf,3)+' kg × '+money(e.precioKg)+')'));
+  var dm=VAC[e.producto]||QUE[e.producto]; if(dm&&dm.fuente) ln('Precio de compra por kg',money(dm.compra)+' con IVA');
   ln('Materia prima',money(e.cMat)); ln('Bolsas / film',money(e.cEnv)); ln('Amortización',money(e.cAmort)); ln('Mano de obra',money(e.cMO));
   ln('Costo total',money(e.costo)); ln('Resultado',money(e.resultado));
   var rr=rareDe(e); if(rr.length) d.appendChild(el('div','msg warn','Dato raro: '+rr.join(' · ')+'. Revisá si se cargó bien; si no, eliminala y cargala de nuevo.'));
@@ -433,7 +437,7 @@ function liveBox(box,o,unitLbl,minLbl){
 }
 function renderPLive(){
   var o=calcPiz(), box=$('pLive'); box.textContent='';
-  var c=[['Costo por unidad',o.costo!=null?money(o.costo/o.unidades):'—','sin IVA, con tu tiempo'],['Min por pizzita',o.minUnidad!=null?fmt(o.minUnidad,2):'—','Actual 4,7 · objetivo 2,35'],['Resultado',o.resultado!=null?money(o.resultado):'—',o.resultado!=null?'si se vende todo':'completá los datos']];
+  var c=[['Costo por unidad',o.costo!=null?money(o.costo/o.unidades):'—','con IVA, más tu tiempo sin IVA'],['Min por pizzita',o.minUnidad!=null?fmt(o.minUnidad,2):'—','Actual 4,7 · objetivo 2,35'],['Resultado',o.resultado!=null?money(o.resultado):'—',o.resultado!=null?'si se vende todo':'completá los datos']];
   c.forEach(function(x,i){ var s=el('div','stat'+(i===2?' res':'')); s.appendChild(el('span',null,x[0])); s.appendChild(el('b',i===2&&o.resultado!=null?(o.resultado>=0?'pos':'neg'):null,x[1])); s.appendChild(el('em',null,x[2])); box.appendChild(s); });
 }
 function renderVLive(){ liveBox($('vLive'),calcVac(),'bolsa'); }
@@ -557,7 +561,7 @@ function renderDia(){
   box.appendChild(el('div',T.res>=0?'msg ok':'msg bad',T.res>=0?'Lo elaborado rinde: cubre el pago del empleado y deja '+money(T.res)+'.':'Lo elaborado no rinde: la venta no cubre el costo. Faltan '+money(-T.res)+'.'));
   var lines=el('div'); [['Materia prima',T.mat],['Bolsas y film',T.env],['Amortización de máquinas',T.am],['Mano de obra',T.mo],['Ganancia antes del empleado',antes]].forEach(function(x){ var l=el('div','line'); l.appendChild(el('span',null,x[0])); l.appendChild(el('b',null,money(x[1]))); lines.appendChild(l); });
   box.appendChild(lines);
-  box.appendChild(el('p','hint','Todo sin IVA. Se vende a precio minorista; cuartos, mitades y bolsas por mayor van a precio mayorista. No cuenta lo que recuperás reutilizando la merma. En pizzitas no se incluye amortización de la envasadora.'));
+  box.appendChild(el('p','hint','Costos con IVA (precio pagado final); mano de obra y venta sin IVA. Se vende a precio minorista; cuartos, mitades y bolsas por mayor van a precio mayorista. No cuenta lo que recuperás reutilizando la merma. En pizzitas no se incluye amortización de la envasadora.'));
   xs.slice().sort(function(a,b){return (a.creado||0)-(b.creado||0)}).forEach(function(e){
     var r=el('div','row'), l=el('div','l'); l.appendChild(el('strong',null,e.producto+' · '+unitsOf(e)+ulabel(e)));
     var sm=el('small',null,'venta '+money(e.venta)+' · costo '+money(e.costo)+' · empleado '+money(e.cMO)+' · '+(e.canal==='may'?'mayorista':'minorista')); tagsFor(e,sm); l.appendChild(sm);
@@ -614,7 +618,7 @@ function renderControl(){
     if(r.mermaReal!=null){ var a=el('div'); a.appendChild(el('small',null,'Merma real / calculada')); a.appendChild(el('b',null,fmt(r.mermaReal,1)+' % / '+fmt(r.mermaRef,1)+' %')); g.appendChild(a); }
     var b=el('div'); b.appendChild(el('small',null,'Tiempo real / calculado ('+r.unidad+')')); b.appendChild(el('b',null,(r.minReal!=null?fmt(r.minReal,2):'—')+' / '+(r.minRef?fmt(r.minRef,2):'—'))); g.appendChild(b);
     card.appendChild(g);
-    if(r.costoReal!=null){ var c2=el('div'); c2.appendChild(el('small',null,'Costo real / Excel ($ por '+r.costoU+', sin IVA)')); c2.appendChild(el('b',null,money(r.costoReal)+' / '+(r.costoRef?money(r.costoRef):'—'))); g.appendChild(c2); }
+    if(r.costoReal!=null){ var c2=el('div'); c2.appendChild(el('small',null,'Costo real / Excel ($ por '+r.costoU+', con IVA)')); c2.appendChild(el('b',null,money(r.costoReal)+' / '+(r.costoRef?money(r.costoRef):'—'))); g.appendChild(c2); }
     var av=[]; if(r.mermaReal!=null&&r.mermaRef>0&&r.mermaReal>r.mermaRef*(1+ALERTA)) av.push('Merma'); if(r.costoReal!=null&&r.costoRef&&r.costoReal>r.costoRef*(1+ALERTA)) av.push('Costo');
     if(av.length) card.appendChild(el('div','msg warn',av.join(' y ')+' arriba de lo que dice el Excel en más de 5 %. Para tenerlo en cuenta cuando actualices el Excel.'));
     if(r.n<3) card.appendChild(el('p','hint','Pocas cargas: tomalo como orientativo.'));
@@ -693,7 +697,7 @@ async function exportarMes(){
     function head(ws,r,cols){ var row=ws.getRow(r); cols.forEach(function(c,i){ var x=row.getCell(i+1); x.value=c; x.fill=HF; x.font=WH; x.alignment={wrapText:true,horizontal:'center',vertical:'middle'}; }); row.height=46; }
     // PRODUCCIÓN
     var ws=wb.addWorksheet('PRODUCCIÓN'); 
-    ws.getCell('A1').value='PRODUCCIÓN '+mes+' — todo sin IVA. Costos con los precios y tiempos vigentes del Excel de costos.'; ws.getCell('A1').font={bold:true,size:12};
+    ws.getCell('A1').value='PRODUCCIÓN '+mes+' — costos con IVA (precio pagado final), mano de obra sin IVA. Precios de compra: último pagado en COSTOS_MATERIA_PRIMA_TOGO.xlsx.'; ws.getCell('A1').font={bold:true,size:12};
     head(ws,3,['Fecha','Producto','Código','Pieza o lote','Kg de entrada','Kg envasados','Merma (kg)','Merma (%)','Bolsas usadas (quesos: film = porciones o cuartos; pizzitas: unidades)','Costo materia prima ($)','Costo bolsas / film ($)','Amortización ($)','Mano de obra ($)','Costo total ($)','Costo por kg envasado ($)','Costo por unidad — pizzitas ($)','Alertas (>5 % sobre el Excel)']);
     rows.forEach(function(r,i){ var row=ws.getRow(4+i); r.vals.forEach(function(v,j){ var c=row.getCell(j+1); c.value=v; }); 
       [5,6,7].forEach(function(j){ row.getCell(j).numFmt='#,##0.000'; }); row.getCell(8).numFmt='0.0"%"'; [10,11,12,13,14,15,16].forEach(function(j){ row.getCell(j).numFmt=MONEY; });
@@ -703,7 +707,7 @@ async function exportarMes(){
     [18,26,9,24,11,11,10,10,16,14,14,14,14,14,15,15,46].forEach(function(w,i){ ws.getColumn(i+1).width=w; }); ws.views=[{state:'frozen',xSplit:2,ySplit:3}];
     // RESUMEN
     var rs=wb.addWorksheet('RESUMEN DEL MES');
-    rs.getCell('A1').value='RESUMEN DEL MES '+mes+' — costo real contra el Excel de costos (TOGO_Costos.xlsx), sin IVA'; rs.getCell('A1').font={bold:true,size:12};
+    rs.getCell('A1').value='RESUMEN DEL MES '+mes+' — costo real contra el Excel de costos (TOGO_Costos.xlsx), costos con IVA'; rs.getCell('A1').font={bold:true,size:12};
     head(rs,3,['Producto','Tipo','Elaboraciones','Kg producidos (envasados)','Unidades (bolsas / porciones / pizzitas)','Merma promedio (%)','Merma según Excel (%)','Merma: diferencia relativa','Costo real','Costo según Excel','Unidad del costo','Costo: diferencia %','Alerta (>5 %)']);
     var rr=resumenRows(rows);
     rr.forEach(function(v,i){ var row=rs.getRow(4+i); v.forEach(function(x,j){ row.getCell(j+1).value=x; });
@@ -739,7 +743,7 @@ async function bajarRevision(){
     if(!L.length){ m.appendChild(el('div','msg warn','Todavía no hay cargas para comparar.')); b.disabled=false; return; }
     var X=await loadExcelJS(), wb=new X.Workbook(), ws=wb.addWorksheet('QUÉ ACTUALIZAR');
     var HF={type:'pattern',pattern:'solid',fgColor:{argb:'FF6A2FC0'}}, WH={bold:true,color:{argb:'FFFFFFFF'}}, AM={type:'pattern',pattern:'solid',fgColor:{argb:'FFFDE7C8'}}, MONEY='$ #,##0';
-    ws.getCell('A1').value='QUÉ ACTUALIZAR EN TOGO_Costos.xlsx — '+new Date().toLocaleDateString('es-AR')+' — sin IVA'; ws.getCell('A1').font={bold:true,size:12};
+    ws.getCell('A1').value='QUÉ ACTUALIZAR EN TOGO_Costos.xlsx — '+new Date().toLocaleDateString('es-AR')+' — costos con IVA'; ws.getCell('A1').font={bold:true,size:12};
     ws.getCell('A2').value='Real = promedio de todas las cargas de la app'+(excl?' ('+excl+' carga(s) con “Dato raro” excluida(s))':'')+'. Se sugiere cambiar solo si hay 3 o más cargas y la diferencia pasa 5 %. Los costos reales usan los precios de compra vigentes.'; ws.getCell('A2').font={italic:true,color:{argb:'FF625A78'}};
     var H=['Producto','Tipo','Cargas','Merma real (%)','Merma en el Excel (%)','Merma: diferencia','Tiempo real','Tiempo en el Excel','Unidad del tiempo','Tiempo: diferencia','Costo real','Costo en el Excel','Unidad del costo','Costo: diferencia','Qué conviene hacer'];
     H.forEach(function(h,i){ var c=ws.getRow(4).getCell(i+1); c.value=h; c.fill=HF; c.font=WH; c.alignment={wrapText:true,horizontal:'center',vertical:'middle'}; }); ws.getRow(4).height=40;
