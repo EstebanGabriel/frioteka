@@ -742,7 +742,7 @@ function fjExport(id,tipo,pre){const lun=st.fjLun,key="S"+lun,{X,pend}=fjDatos(i
     const a2=[["LO QUE SE LE PAGA"]];if(semanal){a2.push(["Día","Horas","Horas que se pagan","Valor hora","Importe"]);pagoDias.forEach(x=>a2.push([`${DIAS[D(x.f).getDay()]} ${dm(x.f)}${x.fer?" (feriado)":""}`,x.h,x.hp,x.v,Math.round(x.imp*100)/100]));
       a2.push(["Traslado","","","",tras],["TOTAL GANADO","","","",Math.round(bruto*100)/100])}else a2.push(["Cobra por mes: se liquida aparte."]);
     a2.push([],["CUENTA CORRIENTE",`compras del ${dmy(cc.desde)} al ${dmy(cc.hasta)}`],["Saldo anterior","","","",Math.round(antes*100)/100]);
-    compras.forEach(m=>a2.push([dmy(m.fecha),m.detalle||"Compra","","",m.importe]));
+    a2.push([`Compras del período (${compras.length})`,"","","",Math.round(totComp*100)/100]);
     a2.push(["Total cuenta corriente","","","",Math.round(totCC*100)/100],["Se descuenta en este pago","","","",-desc],["Saldo que queda","","","",Math.round(queda*100)/100],[],["ADELANTOS"]);
     adel.forEach(p=>a2.push([dmy(p.fecha),FORMA[p.forma]||p.forma||"","","",-p.importe]));a2.push(["Total adelantos","","","",-totAdel],[],["TOTAL A COBRAR","","","",Math.round(aPagar*100)/100]);
     const wb=XLSX.utils.book_new();const w1=XLSX.utils.aoa_to_sheet(a1);w1["!cols"]=[{wch:12},{wch:20},{wch:13},{wch:8},{wch:8},{wch:9},{wch:60}];
@@ -770,7 +770,7 @@ function fjExport(id,tipo,pre){const lun=st.fjLun,key="S"+lun,{X,pend}=fjDatos(i
       (tras?`<tr><td>Traslado</td><td class="n">${$$(tras)}</td></tr>`:"")+`<tr class="k"><td>Total ganado</td><td class="n">${$$(bruto)}</td></tr>`):`<div class="sub">Cobra por mes: el sueldo se liquida aparte.</div>`}
     <h2>3. Cuenta corriente <span class="sub">(compras del ${dmy(cc.desde)} al ${dmy(cc.hasta)})</span></h2>
     ${T(`<tr><td>Saldo anterior${antes<0?" (a favor)":""}</td><td class="n">${$$(antes)}</td></tr>`+
-      compras.map(m=>`<tr><td>${DIAS[D(m.fecha).getDay()]} ${dmy(m.fecha)} · ${esc(m.tipo==="compra"?"Compra":m.detalle||m.tipo)}</td><td class="n">${$$(m.importe)}</td></tr>`).join("")+
+      `<tr><td>Compras del período (${compras.length})</td><td class="n">${$$(totComp)}</td></tr>`+
       `<tr class="k"><td>Total cuenta corriente</td><td class="n">${$$(totCC)}</td></tr><tr><td>Se descuenta en este pago</td><td class="n">− ${$$(desc)}</td></tr><tr class="k"><td>Saldo que queda para el próximo pago</td><td class="n">${$$(queda)}</td></tr>`)}
     <h2>4. Adelantos</h2>
     ${adel.length?T(adel.map(p=>`<tr><td>${dmy(p.fecha)} · ${esc(FORMA[p.forma]||p.forma||"")}${p.nota?" · "+esc(p.nota):""}</td><td class="n">− ${$$(p.importe)}</td></tr>`).join("")+`<tr class="k"><td>Total adelantos</td><td class="n">− ${$$(totAdel)}</td></tr>`):`<div class="sub">No hubo adelantos.</div>`}
