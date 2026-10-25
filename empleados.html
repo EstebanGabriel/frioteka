@@ -752,14 +752,14 @@ function fjExport(id,tipo,pre){const lun=st.fjLun,key="S"+lun,{X,pend}=fjDatos(i
   const $$=n=>fmt2(n);
   const T=(rows)=>`<table class="m">${rows}</table>`;
   w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>${arch}</title><style>
-    body{font-family:Arial,sans-serif;margin:24px;color:#222;font-size:12px}h1{font-size:18px;margin:4px 0}h2{font-size:14px;color:#c2185b;margin:18px 0 4px;border-bottom:2px solid #c2185b;padding-bottom:3px}.sub{color:#666;font-size:12px}
+    body{font-family:Arial,sans-serif;margin:16px;color:#222;font-size:11px}h1{font-size:18px;margin:4px 0}h2{font-size:14px;color:#c2185b;margin:18px 0 4px;border-bottom:2px solid #c2185b;padding-bottom:3px}.sub{color:#666;font-size:12px}
     table{border-collapse:collapse;width:100%;margin-top:6px}th{background:#c2185b;color:#fff;text-align:left;padding:5px}
     td{border-bottom:1px solid #ddd;padding:4px 6px;vertical-align:top}tr.t td{background:#f8d7e3;font-weight:bold}td.n{text-align:right;white-space:nowrap}
     table.m td:first-child{width:60%}tr.k td{font-weight:bold;border-top:2px solid #999}
     .big{margin-top:14px;padding:10px;border:2px solid #c2185b;border-radius:8px;font-size:15px;display:flex;justify-content:space-between}
     .nor{margin-top:14px;font-size:10.5px;color:#444}.nor li{margin:2px 0}
     .fir{display:flex;gap:40px;margin-top:50px;font-size:11px;color:#666}.fir div{flex:1;border-top:1px solid #444;padding-top:4px;text-align:center}
-    @media print{body{margin:10mm}h2{break-after:avoid}}</style></head><body>
+    @page{size:A4;margin:8mm}@media print{body{margin:0}h2{break-after:avoid}}</style></head><body>
     <div class="sub">FRIOTEKA · Culasso Izaguirre S.A.S.</div><h1>Resumen de pago · ${esc(nombre)}</h1><div class="sub">${sem}</div>
     <h2>1. Horas trabajadas y lo que se le paga</h2>
     <table><tr><th>Día</th><th>Local</th><th>Horario</th><th>Entrada</th><th>Salida</th><th>Horas</th>${semanal?"<th>Importe</th>":""}<th>Observaciones</th></tr>
@@ -780,7 +780,7 @@ function fjExport(id,tipo,pre){const lun=st.fjLun,key="S"+lun,{X,pend}=fjDatos(i
     <div class="nor"><b>Normas</b><ol>${NORMAS_PAGO.map(n=>`<li>${n}</li>`).join("")}</ol></div>
     <div class="sub">Con mi firma declaro haber recibido el detalle de horas, cuenta corriente y adelantos, y el pago indicado.</div>
     <div class="fir"><div>Firma</div><div>Aclaración</div><div>Fecha</div></div>
-    <script>window.onload=()=>setTimeout(()=>window.print(),300)<\/script></body></html>`);w.document.close()}
+    <script>window.onload=()=>{const W=document.body;W.style.width="194mm";const alto=Math.floor(279*96/25.4);let z=1;for(let i=0;i<8;i++){const h=W.getBoundingClientRect().height+16;if(h<=alto)break;z=z*alto/h*0.97;W.style.zoom=z.toFixed(3)}setTimeout(()=>window.print(),300)}<\/script></body></html>`);w.document.close()}
 function vFichaje(){
   fjAseg();if(!st.fjLun)st.fjLun=lunes(HOY);if(!st.fjEmp)st.fjEmp="todos";const lun=st.fjLun;
   let h=`<div class="per"><button class="btn sec sm" onclick="st.fjLun=addD(st.fjLun,-7);render()">◀</button><b>Semana ${dm(lun)} al ${dm(addD(lun,6))}</b><button class="btn sec sm" onclick="st.fjLun=addD(st.fjLun,7);render()">▶</button></div>
