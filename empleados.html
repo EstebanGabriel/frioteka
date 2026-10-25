@@ -661,9 +661,9 @@ function fjDatos(id,lun){const FF=fjCruce(id,lun);const pend=[];
     if(ini!=null&&!ed.ent&&!r.man&&ini%30)pend.push({k:"r",key:r.key,campo:"ent",f:r.f,m:ini});
     if(fin!=null&&!ed.sal&&!r.man&&fin%30)pend.push({k:"r",key:r.key,campo:"sal",f:r.f,m:fin});
     // cambios grandes (30 min o más) respecto del horario
-    const big=[];if(r.a!=null&&ini!=null&&fin!=null){
-      if(r.a-ini>=30)big.push(`Entró ${durTxt(r.a-ini)} antes`);if(ini-r.a>=30)big.push(`Llegó ${durTxt(ini-r.a)} tarde`);
-      if(fin-r.b>=30)big.push(`Se quedó ${durTxt(fin-r.b)} después`);if(r.b-fin>=30)big.push(`Salió ${durTxt(r.b-fin)} antes`)}
+    const big=[];if(r.a!=null&&ini!=null&&fin!=null){const RD=ed.red||{};const iB=RD.ent!=null?RD.ent:ini,fB=RD.sal!=null?RD.sal:fin; // si fue un redondeo, se compara con la hora real
+      if(r.a-iB>=30)big.push(`Entró ${durTxt(r.a-ini)} antes`);if(iB-r.a>=30)big.push(`Llegó ${durTxt(ini-r.a)} tarde`);
+      if(fB-r.b>=30)big.push(`Se quedó ${durTxt(fin-r.b)} después`);if(r.b-fB>=30)big.push(`Salió ${durTxt(r.b-fin)} antes`)}
     if(big.length&&!ed.mot&&!ed.just)pend.push({k:"m",key:r.key,f:r.f,txt:big.join(" · ")});
     const nfE=ed.ent&&!tip.includes("entrada"),nfS=ed.sal&&!tip.includes("salida");
     if(nfE&&nfS)obs.push("No fichó · se editó a mano");else if(nfE)obs.push("No fichó la entrada · se editó a mano");else if(nfS)obs.push("No fichó la salida · se editó a mano");
@@ -693,7 +693,7 @@ function fjPrevioCard(id){const P=st.fjPrev;if(!P||P.id!==id)return"";const {pen
   return h}
 function fjPrevioOk(id){const P=st.fjPrev;const {pend}=fjDatos(id,st.fjLun);
   for(let i=0;i<pend.length;i++){const p=pend[i];const o=DB.fj.ed[p.key]=DB.fj.ed[p.key]||{};
-    if(p.k==="r"){const v=(document.querySelector(`input[name="pr_${i}"]:checked`)||{}).value;if(!v)return toast("Elegí la hora en todos los casos");o[p.campo]=v}
+    if(p.k==="r"){const v=(document.querySelector(`input[name="pr_${i}"]:checked`)||{}).value;if(!v)return toast("Elegí la hora en todos los casos");o[p.campo]=v;(o.red=o.red||{})[p.campo]=p.m}
     else{const v=($("#pm_"+i).value||"").trim();if(!v)return toast("Falta el motivo de "+DIAS[D(p.f).getDay()]+" "+dm(p.f));o.mot=v}}
   if(pend.length)save("fichaje: redondeos y motivos "+id);
   if(P.tipo!=="liq"){const d=$("#ccD").value,h=$("#ccH").value;if(!d||!h||h<d)return toast("Revisá las fechas de la cuenta corriente");st.fjCC[id+"|"+st.fjLun]={desde:d,hasta:h}}
@@ -781,6 +781,88 @@ function fjExport(id,tipo,pre){const lun=st.fjLun,key="S"+lun,{X,pend}=fjDatos(i
     <div class="sub">Con mi firma declaro haber recibido el detalle de horas, cuenta corriente y adelantos, y el pago indicado.</div>
     <div class="fir"><div>Firma</div><div>Aclaración</div><div>Fecha</div></div>
     <script>window.onload=()=>{const W=document.body;W.style.width="194mm";const alto=Math.floor(279*96/25.4);let z=1;for(let i=0;i<8;i++){const h=W.getBoundingClientRect().height+16;if(h<=alto)break;z=z*alto/h*0.97;W.style.zoom=z.toFixed(3)}setTimeout(()=>window.print(),300)}<\/script></body></html>`);w.document.close()}
+
+// ===== Cerrar y pagar la semana (todo en un solo lugar: Fichaje › recuadro del empleado) =====
+// Paso 1: confirmar horas (redondeos y motivos a la vista). Paso 2: cuenta corriente, descuento, adelantos, a pagar, registrar pago e imprimir.
+function pgAseg(){fjAseg();DB.fj.conf=DB.fj.conf||{};st.pgCam=st.pgCam||{};st.fjCC=st.fjCC||{}}
+function pgHorasDia(id,lun){const {X}=fjDatos(id,lun);const por={};for(let i=0;i<7;i++)por[addD(lun,i)]=0;X.forEach(o=>{por[o.r.f]=(por[o.r.f]||0)+o.c});return por}
+function pgDesfase(id,lun){const por=pgHorasDia(id,lun);for(const f in por){const d=(DB.horas[id+"|"+f]||{}).h;if(Math.abs((d?+d:0)*60-por[f])>0.5)return true}return false}
+function pgCalc(id,lun){const key="S"+lun,por=pgHorasDia(id,lun);
+  const dias=Object.keys(por).filter(f=>por[f]).map(f=>{const h=por[f]/60,hp=hsPagas(id,f,h),v=tarifa(id,f).hora;return{f,h,hp,v,imp:hp*v,fer:esFer(f)}});
+  const ganado=dias.reduce((a,x)=>a+x.imp,0),tras=dias.length?tarifa(id,lun).trasSem||0:0,bruto=ganado+tras,totMin=Object.values(por).reduce((a,b)=>a+b,0);
+  const cc=st.fjCC[id+"|"+lun]||ccDef(lun),M=movsDe(id);
+  const antes=M.filter(m=>m.tipo!=="descuento"&&m.fecha<cc.desde).reduce((a,m)=>a+m.importe,0)-M.filter(m=>m.tipo==="descuento"&&(m.imputa||"")<key).reduce((a,m)=>a+m.importe,0);
+  const compras=M.filter(m=>m.tipo!=="descuento"&&m.fecha>=cc.desde&&m.fecha<=cc.hasta);const totComp=compras.reduce((a,m)=>a+m.importe,0),totCC=antes+totComp;
+  const desc=descImp(id,key),descs=M.filter(m=>m.tipo==="descuento"&&m.imputa===key);
+  const adel=pagosImp(id,key,"adelanto"),totAdel=adel.reduce((a,p)=>a+p.importe,0),pagos=pagosImp(id,key,"pago"),totPag=pagos.reduce((a,p)=>a+p.importe,0);
+  return{key,dias,ganado,tras,bruto,totMin,cc,antes,compras,totComp,totCC,desc,descs,adel,totAdel,pagos,totPag,aPagar:bruto-desc-totAdel}}
+const pgR=(t,v,cl)=>`<div class="row${cl?" "+cl:""}"><span>${t}</span><span class="num">${v}</span></div>`;
+function pgPanel(id,lun){pgAseg();const ck=id+"|"+lun,{pend}=fjDatos(id,lun),C=pgCalc(id,lun);
+  const pagado=C.pagos.length>0||C.descs.length>0,conf=DB.fj.conf[ck]==="no"?false:(!!DB.fj.conf[ck]||pagado),desf=conf&&pgDesfase(id,lun);
+  const dd=f=>`${DIAS[D(f).getDay()]} ${dm(f)}`,k=id.replace(/\W/g,"_");
+  let h=`<div style="margin:10px;padding:12px;border:2px solid var(--pri);border-radius:12px;background:#fff">
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap"><b style="font-size:16px">Cerrar y pagar la semana</b><span class="muted">${dm(lun)} al ${dm(addD(lun,6))}</span></div>`;
+  // ---- Paso 1: horas
+  h+=`<h3 style="margin:12px 0 6px">1. Horas ${conf&&!desf?'<span class="tag ok">confirmadas ✓</span>':""}</h3>`;
+  if(!conf||desf){
+    if(desf)h+=`<div class="note" style="margin-bottom:6px">Las horas cambiaron desde que las confirmaste. Confirmalas de nuevo.</div>`;
+    if(pend.length)h+=`<div class="muted" style="margin-bottom:4px">Antes de confirmar, decidí esto (queda guardado como editado a mano):</div>`;
+    pend.forEach((p,i)=>{if(p.k==="r"){const lo=Math.floor(p.m/30)*30,hi=lo+30;
+        h+=`<div style="padding:6px 0;border-top:1px solid var(--bd)">${dd(p.f)} · ${p.campo==="ent"?"entró":"salió"} <b>${minHm(p.m)}</b> → pagar como
+        <label style="display:inline-flex;gap:4px;align-items:center;margin:0 10px 0 6px"><input type="radio" name="pg_${k}_${i}" value="${minHm(lo)}" style="width:auto"> ${minHm(lo)}</label>
+        <label style="display:inline-flex;gap:4px;align-items:center"><input type="radio" name="pg_${k}_${i}" value="${minHm(hi)}" style="width:auto"> ${minHm(hi)}</label></div>`}
+      else h+=`<div style="padding:6px 0;border-top:1px solid var(--bd)">${dd(p.f)} · <b>${p.txt}</b>. ¿Por qué?<input id="pgm_${k}_${i}" placeholder="Motivo (sale en el recibo)" style="margin-top:4px"></div>`});
+    const por=pgHorasDia(id,lun);
+    h+=`<div class="muted" style="margin-top:6px">${Object.keys(por).filter(f=>por[f]).map(f=>`${dd(f)}: <b>${fhm(por[f])}</b>`).join(" · ")||"Sin horas esta semana"}${pend.some(p=>p.k==="r")?" (sin los redondeos de arriba)":""}</div>
+    <button class="btn full" style="margin-top:8px" onclick="pgConfirmar('${id}')">Confirmar horas</button>`}
+  else h+=`<div class="row"><span>Total de la semana</span><b class="num">${fhm(C.totMin)}</b></div><button class="btn ghost sm" style="margin-top:6px" onclick="pgEditarHoras('${id}')">Editar horas</button>`;
+  // ---- Paso 2: pago
+  h+=`<h3 style="margin:14px 0 6px">2. Pago ${pagado&&!st.pgCam[ck]?'<span class="tag ok">registrado ✓</span>':""}</h3>`;
+  if(!conf||desf){h+=`<div class="muted">Primero confirmá las horas.</div></div>`;return h}
+  h+=pgR(`Total ganado <span class="muted">(${fh(C.dias.reduce((a,x)=>a+x.hp,0))} h${C.tras?" + traslado":""})</span>`,fmt2(C.bruto),"tot");
+  h+=pgR(`Saldo anterior de cta. cte.`,fmt2(C.antes))+pgR(`Compras del ${dm(C.cc.desde)} al ${dm(C.cc.hasta)} (${C.compras.length})`,fmt2(C.totComp))+pgR(`<b>Total cuenta corriente</b>`,`<b>${fmt2(C.totCC)}</b>`);
+  if(pagado&&!st.pgCam[ck]){
+    h+=pgR("Se descuenta",`− ${fmt2(C.desc)}`)+pgR("Saldo que queda",fmt2(C.totCC-C.desc));
+    C.adel.forEach(p=>h+=pgR(`Adelanto ${dm(p.fecha)} · ${FORMA[p.forma]||p.forma||""}`,`− ${fmt2(p.importe)}`));
+    h+=pgR("<b>A PAGAR</b>",`<b>${fmt2(C.aPagar)}</b>`,"tot big");
+    C.pagos.forEach(p=>h+=pgR(`Pagado el ${dm(p.fecha)} · ${FORMA[p.forma]||p.forma||""}`,fmt2(p.importe)));
+    const dif=C.aPagar-C.totPag;if(Math.abs(dif)>0.5)h+=pgR(`<b style="color:var(--bad)">${dif>0?"Queda pendiente":"Pagado de más"}</b>`,`<b style="color:var(--bad)">${fmt2(Math.abs(dif))}</b>`);
+    h+=`<div class="two" style="margin-top:10px"><button class="btn" onclick="imprimirRecibo('${id}','${lun}')">🖨 Imprimir recibo</button><button class="btn ghost" onclick="st.pgCam['${ck}']=true;render()">Cambiar</button></div></div>`;return h}
+  const d0=C.descs.length?C.desc:Math.max(0,Math.round(C.totCC*100)/100),p0=C.pagos[0]||{};
+  h+=`<div class="row"><span><b>¿Cuánto le descontás?</b><br><span class="muted">Preguntale a ${id}. Por defecto, todo.</span></span><input id="pgD_${k}" type="number" inputmode="decimal" step="0.01" value="${d0}" style="max-width:150px;text-align:right" oninput="pgVivo('${id}','${lun}')"></div>`;
+  C.adel.forEach(p=>h+=pgR(`Adelanto ${dm(p.fecha)} · ${FORMA[p.forma]||p.forma||""}`,`− ${fmt2(p.importe)}`));
+  h+=`<div id="pgV_${k}"></div>
+    <div class="two" style="margin-top:8px"><div><label>Fecha de pago</label><input id="pgF_${k}" type="date" value="${p0.fecha||HOY}"></div>
+    <div><label>Forma</label><select id="pgO_${k}">${["efectivo","transferencia","deposito"].map(f=>`<option value="${f}" ${(p0.forma||"efectivo")===f?"selected":""}>${FORMA[f]}</option>`).join("")}</select></div></div>
+    <label>Lo que le pagás ahora <span class="muted">(si le pagás menos, queda pendiente)</span></label><input id="pgI_${k}" type="number" inputmode="decimal" step="0.01" ${C.pagos.length?`value="${C.totPag}" data-tocado="1"`:""} oninput="this.dataset.tocado=1;pgVivo('${id}','${lun}')">
+    <div class="two" style="margin-top:10px"><button class="btn" onclick="pgRegistrar('${id}','${lun}')">Registrar pago</button>${st.pgCam[ck]?`<button class="btn ghost" onclick="st.pgCam['${ck}']=false;render()">Cancelar</button>`:`<button class="btn ghost" onclick="imprimirRecibo('${id}','${lun}')">🖨 Imprimir recibo</button>`}</div>
+    <div class="muted" style="margin-top:6px">Registrar reemplaza el descuento y el pago de esta semana si ya había uno (no se duplica). Los adelantos se cargan aparte y acá se restan solos.</div></div>`;
+  setTimeout(()=>pgVivo(id,lun),0);return h}
+function pgVivo(id,lun){const k=id.replace(/\W/g,"_"),dI=$("#pgD_"+k),out=$("#pgV_"+k),iI=$("#pgI_"+k);if(!dI||!out)return;const C=pgCalc(id,lun);
+  const d=parseFloat((dI.value||"0").replace(",","."))||0,ap=C.bruto-d-C.totAdel;
+  out.innerHTML=pgR("Saldo de cta. cte. que queda",fmt2(C.totCC-d))+pgR("<b>A PAGAR</b>",`<b>${fmt2(ap)}</b>`,"tot big");
+  if(iI&&!iI.dataset.tocado)iI.value=(Math.round(ap*100)/100).toFixed(2)}
+function pgConfirmar(id){pgAseg();const lun=st.fjLun,k=id.replace(/\W/g,"_"),{pend}=fjDatos(id,lun);const nuevo={};
+  for(let i=0;i<pend.length;i++){const p=pend[i];const o=nuevo[p.key]=nuevo[p.key]||{...(DB.fj.ed[p.key]||{})};
+    if(p.k==="r"){const v=(document.querySelector(`input[name="pg_${k}_${i}"]:checked`)||{}).value;if(!v)return toast(`Elegí a qué hora redondear el ${DIAS[D(p.f).getDay()]} ${dm(p.f)}`);o[p.campo]=v;o.red={...(o.red||{}),[p.campo]:p.m}}
+    else{const v=($("#pgm_"+k+"_"+i).value||"").trim();if(!v)return toast("Falta el motivo del "+DIAS[D(p.f).getDay()]+" "+dm(p.f));o.mot=v}}
+  Object.assign(DB.fj.ed,nuevo);
+  // si al redondear apareció algo nuevo (raro), se vuelve a mostrar
+  const p2=fjDatos(id,lun).pend;if(p2.length){save("fichaje: redondeos "+id);toast("Falta decidir algo más");return render()}
+  const por=pgHorasDia(id,lun);for(const f in por){const kk=id+"|"+f,d=DB.horas[kk]||{};if(!por[f]&&!d.h)continue;d.h=por[f]/60;DB.horas[kk]=d}
+  DB.fj.conf[id+"|"+lun]=HOY;save("pago: horas confirmadas "+id+" semana "+lun);toast(`${id}: horas confirmadas`);render()}
+function pgEditarHoras(id){pgAseg();DB.fj.conf[id+"|"+st.fjLun]="no";st.fjAb[id]=true;save("pago: editar horas "+id);toast("Editá los turnos abajo y volvé a confirmar");render()}
+function pgRegistrar(id,lun){pgAseg();const k=id.replace(/\W/g,"_"),key="S"+lun,ck=id+"|"+lun;
+  const d=vNum("#pgD_"+k),imp=vNum("#pgI_"+k),f=$("#pgF_"+k).value,fo=$("#pgO_"+k).value;
+  if(d<0||imp<0)return toast("Los importes no pueden ser negativos");if(!f)return toast("Falta la fecha de pago");
+  const C=pgCalc(id,lun);if(d>C.totCC+0.5&&!confirm(`El descuento (${fmt2(d)}) es mayor que la cuenta corriente (${fmt2(C.totCC)}). ¿Seguir igual?`))return;
+  const sem=`semana ${dm(lun)} al ${dm(addD(lun,6))}`;
+  DB.movs=DB.movs.filter(m=>!(m.emp===id&&m.tipo==="descuento"&&m.imputa===key));
+  if(d>0)DB.movs.push({id:uid("m"),emp:id,fecha:f,tipo:"descuento",detalle:"Descuento en sueldo "+sem,importe:Math.round(d*100)/100,imputa:key});
+  const viejo=pagosImp(id,key,"pago")[0]||{};
+  DB.pagos=DB.pagos.filter(p=>!(p.emp===id&&p.tipo==="pago"&&p.imputa===key));
+  if(imp>0)DB.pagos.push({id:uid("p"),emp:id,fecha:f,tipo:"pago",imputa:key,forma:fo,importe:Math.round(imp*100)/100,cond:viejo.cond||"",nota:viejo.nota||"",sinCaja:false});
+  st.pgCam[ck]=false;st.fjCC[ck]=C.cc;save("pago "+id+" "+sem);toast(`${id}: pago registrado`);render()}
 function vFichaje(){
   fjAseg();if(!st.fjLun)st.fjLun=lunes(HOY);if(!st.fjEmp)st.fjEmp="todos";const lun=st.fjLun;
   let h=`<div class="per"><button class="btn sec sm" onclick="st.fjLun=addD(st.fjLun,-7);render()">◀</button><b>Semana ${dm(lun)} al ${dm(addD(lun,6))}</b><button class="btn sec sm" onclick="st.fjLun=addD(st.fjLun,7);render()">▶</button></div>
@@ -809,7 +891,7 @@ function vFichaje(){
     const tg=[pend&&`<span class="tag warn">${pend} para revisar</span>`,n("Tarde")&&`<span class="tag warn">${n("Tarde")} tarde</span>`,n("Falta")&&`<span class="tag bad">${n("Falta")} falta</span>`,n("No fichó")&&`<span class="tag bad">${n("No fichó")} sin fichar</span>`].filter(Boolean).join(" ")||`<span class="tag ok">Todo en orden</span>`;
     h+=`<div class="card" style="padding:0;overflow:hidden;border-left:5px solid var(--pri)"><div onclick="st.fjAb['${id}']=!(${abierto?"true":"false"});if(!st.fjAb['${id}']&&st.fjEd&&st.fjEd.startsWith('${id}|'))st.fjEd=null;render()" style="cursor:pointer;padding:12px 14px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;background:var(--pri-l)">
       <b style="font-size:16px">${id}</b><span class="muted">${fhm(real)} que cuentan</span><span style="flex:1">${tg}</span><b style="color:var(--pri)">${abierto?"▲ Cerrar":"▼ Ver turnos"}</b></div>`;
-    if(abierto){h+=`<div style="padding:10px 10px 0;display:flex;gap:8px;flex-wrap:wrap"><button class="btn sec sm" onclick="fjExport('${id}','pdf')">Resumen de pago de ${id} (PDF)</button><button class="btn sec sm" onclick="fjExport('${id}','xlsx')">Excel</button><button class="btn ghost sm" onclick="fjPrevio('${id}','liq')">Pasar horas de ${id} a la liquidación</button></div>${fjPrevioCard(id)}`;
+    if(abierto){h+=regimen(id,lun)==="semanal"?pgPanel(id,lun):`<div style="padding:10px 10px 0;display:flex;gap:8px;flex-wrap:wrap"><button class="btn sec sm" onclick="fjExport('${id}','pdf')">Resumen de pago de ${id} (PDF)</button><button class="btn sec sm" onclick="fjExport('${id}','xlsx')">Excel</button><button class="btn ghost sm" onclick="fjPrevio('${id}','liq')">Pasar horas de ${id} a la liquidación</button></div>${fjPrevioCard(id)}`;
     h+=`<div class="scroll" style="padding:0 10px 10px"><table><tr><th>Día</th><th>Local</th><th>Horario</th><th>Entró</th><th>Salió</th><th>Cuenta</th><th>Qué pasó</th><th></th></tr>`;
     FF.forEach((r,ix)=>{
     const btn=!r.acc?"":r.hecho?`<span class="tag ok">En novedades ✓</span>`:r.acc.a==="corr"?`<input id="c_${r.key.replace(/\W/g,"_")}" type="time" style="width:110px"><button class="btn sm" onclick="fjCorregir('${r.key}')">Guardar</button>`:`<button class="btn sm" onclick="fjAccion('${r.key}')">${r.acc.t}</button>`;
