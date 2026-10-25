@@ -3259,22 +3259,44 @@ function renderHistorialRemitos(){
       if(p.cajas>0&&p.unidades>0) d=p.cajas+" cajas + "+p.unidades+" unid.";
       else if(p.cajas>0) d=p.cajas+" cajas";
       else d=p.unidades+" unid.";
-      return '<div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid #f0f0f0;font-size:13px;"><span>'+p.nombre+'</span><span style="font-weight:700;color:#2e7d32;">'+d+'</span></div>';
+      return '<div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid #f0f0f0;font-size:13px;"><span>'+p.nombre+'</span><span style="font-weight:700;color:#2e7d32;white-space:nowrap;margin-left:8px;">'+d+'</span></div>';
     }).join("");
-    html+='<div style="background:#fff;border-radius:12px;margin:10px 10px 0;padding:14px;box-shadow:0 1px 6px rgba(0,0,0,.08);">'
-      +'<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px;">'
-      +'<div><div style="font-size:13px;font-weight:800;color:#1a1a2e;">📦 '+r.numero+'</div>'
-      +'<div style="font-size:12px;color:#888;margin-top:2px;">'+r.fecha+(r.hora?' · '+r.hora:'')+'</div></div>'
-      +'<div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">'
-      +'<span style="font-size:12px;background:#e8f5e9;color:#2e7d32;padding:3px 8px;border-radius:20px;font-weight:600;">'+totalStr+'</span>'
-      +'<button onclick="reimprimirRemitoHistorial('+idx+')" style="border:none;background:#e3f2fd;color:#1565c0;border-radius:8px;padding:4px 8px;font-size:12px;cursor:pointer;">🖨️</button>'
-      +'<button onclick="editarRemitoHistorial('+idx+')" style="border:none;background:#fff8e1;color:#e65100;border-radius:8px;padding:4px 8px;font-size:12px;cursor:pointer;">✏️</button>'
-      +'<button onclick="eliminarRemitoHistorial('+idx+')" style="border:none;background:#fff0f0;color:#c00;border-radius:8px;padding:4px 8px;font-size:12px;cursor:pointer;">🗑️</button>'
-      +'</div></div>'
-      +'<div>'+prods+'</div>'
-      +'</div>';
+    var detId="remHist_det_"+idx;
+    html+='<div style="background:#fff;border-radius:12px;margin:10px 10px 0;box-shadow:0 1px 6px rgba(0,0,0,.08);overflow:hidden;">'
+      // Header clickeable para colapsar/expandir
+      +'<div onclick="toggleRemitoHistorial(\''+detId+'\')" style="display:flex;justify-content:space-between;align-items:center;padding:14px;cursor:pointer;user-select:none;">'
+        +'<div style="flex:1;min-width:0;">'
+          +'<div style="font-size:13px;font-weight:800;color:#1a1a2e;">📦 '+r.numero+'</div>'
+          +'<div style="font-size:12px;color:#888;margin-top:2px;">'+r.fecha+(r.hora?' · '+r.hora:'')+'</div>'
+        +'</div>'
+        +'<div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;justify-content:flex-end;">'
+          +'<span style="font-size:12px;background:#e8f5e9;color:#2e7d32;padding:3px 8px;border-radius:20px;font-weight:600;">'+totalStr+'</span>'
+          +'<span id="'+detId+'_arrow" style="font-size:14px;color:#999;transition:transform .2s;">▼</span>'
+        +'</div>'
+      +'</div>'
+      // Detalle colapsable (oculto por defecto)
+      +'<div id="'+detId+'" style="display:none;">'
+        +'<div style="padding:0 14px 8px;">'
+          +prods
+        +'</div>'
+        +'<div style="display:flex;gap:8px;padding:10px 14px 14px;border-top:1px solid #f5f5f5;">'
+          +'<button onclick="reimprimirRemitoHistorial('+idx+')" style="border:none;background:#e3f2fd;color:#1565c0;border-radius:8px;padding:6px 12px;font-size:12px;cursor:pointer;flex:1;">🖨️ Reimprimir</button>'
+          +'<button onclick="editarRemitoHistorial('+idx+')" style="border:none;background:#fff8e1;color:#e65100;border-radius:8px;padding:6px 12px;font-size:12px;cursor:pointer;flex:1;">✏️ Editar</button>'
+          +'<button onclick="eliminarRemitoHistorial('+idx+')" style="border:none;background:#fff0f0;color:#c00;border-radius:8px;padding:6px 12px;font-size:12px;cursor:pointer;flex:1;">🗑️ Eliminar</button>'
+        +'</div>'
+      +'</div>'
+    +'</div>';
   });
   cont.innerHTML=html+'<div style="height:20px;"></div>';
+}
+
+function toggleRemitoHistorial(detId){
+  var det=document.getElementById(detId);
+  var arrow=document.getElementById(detId+"_arrow");
+  if(!det)return;
+  var open=det.style.display!=="none";
+  det.style.display=open?"none":"block";
+  if(arrow) arrow.style.transform=open?"":"rotate(180deg)";
 }
 
 function eliminarRemitoHistorial(idx){
