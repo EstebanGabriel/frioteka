@@ -281,8 +281,9 @@ function liqCard(id,L,isM,reg){
     h+=R("Sueldo por horas",fmt(L.imp));
     if(L.tr)h+=R("Traslado (+)",fmt(L.tr));
     h+=R("BRUTO",fmt(L.bruto),"tot");
-    h+=R("Cuenta corriente descontada (−)",fmt(L.desc));
-    h+=R("A PAGAR",fmt(L.pagar),"tot big");
+    h+=R("Cuenta corriente descontada (−)",fmt(L.desc));h+=descRows(id,L.key);
+    const adS=pagosImp(id,L.key,"adelanto");adS.forEach(a=>{h+=R(`Adelanto ${dm(a.fecha)} <span class="muted">${a.nota||FORMA[a.forma]||a.forma}</span>${edBtns("Pago",a.id)}`,"− "+fmt(a.importe));if(st.edPago===a.id)h+=pagoForm(a)});
+    h+=R("A PAGAR",fmt(L.pagar-adS.reduce((x,a)=>x+a.importe,0)),"tot big");
   }else{
     const e=E(id);
     h+=R("Neto del recibo",L.neto==null?`<span class="tag warn">falta el recibo</span>`:fmt(L.neto));
@@ -291,8 +292,8 @@ function liqCard(id,L,isM,reg){
     if(L.plus)h+=R("Plus (por fuera)",fmt(L.plus));
     if(L.tras)h+=R("Traslado",fmt(L.tras));
     h+=R("SUELDO DEL MES",fmt(L.sueldo),"tot");
-    L.ad.forEach(a=>h+=R(`Adelanto ${dm(a.fecha)} <span class="muted">${a.nota||a.forma}</span>`,"− "+fmt(a.importe)));
-    h+=R("Cuenta corriente descontada (−)",fmt(L.desc));
+    L.ad.forEach(a=>{h+=R(`Adelanto ${dm(a.fecha)} <span class="muted">${a.nota||a.forma}</span>${edBtns("Pago",a.id)}`,"− "+fmt(a.importe));if(st.edPago===a.id)h+=pagoForm(a)});
+    h+=R("Cuenta corriente descontada (−)",fmt(L.desc));h+=descRows(id,L.key);
     const falta=L.neto==null&&e.situacion.startsWith("Recibo");
     if(falta)h+=R("SALDO PROVISORIO <span class='muted'>(falta el recibo)</span>",fmt(L.saldo),"tot big");
     else h+=R(L.saldo<-0.5?"SALDO: TE DEBE":"SALDO A PAGAR",`<span class="${L.saldo<-0.5?"neg":""}">${fmt(Math.abs(L.saldo))}</span>`,"tot big");
@@ -301,11 +302,12 @@ function liqCard(id,L,isM,reg){
   h+=`<h3>Pagos</h3>`;
   const pg=L.pg.filter(p=>p.tipo==="pago");
   if(!pg.length)h+=`<div class="muted">Sin pagos cargados.</div>`;
-  pg.forEach(p=>h+=R(`${dm(p.fecha)} · ${FORMA[p.forma]||p.forma}${p.cond?" · "+p.cond:""}`,fmt(p.importe)));
+  pg.forEach(p=>{h+=R(`${dm(p.fecha)} · ${FORMA[p.forma]||p.forma}${p.cond?" · "+p.cond:""}${edBtns("Pago",p.id)}`,fmt(p.importe));if(st.edPago===p.id)h+=pagoForm(p)});
   const pend=isM?L.saldo-L.pagado:L.pend;
   if(!L.falta&&(pg.length||Math.abs(pend)>0.5))h+=R("Pendiente de pago",`<span class="${Math.abs(pend)>0.5?"neg":"pos"}">${Math.abs(pend)<0.5?"✓ pagado":fmt(pend)}</span>`,"tot");
   h+=`<div style="display:flex;gap:8px;margin-top:10px"><button class="btn sm" onclick="nuevoPago('${id}','${L.key}')">+ Pago</button><button class="btn sec sm" onclick="nuevoDesc('${id}','${L.key}')">+ Descuento cta. cte.</button>${isM?`<button class="btn sec sm" onclick="nuevoAdel('${id}','${L.key}')">+ Adelanto</button>`:`<button class="btn sec sm" onclick="imprimirRecibo('${id}','${L.key.slice(1)}')">🖨 Imprimir recibo</button>`}</div></div>`;
   return h}
+function descRows(id,key){let h="";movsDe(id).filter(m=>m.tipo==="descuento"&&m.imputa===key).forEach(m=>{h+=R(`<span class="muted" style="padding-left:12px">· ${dm(m.fecha)} ${m.detalle||"Descuento"}</span>${edBtns("Mov",m.id)}`,`<span class="muted">${fmt2(m.importe)}</span>`);if(st.edMov===m.id)h+=movForm(m)});return h}
 const NOVS=["","Tarde","Falta","Falta con aviso","Suspensión","Otro"];
 
 /* ---------- horario programado (lo que firma el empleado) ---------- */
@@ -317,13 +319,57 @@ function horarioCard(id,lun,L){const e=E(id);let tp=0,tr=0,hay=false,rows="";
     let hp=pd?pd.h:0;if(fer&&pd&&pd.fr)hp=id==="Gonzalo"?8:(e.horasRecibo?4:0);tp+=hp;
     const r=dia(id,f),hr=r.h!=null&&r.h!==""?+r.h:null;if(hr!=null)tr+=hr;
     const dif=hr!=null&&pd&&!pd.fr&&Math.abs(hr-pd.h)>=0.25?` <span class="tag warn">${hr>pd.h?"+":""}${fh(hr-pd.h)}</span>`:"";
-    rows+=`<tr class="${fer?"fer":""}"><td>${DIAS[D(f).getDay()]} ${dm(f)}</td><td>${pd?pd.txt:'<span class="muted">—</span>'}${fer&&pd&&pd.fr?' <span class="tag">feriado pago</span>':""}</td><td class="num">${pd&&!pd.fr?fh(pd.h):""}</td><td class="num">${hr!=null?fh(hr):""}${dif}</td></tr>`}
-  if(!hay)return`<div class="card"><h2>Horario programado</h2><div class="muted">Sin horario cargado para esta semana.</div></div>`;
-  let h=`<div class="card"><h2>Horario programado</h2><div class="scroll"><table><tr><th>Día</th><th>Horario</th><th class="num">Prog.</th><th class="num">Trabajó</th></tr>${rows}`;
-  h+=`<tr><td colspan="2"><b>Total</b></td><td class="num"><b>${fh(tp)}</b></td><td class="num"><b>${tr?fh(tr):""}</b></td></tr></table></div>`;
+    const kh=id+"|"+f,ab=st.edHor===kh;
+    rows+=`<tr class="${fer?"fer":""}"><td>${DIAS[D(f).getDay()]} ${dm(f)}</td><td>${pd?pd.txt:'<span class="muted">—</span>'}${fer&&pd&&pd.fr?' <span class="tag">feriado pago</span>':""}</td><td class="num">${pd&&!pd.fr?fh(pd.h):""}</td><td class="num">${hr!=null?fh(hr):""}${dif}</td><td><button class="btn ghost sm" onclick="st.edHor=${ab?"null":`'${kh}'`};st.edHorT=null;st.edHorFr=null;render()">${ab?"Cerrar":"✎ Editar"}</button></td></tr>`;
+    if(ab)rows+=`<tr><td colspan="5" style="background:var(--pri-l)">${horEditor(id,f)}</td></tr>`}
+  let h=`<div class="card"><h2>Horario programado</h2>${hay?"":`<div class="muted" style="margin-bottom:6px">Sin horario cargado para esta semana. Podés cargarlo día por día con ✎ Editar.</div>`}<div class="scroll"><table><tr><th>Día</th><th>Horario</th><th class="num">Prog.</th><th class="num">Trabajó</th><th></th></tr>${rows}`;
+  h+=`<tr><td colspan="2"><b>Total</b></td><td class="num"><b>${fh(tp)}</b></td><td class="num"><b>${tr?fh(tr):""}</b></td><td></td></tr></table></div>`;
   if(e.hsSemana){const base=tr||tp,falta=e.hsSemana-base;
     h+=falta>0?`<div class="note" style="margin-top:10px">Debe ${fh(falta)} h para llegar a ${e.hsSemana} h semanales${tr?"":" (según horario)"}.</div>`:`<div class="muted" style="margin-top:8px">Cumple las ${e.hsSemana} h semanales.</div>`}
   return h+`</div>`}
+
+// ----- Editar un día del horario programado (turnos, local, entrada/salida, franco, segundo turno)
+function horEditor(id,f){const v=(DB.horarios||{})[id+"|"+f];const fr=v==="franco";let T=Array.isArray(v)?v.map(x=>[...x]):[];
+  if(st.edHorT&&st.edHorT.k===id+"|"+f)T=st.edHorT.T;else st.edHorT={k:id+"|"+f,T};
+  if(!T.length&&!fr)T.push(["Cárcano","",""]);st.edHorT.T=T;
+  const esFr=st.edHorFr!=null?st.edHorFr:fr;
+  let h=`<div class="f" style="max-width:520px;padding:6px 0"><b>${id} · ${DIAS[D(f).getDay()]} ${dm(f)}</b>
+    <label style="display:flex;gap:8px;align-items:center;margin-top:8px"><input type="checkbox" id="hrFr" ${esFr?"checked":""} style="width:auto" onchange="horLeer();st.edHorFr=this.checked;render()"> Franco (no trabaja)</label>`;
+  if(!esFr){T.forEach(([l,i,s2],n)=>{h+=`<div style="display:grid;grid-template-columns:1.3fr 1fr 1fr auto;gap:6px;align-items:end;margin-top:6px">
+      <div><label>${n?"Turno "+(n+1):"Turno 1"} · local</label><select id="hrL${n}"><option ${l==="Cárcano"?"selected":""}>Cárcano</option><option ${l==="San Martín"?"selected":""}>San Martín</option></select></div>
+      <div><label>Entra</label><input type="time" id="hrA${n}" value="${i}"></div><div><label>Sale</label><input type="time" id="hrB${n}" value="${s2}"></div>
+      <button class="btn ghost sm" title="Quitar este turno" onclick="horLeer();st.edHorT.T.splice(${n},1);render()">✕</button></div>`});
+    h+=`<button class="btn sec sm" style="margin-top:8px" onclick="horLeer();st.edHorT.T.push(['Cárcano','','']);render()">+ Agregar otro turno</button>`}
+  h+=`<div class="two" style="margin-top:10px"><button class="btn" onclick="horGuardar('${id}','${f}')">Guardar día</button><button class="btn ghost" onclick="horGuardar('${id}','${f}',true)">Dejar sin horario</button></div>
+    <div class="muted" style="margin-top:4px">Al guardar se actualiza el fichaje (le llega al celular del empleado).</div></div>`;
+  return h}
+function horLeer(){const T=(st.edHorT||{}).T||[];T.forEach((t,n)=>{const l=$("#hrL"+n),a=$("#hrA"+n),b=$("#hrB"+n);if(l)t[0]=l.value;if(a)t[1]=a.value;if(b)t[2]=b.value})}
+function horGuardar(id,f,vaciar){const k=id+"|"+f;DB.horarios=DB.horarios||{};
+  if(vaciar){delete DB.horarios[k]}
+  else if($("#hrFr")&&$("#hrFr").checked){DB.horarios[k]="franco"}
+  else{horLeer();const T=st.edHorT.T.filter(t=>t[1]||t[2]);if(!T.length)return toast("Poné entrada y salida, o marcá franco");
+    for(const t of T){if(!t[1]||!t[2])return toast("A un turno le falta la entrada o la salida");if(hmMin(t[2])<=hmMin(t[1]))return toast("La salida tiene que ser después de la entrada")}
+    T.sort((x,y)=>hmMin(x[1])-hmMin(y[1]));for(let i=1;i<T.length;i++)if(hmMin(T[i][1])<hmMin(T[i-1][2]))return toast("Hay dos turnos que se pisan");
+    DB.horarios[k]=T.map(t=>[t[0],t[1],t[2]])}
+  st.edHor=null;st.edHorT=null;st.edHorFr=null;save("horario "+k);toast("Horario guardado");
+  try{if(window.FJ)fjSync(lunes(f))}catch(e){}render()}
+// ----- Editar / borrar pagos, adelantos y movimientos de cuenta corriente, a la vista
+const edBtns=(tipo,xid)=>`<span style="white-space:nowrap;margin-left:6px"><button class="btn ghost sm" style="padding:3px 8px" onclick="st.ed${tipo}=st.ed${tipo}==='${xid}'?null:'${xid}';render()">✎ Editar</button> <button class="btn ghost sm" style="padding:3px 8px;color:var(--bad)" onclick="borrar${tipo}('${xid}')">🗑 Borrar</button></span>`;
+function pagoForm(p){return `<div class="f" style="background:var(--pri-l);padding:10px;border-radius:10px;margin:6px 0"><b>Editar ${p.tipo==="adelanto"?"adelanto":"pago"}</b>
+  <div class="two"><div><label>Fecha</label><input type="date" id="epF" value="${p.fecha}"></div><div><label>Importe</label><input type="number" step="0.01" inputmode="decimal" id="epI" value="${p.importe}"></div></div>
+  <div class="two"><div><label>Forma</label><select id="epO">${Object.keys(FORMA).map(f=>`<option value="${f}" ${p.forma===f?"selected":""}>${FORMA[f]}</option>`).join("")}</select></div><div><label>Nota</label><input id="epN" value="${(p.nota||"").replace(/"/g,"&quot;")}"></div></div>
+  <div class="two" style="margin-top:8px"><button class="btn" onclick="guardarPagoEd('${p.id}')">Guardar</button><button class="btn ghost" onclick="st.edPago=null;render()">Cancelar</button></div></div>`}
+function guardarPagoEd(pid){const p=DB.pagos.find(x=>x.id===pid);if(!p)return;const m=vNum("#epI");if(!m)return toast("Falta el importe");
+  p.fecha=$("#epF").value||p.fecha;p.importe=Math.round(m*100)/100;p.forma=$("#epO").value;p.nota=$("#epN").value;st.edPago=null;save("editado "+p.tipo+" "+p.emp);toast("Guardado");render()}
+function borrarPago(pid){const p=DB.pagos.find(x=>x.id===pid);if(!p)return;if(!confirm(`¿Borrar ${p.tipo==="adelanto"?"el adelanto":"el pago"} de ${p.emp} del ${dm(p.fecha)} por ${fmt2(p.importe)}?`))return;
+  DB.pagos=DB.pagos.filter(x=>x.id!==pid);st.edPago=null;save("borrado "+p.tipo+" "+p.emp);toast("Borrado");render()}
+function movForm(m){return `<div class="f" style="background:var(--pri-l);padding:10px;border-radius:10px;margin:6px 0"><b>Editar ${m.tipo==="descuento"?"descuento":"compra / cargo"}</b>
+  <div class="two"><div><label>Fecha</label><input type="date" id="emF" value="${m.fecha}"></div><div><label>Importe</label><input type="number" step="0.01" inputmode="decimal" id="emI" value="${m.importe}"></div></div>
+  <label>Detalle</label><input id="emD" value="${(m.detalle||"").replace(/"/g,"&quot;")}">
+  ${m.tipo==="descuento"?`<label>Se descuenta del sueldo de</label><select id="emP">${impOpts(m.emp,m.imputa)}</select>`:""}
+  <div class="two" style="margin-top:8px"><button class="btn" onclick="guardarMovEd('${m.id}')">Guardar</button><button class="btn ghost" onclick="st.edMov=null;render()">Cancelar</button></div></div>`}
+function guardarMovEd(mid){const m=DB.movs.find(x=>x.id===mid);if(!m)return;const v=vNum("#emI");if(!v)return toast("Falta el importe");
+  m.fecha=$("#emF").value||m.fecha;m.importe=Math.round(v*100)/100;m.detalle=$("#emD").value;if($("#emP"))m.imputa=$("#emP").value;st.edMov=null;save("editado movimiento "+m.emp);toast("Guardado");render()}
 function diasCard(id,L,isM){
   if(id==="Gonzalo")return `<div class="card"><h2>Novedades</h2><div class="muted">Gonzalo cobra el recibo completo, no se cargan horas.</div>${novTable(id,L,false)}</div>`;
   return `<div class="card"><h2>Horas y novedades</h2>${L.ov?'<div class="note">Este mes tiene cargado un total de horas sin detalle por día.</div>':""}${novTable(id,L,true)}</div>`}
@@ -341,14 +387,15 @@ function setDia(id,f,k,v){const key=id+"|"+f;const r=DB.horas[key]||{};
 function ccCard(id,desde,hasta){
   const ms=movsDe(id).filter(m=>m.fecha>=desde&&m.fecha<=hasta).sort((a,b)=>a.fecha<b.fecha?-1:1);
   let s=saldoAntes(id,desde);
-  let h=`<div class="card"><h2>Cuenta corriente</h2><div class="scroll"><table><tr><th>Fecha</th><th>Detalle</th><th class="num">Debe</th><th class="num">Haber</th><th class="num">Saldo</th><th></th></tr>
-    <tr><td colspan="4"><b>Saldo anterior</b></td><td class="num"><b>${fmt2(s)}</b></td><td></td></tr>`;
+  let h=`<div class="card"><h2>Cuenta corriente</h2><div class="scroll"><table><tr><th>Fecha</th><th>Detalle</th><th class="num">Debe</th><th class="num">Haber</th><th class="num">Saldo</th></tr>
+    <tr><td colspan="4"><b>Saldo anterior</b></td><td class="num"><b>${fmt2(s)}</b></td></tr>`;
   ms.forEach(m=>{s+=DEBE(m)?m.importe:-m.importe;
-    h+=`<tr><td>${dm(m.fecha)}</td><td>${m.detalle||(m.tipo==="compra"?"Compra":m.tipo)}</td><td class="num">${DEBE(m)?fmt2(m.importe):""}</td><td class="num">${!DEBE(m)?fmt2(m.importe):""}</td><td class="num">${fmt2(s)}</td><td><button class="del" title="Borrar" onclick="borrarMov('${m.id}')">✕</button></td></tr>`});
-  h+=`<tr><td colspan="4"><b>Saldo al cierre</b></td><td class="num ${s>0.5?"neg":""}"><b>${fmt2(s)}</b></td><td></td></tr></table></div>
+    h+=`<tr><td>${dm(m.fecha)}</td><td>${m.detalle||(m.tipo==="compra"?"Compra":m.tipo)}<div style="margin-top:4px;display:flex;flex-wrap:wrap;gap:4px"><button class="btn ghost sm" style="padding:2px 7px;font-size:12px" onclick="st.edMov=st.edMov==='${m.id}'?null:'${m.id}';render()">✎ Editar</button> <button class="btn ghost sm" style="padding:2px 7px;font-size:12px;color:var(--bad)" onclick="borrarMov('${m.id}')">🗑 Borrar</button></div></td><td class="num">${DEBE(m)?fmt2(m.importe):""}</td><td class="num">${!DEBE(m)?fmt2(m.importe):""}</td><td class="num">${fmt2(s)}</td></tr>`;
+    if(st.edMov===m.id)h+=`<tr><td colspan="5">${movForm(m)}</td></tr>`});
+  h+=`<tr><td colspan="4"><b>Saldo al cierre</b></td><td class="num ${s>0.5?"neg":""}"><b>${fmt2(s)}</b></td></tr></table></div>
   <div class="muted" style="margin-top:6px">${ms.length} movimientos en el período · compras del período: ${fmt(ms.filter(DEBE).reduce((a,m)=>a+m.importe,0))}</div></div>`;
   return h}
-function borrarMov(id){if(!confirm("¿Borrar este movimiento?"))return;DB.movs=DB.movs.filter(m=>m.id!==id);save();render();toast("Movimiento borrado")}
+function borrarMov(id){const m0=DB.movs.find(x=>x.id===id);if(!confirm(m0?`¿Borrar ${m0.tipo==="descuento"?"el descuento":"la compra"} de ${m0.emp} del ${dm(m0.fecha)} por ${fmt2(m0.importe)}?`:"¿Borrar este movimiento?"))return;st.edMov=null;DB.movs=DB.movs.filter(m=>m.id!==id);save();render();toast("Movimiento borrado")}
 
 /* ---------- formularios rápidos ---------- */
 function nuevoPago(emp,imp){st.tab="cargar";st.cargar="pago";st.pre={emp,imp};render()}
