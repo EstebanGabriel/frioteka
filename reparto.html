@@ -291,8 +291,8 @@ $('form').addEventListener('submit', async e => {
   if(!x.fecha) return msg('Falta la fecha.','err');
   if(!x.motivo) return msg('Elegí para qué fue la salida.','err');
   if(x.motivo === 'casa'){ x.sale = ''; x.vuelve = ''; x.entregas = 0; }
-  if(x.motivo === 'lore') x.entregas = 0;
   else {
+    if(x.motivo === 'lore') x.entregas = 0;
     if(!x.sale || !x.vuelve) return msg('Faltan la hora de salida y la de vuelta.','err');
     if(mins(x.vuelve) <= mins(x.sale)) return msg('La hora de vuelta tiene que ser posterior a la de salida.','err');
   }
