@@ -34,7 +34,7 @@ h1{font:600 30px/1 var(--disp);letter-spacing:.01em;margin:0;text-transform:uppe
 h1 small{display:block;font:500 13px var(--body);letter-spacing:.08em;color:var(--muted);margin-top:6px}
 h2{font:600 20px/1.1 var(--disp);text-transform:uppercase;letter-spacing:.03em;margin:0}
 .who{font-size:14px;color:var(--muted)}
-nav{display:grid;grid-template-columns:repeat(3,1fr);gap:4px;background:var(--surface2);padding:4px;border-radius:10px}
+nav{display:grid;grid-template-columns:repeat(4,1fr);gap:4px;background:var(--surface2);padding:4px;border-radius:10px}
 nav button{font:600 14px var(--disp);letter-spacing:.04em;text-transform:uppercase;border:0;background:transparent;color:var(--muted);padding:10px 4px;border-radius:7px;cursor:pointer;min-height:44px}
 nav button[aria-selected="true"]{background:var(--surface);color:var(--fg);box-shadow:0 1px 2px rgba(0,0,0,.18)}
 button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible{outline:3px solid var(--accent);outline-offset:1px}
@@ -93,6 +93,14 @@ select optgroup{font-style:normal}
 .editor{display:grid;gap:8px}.editor label{display:grid;gap:3px;font-size:14px}
 .detalle{padding:10px 12px;margin:2px 0 8px;border-left:3px solid var(--accent);background:var(--surface2);display:grid;gap:4px}
 .panel.exp{display:grid;gap:10px;margin-bottom:12px}
+/* Costos y precios (módulo togo-costos.js): usa los colores de esta página */
+#tcRoot.tc{--tc-bg:var(--bg);--tc-card:var(--surface);--tc-ink:var(--fg);--tc-mut:var(--muted);--tc-line:var(--line);--tc-acc:var(--accent);--tc-ok:var(--ok);--tc-warn:var(--warn);--tc-soft:var(--surface2);
+  font-family:var(--body);padding-left:0;padding-right:0;max-width:none;margin:0;width:100%;background:transparent}
+#tcRoot .tc-tabs{background:var(--bg)}
+#tcRoot .tc-tabs button.on{color:var(--accent-fg)}
+#tcRoot .b.p{color:var(--accent-fg)}
+#tcRoot h2{text-transform:none;font-family:var(--disp);letter-spacing:.01em}
+.wrap.ancho{max-width:1040px}
 </style>
 </head>
 <body>
@@ -110,6 +118,7 @@ select optgroup{font-style:normal}
     <button role="tab" id="t-stock" aria-selected="false" data-tab="stock">Stock</button>
     <button role="tab" id="t-dia" aria-selected="false" data-tab="dia">Día</button>
     <button role="tab" id="t-hist" aria-selected="false" data-tab="hist">Historial</button>
+    <button role="tab" id="t-costos" aria-selected="false" data-tab="costos">Costos</button>
   </nav>
 
   <div class="msg bad" id="costerr" hidden></div>
@@ -235,18 +244,25 @@ select optgroup{font-style:normal}
     <div class="list" id="ctrlList"></div>
   </section>
 
+  <!-- COSTOS Y PRECIOS -->
+  <section id="s-costos" hidden>
+    <div id="tcMsg"></div>
+    <div id="tcRoot"><div class="empty">Cargando costos y precios…</div></div>
+  </section>
+
   <!-- HISTORIAL -->
   <section id="s-hist" hidden>
     <div class="panel exp">
       <h2 class="sub">Exportar mes a Excel</h2>
       <div class="actions"><input type="month" id="eMes" aria-label="Mes a exportar"><button type="button" class="btn" id="eBtn">Exportar mes</button></div>
-      <p class="hint">Baja ELABORACIONES_AAAA-MM.xlsx con las hojas PRODUCCIÓN y RESUMEN DEL MES. Costos con IVA (precio pagado final), mano de obra sin IVA, venta sin IVA. Guardalo en TODO CLAUDE › ELABORACIONES.</p>
+      <p class="hint">Baja ELABORACIONES_AAAA-MM.xlsx con las hojas PRODUCCIÓN y RESUMEN DEL MES. Todo sin IVA: insumos (precio pagado ÷ (1 + alícuota)), mano de obra y venta. Guardalo en TODO CLAUDE › ELABORACIONES.</p>
       <div id="eMsg"></div>
     </div>
     <div class="list" id="histList"></div>
   </section>
 </div>
 
+<script src="togo-costos.js"></script>
 <script>
 // Los costos y precios NO estan en este archivo: se leen del repo privado (elaboraciones_costos.json) con tu token.
 var HORA=0, BOLSA=0, AMORT_VAC=0, FILM=0, AMORT_TER=0, PIZ_ENV=0, PIZ_MIN_REF=0, PIZ_MIN_OBJ=0;
@@ -257,7 +273,7 @@ var $ = function(id){return document.getElementById(id)};
 function num(id){ return parseFloat(String($(id).value).replace(',','.')); }
 var elabs=[], movs=[], names={}, canWrite=true, uid=null, db=null, userCap=null;
 var ownElabs=[], fbElabs=[], ownMovs=[], fbMovs=[], fbx=null;
-var TABS=['vac','que','piz','stock','dia','hist'];
+var TABS=['vac','que','piz','stock','dia','hist','costos'];
 
 function fmt(n,d){ if(n==null||isNaN(n)) return '—'; return Number(n).toLocaleString('es-AR',{minimumFractionDigits:d||0,maximumFractionDigits:d==null?0:d}); }
 function money(n){ if(n==null||isNaN(n)) return '—'; return (n<0?'−$ ':'$ ')+fmt(Math.abs(n),0); }
@@ -270,6 +286,8 @@ function minsFrom(a,b){ if(!a||!b) return null; var x=a.split(':'),y=b.split(':'
 // ---------- pestañas ----------
 function showTab(t){
   TABS.forEach(function(k){ $('s-'+k).hidden=k!==t; $('t-'+k).setAttribute('aria-selected',k===t?'true':'false'); });
+  document.querySelector('.wrap').classList.toggle('ancho',t==='costos');
+  if(t==='costos'&&TC.ui) TC.ui.refresh();
   try{ localStorage.setItem('togo-tab',t); }catch(e){}
 }
 document.querySelectorAll('nav button').forEach(function(b){ b.addEventListener('click',function(){ showTab(b.dataset.tab); }); });
@@ -291,15 +309,13 @@ var MARKUP_LOCAL = 1.6;
 var CODIGOS = {'Salame de Milán':['1008','1028'],'Jamón cocido':['1005','1025'],'Jamón crudo':['1081','1085'],'Bondiola':['1020','1090'],'Fiambre de cerdo':['1007','1095'],'Panceta ahumada':['1040','1044'],'Jamonada':['1023','1043'],'Mortadela':['1013','1063'],'Queso Tybo':['1006','1080'],'Queso Danbo':['1074',''],
  'Queso cremoso Santa María':['1035','1035'],'Queso sardo':['1071','1071'],'Queso por salut':['1075','1075'],'Queso pategrás':['1076','1076'],'Queso romano':['1072','1072'],'Queso azul':['1097','1097'],'Mozzarella':['1094','1094'],'Ricota':['1083','1083'],'Queso cremoso Punta de Agua':['1017','1017'],
  'Pizzita Especial':['90-47','90-47'],'Pizzita Muzza':['90-45','90-45'],'Pizzita Queso Azul':['90-46','90-46'],'Pizzita Fugazza':['','']};
-function codigoOf(e){ var c=CODIGOS[e.producto]; return c?(e.canal==='may'?c[1]:c[0]):''; }
-// Criterio de costos (igual que TOGO): precio pagado final (con IVA) para materia prima, bolsas y film; la mano de obra y la amortización van sin IVA; la venta va sin IVA.
+function codigoOf(e){ var r=TC.porKey[e.producto]; if(r){ var want=e.canal==='may'?(e.tipo==='queso'?'pieza':'may'):'min'; var k=r.canales.filter(function(x){ return x.canal===want; })[0]; return k?k.codigo||'':''; } var c=CODIGOS[e.producto]; return c?(e.canal==='may'?c[1]:c[0]):''; }
+// Criterio de costos (Banchi 25/10): todo SIN IVA. Insumos = precio pagado ÷ (1 + alícuota) (de togo_maestro.json + compras_mp.json); mano de obra y amortización sin IVA; venta = precio de lista ÷ 1,21.
 // Costo de referencia del Excel: vacío = costo total $/kg (precio local / 1,6); pizzita = costo total $/u; quesos no tienen costo total en el Excel.
-function refCosto(p){
-  if(VAC[p]){ // costo total $/kg del Excel (sin IVA) pasado a criterio TOGO (con IVA) y ajustado al precio de compra vigente, para que la alerta mida merma y tiempo y no el cambio de precio
-    var d=VAC[p], base=d.min/MARKUP_LOCAL*1.21, adj=(d.compraRef!=null)?(d.compra-d.compraRef*1.21)/(1-d.merma/100):0;
-    return {v:base+adj, u:'kg'}; }
-  if(PIZ[p]) return {v:PIZ[p].ing+PIZ_ENV+PIZ_MIN_REF*HORA/60, u:'unidad'};
-  return null;
+function refCosto(p){ // costo de referencia de la receta (merma y tiempo de referencia, precios vigentes), sin IVA
+  var r=TC.porKey[p]; if(!r||!TC.M) return null;
+  var c=TC.M.costo(r,true); if(!c) return null;
+  return {v:c.sin, u:r.rinde==='kg'?'kg':'unidad'};
 }
 function refMermaOf(p){ return VAC[p]?VAC[p].merma:null; }
 function costoUnit(e){ // costo real por kg envasado (fiambres/quesos) o por pizzita elaborada
@@ -337,10 +353,10 @@ function detalleDe(e){
   if(!piz) ln(e.tipo==='queso'?(e.canal==='min'?'Porciones hechas':'Cuartos / mitades'):'Bolsas hechas',fmt(e.unidades));
   ln('Minutos',fmt(e.minutos,0)+' ('+money(e.cMO)+')');
   if(e.nota) ln('Nota',e.nota);
-  d.appendChild(el('p','sub','Cómo salió la cuenta (costos con IVA, venta sin IVA, precios vigentes)'));
+  d.appendChild(el('p','sub','Cómo salió la cuenta (todo sin IVA, precios vigentes)'));
   if(!piz) ln('Precio de venta por kg',money(e.precioKg)); else ln('Precio de venta por unidad',money(e.precioKg));
   ln('Venta posible',money(e.venta)+(piz?'':'  ('+fmt(kf,3)+' kg × '+money(e.precioKg)+')'));
-  var dm=VAC[e.producto]||QUE[e.producto]; if(dm&&dm.fuente) ln('Precio de compra por kg',money(dm.compra)+' con IVA');
+  var dm=VAC[e.producto]||QUE[e.producto]; if(dm&&dm.compra) ln('Precio de compra por kg',money(dm.compra)+' sin IVA');
   ln('Materia prima',money(e.cMat)); ln('Bolsas / film',money(e.cEnv)); ln('Amortización',money(e.cAmort)); ln('Mano de obra',money(e.cMO));
   ln('Costo total',money(e.costo)); ln('Resultado',money(e.resultado));
   var rr=rareDe(e); if(rr.length) d.appendChild(el('div','msg warn','Dato raro: '+rr.join(' · ')+'. Revisá si se cargó bien; si no, eliminala y cargala de nuevo.'));
@@ -415,7 +431,7 @@ function calcPiz(){
   o.vendibles=(un>0)?un-de:null;
   o.mermaPct=null; o.minUnidad=(mi>0&&un>0)?mi/un:null; o.refMin=PIZ_MIN_REF;
   if(un>0&&de>=0&&de<=un&&mi>=0){
-    o.cMat=un*d.ing; o.cEnv=un*PIZ_ENV; o.cAmort=0; o.cMO=mi/60*HORA;
+    o.cMat=un*d.ing; o.cEnv=un*(d.env!=null?d.env:PIZ_ENV); o.cAmort=0; o.cMO=mi/60*HORA;
     o.precioKg=canal==='may'?d.may:d.min; o.venta=o.vendibles*o.precioKg;
     o.costo=o.cMat+o.cEnv+o.cMO; o.resultado=o.venta-o.costo; o.antesMO=o.venta-(o.costo-o.cMO);
   }
@@ -437,7 +453,7 @@ function liveBox(box,o,unitLbl,minLbl){
 }
 function renderPLive(){
   var o=calcPiz(), box=$('pLive'); box.textContent='';
-  var c=[['Costo por unidad',o.costo!=null?money(o.costo/o.unidades):'—','con IVA, más tu tiempo sin IVA'],['Min por pizzita',o.minUnidad!=null?fmt(o.minUnidad,2):'—','Actual 4,7 · objetivo 2,35'],['Resultado',o.resultado!=null?money(o.resultado):'—',o.resultado!=null?'si se vende todo':'completá los datos']];
+  var c=[['Costo por unidad',o.costo!=null?money(o.costo/o.unidades):'—','sin IVA, con tu tiempo'],['Min por pizzita',o.minUnidad!=null?fmt(o.minUnidad,2):'—','Actual 4,7 · objetivo 2,35'],['Resultado',o.resultado!=null?money(o.resultado):'—',o.resultado!=null?'si se vende todo':'completá los datos']];
   c.forEach(function(x,i){ var s=el('div','stat'+(i===2?' res':'')); s.appendChild(el('span',null,x[0])); s.appendChild(el('b',i===2&&o.resultado!=null?(o.resultado>=0?'pos':'neg'):null,x[1])); s.appendChild(el('em',null,x[2])); box.appendChild(s); });
 }
 function renderVLive(){ liveBox($('vLive'),calcVac(),'bolsa'); }
@@ -561,7 +577,7 @@ function renderDia(){
   box.appendChild(el('div',T.res>=0?'msg ok':'msg bad',T.res>=0?'Lo elaborado rinde: cubre el pago del empleado y deja '+money(T.res)+'.':'Lo elaborado no rinde: la venta no cubre el costo. Faltan '+money(-T.res)+'.'));
   var lines=el('div'); [['Materia prima',T.mat],['Bolsas y film',T.env],['Amortización de máquinas',T.am],['Mano de obra',T.mo],['Ganancia antes del empleado',antes]].forEach(function(x){ var l=el('div','line'); l.appendChild(el('span',null,x[0])); l.appendChild(el('b',null,money(x[1]))); lines.appendChild(l); });
   box.appendChild(lines);
-  box.appendChild(el('p','hint','Costos con IVA (precio pagado final); mano de obra y venta sin IVA. Se vende a precio minorista; cuartos, mitades y bolsas por mayor van a precio mayorista. No cuenta lo que recuperás reutilizando la merma. En pizzitas no se incluye amortización de la envasadora.'));
+  box.appendChild(el('p','hint','Todo sin IVA: insumos, mano de obra y venta. Se vende a precio minorista; cuartos, mitades y bolsas por mayor van a precio mayorista. No cuenta lo que recuperás reutilizando la merma. En pizzitas no se incluye amortización de la envasadora.'));
   xs.slice().sort(function(a,b){return (a.creado||0)-(b.creado||0)}).forEach(function(e){
     var r=el('div','row'), l=el('div','l'); l.appendChild(el('strong',null,e.producto+' · '+unitsOf(e)+ulabel(e)));
     var sm=el('small',null,'venta '+money(e.venta)+' · costo '+money(e.costo)+' · empleado '+money(e.cMO)+' · '+(e.canal==='may'?'mayorista':'minorista')); tagsFor(e,sm); l.appendChild(sm);
@@ -618,7 +634,7 @@ function renderControl(){
     if(r.mermaReal!=null){ var a=el('div'); a.appendChild(el('small',null,'Merma real / calculada')); a.appendChild(el('b',null,fmt(r.mermaReal,1)+' % / '+fmt(r.mermaRef,1)+' %')); g.appendChild(a); }
     var b=el('div'); b.appendChild(el('small',null,'Tiempo real / calculado ('+r.unidad+')')); b.appendChild(el('b',null,(r.minReal!=null?fmt(r.minReal,2):'—')+' / '+(r.minRef?fmt(r.minRef,2):'—'))); g.appendChild(b);
     card.appendChild(g);
-    if(r.costoReal!=null){ var c2=el('div'); c2.appendChild(el('small',null,'Costo real / Excel ($ por '+r.costoU+', con IVA)')); c2.appendChild(el('b',null,money(r.costoReal)+' / '+(r.costoRef?money(r.costoRef):'—'))); g.appendChild(c2); }
+    if(r.costoReal!=null){ var c2=el('div'); c2.appendChild(el('small',null,'Costo real / receta ($ por '+r.costoU+', sin IVA)')); c2.appendChild(el('b',null,money(r.costoReal)+' / '+(r.costoRef?money(r.costoRef):'—'))); g.appendChild(c2); }
     var av=[]; if(r.mermaReal!=null&&r.mermaRef>0&&r.mermaReal>r.mermaRef*(1+ALERTA)) av.push('Merma'); if(r.costoReal!=null&&r.costoRef&&r.costoReal>r.costoRef*(1+ALERTA)) av.push('Costo');
     if(av.length) card.appendChild(el('div','msg warn',av.join(' y ')+' arriba de lo que dice el Excel en más de 5 %. Para tenerlo en cuenta cuando actualices el Excel.'));
     if(r.n<3) card.appendChild(el('p','hint','Pocas cargas: tomalo como orientativo.'));
@@ -697,7 +713,7 @@ async function exportarMes(){
     function head(ws,r,cols){ var row=ws.getRow(r); cols.forEach(function(c,i){ var x=row.getCell(i+1); x.value=c; x.fill=HF; x.font=WH; x.alignment={wrapText:true,horizontal:'center',vertical:'middle'}; }); row.height=46; }
     // PRODUCCIÓN
     var ws=wb.addWorksheet('PRODUCCIÓN'); 
-    ws.getCell('A1').value='PRODUCCIÓN '+mes+' — costos con IVA (precio pagado final), mano de obra sin IVA. Precios de compra: último pagado en COSTOS_MATERIA_PRIMA_TOGO.xlsx.'; ws.getCell('A1').font={bold:true,size:12};
+    ws.getCell('A1').value='PRODUCCIÓN '+mes+' — todo sin IVA (insumos = precio pagado ÷ (1 + alícuota)). Precios de compra: último pagado en COSTOS_MATERIA_PRIMA_TOGO.xlsx o precio a mano de la app.'; ws.getCell('A1').font={bold:true,size:12};
     head(ws,3,['Fecha','Producto','Código','Pieza o lote','Kg de entrada','Kg envasados','Merma (kg)','Merma (%)','Bolsas usadas (quesos: film = porciones o cuartos; pizzitas: unidades)','Costo materia prima ($)','Costo bolsas / film ($)','Amortización ($)','Mano de obra ($)','Costo total ($)','Costo por kg envasado ($)','Costo por unidad — pizzitas ($)','Alertas (>5 % sobre el Excel)']);
     rows.forEach(function(r,i){ var row=ws.getRow(4+i); r.vals.forEach(function(v,j){ var c=row.getCell(j+1); c.value=v; }); 
       [5,6,7].forEach(function(j){ row.getCell(j).numFmt='#,##0.000'; }); row.getCell(8).numFmt='0.0"%"'; [10,11,12,13,14,15,16].forEach(function(j){ row.getCell(j).numFmt=MONEY; });
@@ -707,7 +723,7 @@ async function exportarMes(){
     [18,26,9,24,11,11,10,10,16,14,14,14,14,14,15,15,46].forEach(function(w,i){ ws.getColumn(i+1).width=w; }); ws.views=[{state:'frozen',xSplit:2,ySplit:3}];
     // RESUMEN
     var rs=wb.addWorksheet('RESUMEN DEL MES');
-    rs.getCell('A1').value='RESUMEN DEL MES '+mes+' — costo real contra el Excel de costos (TOGO_Costos.xlsx), costos con IVA'; rs.getCell('A1').font={bold:true,size:12};
+    rs.getCell('A1').value='RESUMEN DEL MES '+mes+' — costo real contra la receta de referencia de la app, todo sin IVA'; rs.getCell('A1').font={bold:true,size:12};
     head(rs,3,['Producto','Tipo','Elaboraciones','Kg producidos (envasados)','Unidades (bolsas / porciones / pizzitas)','Merma promedio (%)','Merma según Excel (%)','Merma: diferencia relativa','Costo real','Costo según Excel','Unidad del costo','Costo: diferencia %','Alerta (>5 %)']);
     var rr=resumenRows(rows);
     rr.forEach(function(v,i){ var row=rs.getRow(4+i); v.forEach(function(x,j){ row.getCell(j+1).value=x; });
@@ -743,7 +759,7 @@ async function bajarRevision(){
     if(!L.length){ m.appendChild(el('div','msg warn','Todavía no hay cargas para comparar.')); b.disabled=false; return; }
     var X=await loadExcelJS(), wb=new X.Workbook(), ws=wb.addWorksheet('QUÉ ACTUALIZAR');
     var HF={type:'pattern',pattern:'solid',fgColor:{argb:'FF6A2FC0'}}, WH={bold:true,color:{argb:'FFFFFFFF'}}, AM={type:'pattern',pattern:'solid',fgColor:{argb:'FFFDE7C8'}}, MONEY='$ #,##0';
-    ws.getCell('A1').value='QUÉ ACTUALIZAR EN TOGO_Costos.xlsx — '+new Date().toLocaleDateString('es-AR')+' — costos con IVA'; ws.getCell('A1').font={bold:true,size:12};
+    ws.getCell('A1').value='QUÉ ACTUALIZAR EN LAS RECETAS — '+new Date().toLocaleDateString('es-AR')+' — todo sin IVA'; ws.getCell('A1').font={bold:true,size:12};
     ws.getCell('A2').value='Real = promedio de todas las cargas de la app'+(excl?' ('+excl+' carga(s) con “Dato raro” excluida(s))':'')+'. Se sugiere cambiar solo si hay 3 o más cargas y la diferencia pasa 5 %. Los costos reales usan los precios de compra vigentes.'; ws.getCell('A2').font={italic:true,color:{argb:'FF625A78'}};
     var H=['Producto','Tipo','Cargas','Merma real (%)','Merma en el Excel (%)','Merma: diferencia','Tiempo real','Tiempo en el Excel','Unidad del tiempo','Tiempo: diferencia','Costo real','Costo en el Excel','Unidad del costo','Costo: diferencia','Qué conviene hacer'];
     H.forEach(function(h,i){ var c=ws.getRow(4).getCell(i+1); c.value=h; c.fill=HF; c.font=WH; c.alignment={wrapText:true,horizontal:'center',vertical:'middle'}; }); ws.getRow(4).height=40;
@@ -797,7 +813,7 @@ function costOf(e){
   if(e.tipo==='pizzita'){
     d=PIZ[e.producto]; if(!d||!(e.unidades>0)) return e;
     var de=e.descarte||0, vend=e.unidades-de;
-    o.vendibles=vend; o.cMat=e.unidades*d.ing; o.cEnv=e.unidades*PIZ_ENV; o.cAmort=0; o.cMO=mi/60*HORA;
+    o.vendibles=vend; o.cMat=e.unidades*d.ing; o.cEnv=e.unidades*(d.env!=null?d.env:PIZ_ENV); o.cAmort=0; o.cMO=mi/60*HORA;
     o.precioKg=e.canal==='may'?d.may:d.min; o.venta=vend*o.precioKg;
   } else {
     var kf=e.kgFracc!=null?e.kgFracc:(e.kgPieza-(e.merma||0));
@@ -808,7 +824,7 @@ function costOf(e){
   o.costo=o.cMat+o.cEnv+o.cAmort+o.cMO; o.resultado=o.venta-o.costo; o.antesMO=o.venta-(o.costo-o.cMO);
   return Object.assign(e,o);
 }
-function mergeData(){ elabs=ownElabs.concat(fbElabs); movs=ownMovs.concat(fbMovs); renderAll(); }
+function mergeData(){ elabs=ownElabs.concat(fbElabs); movs=ownMovs.concat(fbMovs); renderAll(); if(TC.store){ TC.store.cargas=elabs; if(!$('s-costos').hidden&&TC.ui) TC.ui.refresh(); } }
 function fromSnap(snap){ return snap.docs.map(function(d){ var x=Object.assign({},d.data()); x._id=d.id; return x; }); }
 
 // ---------- arranque ----------
@@ -843,19 +859,139 @@ async function loadCosts(){
     throw e;
   }
 }
+// ---------- costos y precios: maestro en el repo privado (togo_maestro.json + compras_mp.json) ----------
+var TC={M:null,store:null,ui:null,porKey:{},sha:{},cfg:null,F:null,fs:null,pend:[],cat:null};
+function b64e(str){ var bytes=new TextEncoder().encode(str), bin=''; for(var i=0;i<bytes.length;i+=0x8000){ bin+=String.fromCharCode.apply(null,bytes.subarray(i,i+0x8000)); } return btoa(bin); }
+function ghCfg(){
+  var cfg=null;
+  try{ cfg=JSON.parse(lsGet('emp_cfg')||'null'); }catch(e){}
+  if(!cfg||!cfg.token){ try{ cfg=JSON.parse(lsGet('elab_cfg')||'null'); }catch(e){} }
+  if(!cfg||!cfg.token){
+    var t=(window.prompt('Pegá el token de GitHub (el mismo de la app de empleados) para ver los costos:')||'').trim();
+    if(!t) throw new Error('Falta el token de GitHub.');
+    cfg={owner:'EstebanGabriel',repo:'frioteka-privado',token:t}; lsSet('elab_cfg',JSON.stringify(cfg));
+  }
+  return {owner:cfg.owner||'EstebanGabriel',repo:cfg.repo||'frioteka-privado',token:cfg.token};
+}
+function ghH(cfg){ return {'Authorization':'Bearer '+cfg.token,'Accept':'application/vnd.github+json','X-GitHub-Api-Version':'2022-11-28'}; }
+async function ghGet(cfg,path){
+  var r=await fetch('https://api.github.com/repos/'+cfg.owner+'/'+cfg.repo+'/contents/'+path+'?t='+Date.now(),{headers:ghH(cfg),cache:'no-store'});
+  if(r.status===401||r.status===403){ try{ localStorage.removeItem('elab_cfg'); }catch(e){} throw new Error('El token no es válido o no tiene permiso sobre el repo privado.'); }
+  if(r.status===404) return null;
+  if(!r.ok) throw new Error('GitHub respondió '+r.status);
+  var j=await r.json(); return {json:JSON.parse(b64d(j.content)),sha:j.sha};
+}
+async function ghPut(cfg,path,obj,sha,msg){
+  var body={message:msg,content:b64e(JSON.stringify(obj,null,1)+'\n')}; if(sha) body.sha=sha;
+  var r=await fetch('https://api.github.com/repos/'+cfg.owner+'/'+cfg.repo+'/contents/'+path,{method:'PUT',headers:Object.assign({'Content-Type':'application/json'},ghH(cfg)),body:JSON.stringify(body)});
+  if(r.status===409||r.status===422){ var e=new Error('conflicto'); e.conflict=true; throw e; }
+  if(r.status===401||r.status===403||r.status===404) throw new Error('El token no tiene permiso para guardar en el repo privado (hace falta "Contents: Read and write").');
+  if(!r.ok) throw new Error('GitHub respondió '+r.status);
+  var j=await r.json(); return j.content&&j.content.sha;
+}
+function aplicarMaestro(){
+  var M=TC.M=TogoCostos.Motor(TC.store), Dm=M.D;
+  function sin(id){ var i=M.byIns[id], p=i&&M.precio(i); return p?p.sin:0; }
+  [VAC,QUE,PIZ,CODIGOS].forEach(function(o){ Object.keys(o).forEach(function(k){ delete o[k]; }); });
+  TC.porKey={};
+  HORA=Dm.constantes.HORA; BOLSA=sin('ENV-01'); FILM=sin('ENV-02'); PIZ_ENV=sin('ENV-03'); PIZ_MIN_REF=4.7; PIZ_MIN_OBJ=2.35;
+  Dm.recetas.forEach(function(r){
+    if(r.activo===false||!r.appKey) return;
+    TC.porKey[r.appKey]=r;
+    function ch(k){ return r.canales.filter(function(c){ return c.canal===k; })[0]||null; }
+    function pv(k){ var x=ch(k); return x&&x.actual!=null?x.actual/1.21:null; }
+    function cod(k){ var x=ch(k); return x?x.codigo||'':''; }
+    var base=r.base?sin(r.base):0, a, b;
+    if(r.appTipo==='vacio'){
+      if(r.amort) AMORT_VAC=r.amort; a=pv('min'); b=pv('may');
+      VAC[r.appKey]={compra:base,min:a!=null?a:(b||0),may:b!=null?b:(a||0),merma:r.ref.merma||0,mpb:r.ref.minBolsa||null};
+      CODIGOS[r.appKey]=[cod('min'),cod('may')];
+    } else if(r.appTipo==='queso'){
+      if(r.amort) AMORT_TER=r.amort; a=pv('min'); b=pv('pieza');
+      QUE[r.appKey]={compra:base,min:a!=null?a:(b||0),may:b!=null?b:(a||0),kg:r.ref.kgPieza||null,mkg:r.ref.minutos||null};
+      CODIGOS[r.appKey]=[cod('min'),cod('pieza')];
+    } else {
+      var ing=0, env=0; r.lineas.forEach(function(l){ var i=M.byIns[l.ins], v=sin(l.ins)*l.cant; if(i&&i.tipo==='Envase') env+=v; else ing+=v; });
+      a=pv('min'); b=pv('may');
+      PIZ[r.appKey]={ing:ing,env:env,min:a!=null?a:(b||0),may:b!=null?b:(a||0)};
+      CODIGOS[r.appKey]=[cod('min'),cod('may')];
+    }
+  });
+}
+function recost(){
+  var K=['resultado','venta','costo','cMat','cEnv','cAmort','cMO','antesMO','precioKg'];
+  fbElabs=fbElabs.map(function(e){ K.forEach(function(k){ delete e[k]; }); return costOf(e); });
+}
+function rellenarSelects(){
+  [['vProd',VAC],['qProd',QUE],['pProd',PIZ]].forEach(function(x){ var s=$(x[0]), v=s.value; s.textContent=''; Object.keys(x[1]).forEach(function(p){ var o=el('option',null,p); o.value=p; s.appendChild(o); }); if(x[1][v]) s.value=v; });
+  var m=$('mProd'), mv=m.value; m.textContent=''; stockItems().forEach(function(i){ var o=el('option',null,i.label); o.value=i.key; m.appendChild(o); }); if(mv) m.value=mv;
+}
+function catalogo(){
+  var q={}; Object.keys(QUE).forEach(function(k){ q[k]={kg:QUE[k].kg||null}; });
+  return {vac:Object.keys(VAC),que:q,piz:Object.keys(PIZ)};
+}
+function publicarCatalogo(){
+  if(!TC.F||!TC.fs||TC.cat===undefined) return;
+  var c=catalogo(); if(TC.cat&&JSON.stringify({vac:TC.cat.vac,que:TC.cat.que,piz:TC.cat.piz})===JSON.stringify(c)) return;
+  TC.F.setDoc(TC.F.doc(TC.fs,'el_catalogo','actual'),Object.assign({},c,{actualizado:Date.now(),quien:uid})).catch(function(){});
+}
+function ahoraTxt(){ var d=new Date(Date.now()-3*3600e3); return d.toISOString().slice(0,16).replace('T',' '); }
+function pendId(c){ return String(c).replace(/[\/.#\[\]\s]/g,'_'); }
+function montarCostos(){
+  var box=$('tcRoot'); box.textContent='';
+  TC.store.usuario=uid; TC.store.cargas=elabs; TC.store.esRaro=function(e){ return rareDe(e).length>0; }; TC.store.loadExcel=loadExcelJS;
+  TC.store.save=async function(doc,msg){
+    try{ TC.sha.m=await ghPut(TC.cfg,'togo_maestro.json',doc,TC.sha.m,'app costos: '+msg); }
+    catch(e){
+      if(e.conflict){ var g=await ghGet(TC.cfg,'togo_maestro.json'); if(g){ TC.sha.m=g.sha; TC.store.doc=g.json; aplicarMaestro(); recost(); renderAll(); TC.ui.refresh(); } throw new Error('Se había guardado otro cambio antes. Ya cargué la versión nueva: repetí el cambio.'); }
+      throw e;
+    }
+    TC.store.doc=doc; aplicarMaestro(); recost(); rellenarSelects(); renderAll(); publicarCatalogo();
+  };
+  if(TC.F&&TC.fs){
+    TC.store.pend={list:function(){ return TC.pend; },
+      add:function(p){ return TC.F.setDoc(TC.F.doc(TC.fs,'el_precios_pend',pendId(p.codigo)),p); },
+      done:function(p,q){ return TC.F.updateDoc(TC.F.doc(TC.fs,'el_precios_pend',pendId(p.codigo)),{hecho:ahoraTxt(),quien:q}); }};
+  }
+  TC.ui=TogoCostos.mount(box,TC.store);
+}
+async function cargarMaestro(){
+  TC.cfg=ghCfg();
+  var m=await ghGet(TC.cfg,'togo_maestro.json'); if(!m) return false;
+  var c=null; try{ c=await ghGet(TC.cfg,'compras_mp.json'); }catch(e){}
+  TC.sha.m=m.sha;
+  TC.store={doc:m.json,compras:c?c.json.compras||[]:[],comprasAl:c?c.json.actualizado:'—',cargas:[]};
+  lsSet('elab_maestro',JSON.stringify({m:m.json,c:c?c.json:null}));
+  aplicarMaestro(); return true;
+}
 (async function(){
   var nm=lsGet('togo-nombre')||'';
   if(!nm){ nm=(window.prompt('¿Cómo te llamás?',"Banchi")||'').trim(); if(nm) lsSet('togo-nombre',nm); }
   uid=nm||'Banchi'; names[uid]=uid; $('who').textContent='Hola, '+uid;
-  var D=null;
-  try{ D=await loadCosts(); }catch(e){
-    var ce=$('costerr'); ce.hidden=false; ce.textContent=e.message+' ';
-    var bt=el('button','btn small','Ingresar token'); bt.type='button'; bt.onclick=function(){ try{ localStorage.removeItem('elab_cfg'); localStorage.removeItem('emp_cfg_unused'); }catch(x){} location.reload(); }; ce.appendChild(bt);
-    ['vGuardar','qGuardar','pGuardar','mGuardar'].forEach(function(i){ $(i).disabled=true; });
-    return;
+  var conMaestro=false;
+  try{ conMaestro=await cargarMaestro(); }
+  catch(e){
+    if(e.message.indexOf('token')<0){ var c=null; try{ c=JSON.parse(lsGet('elab_maestro')||'null'); }catch(x){}
+      if(c&&c.m){ TC.store={doc:c.m,compras:c.c?c.c.compras||[]:[],comprasAl:c.c?c.c.actualizado:'—',cargas:[]}; aplicarMaestro(); conMaestro=true;
+        var w=$('tcMsg'); w.appendChild(el('div','msg warn','Sin conexión con GitHub: uso la última copia guardada en este celular. No se pueden guardar cambios de costos hasta que vuelva la conexión.')); } }
+    if(!conMaestro){
+      var ce=$('costerr'); ce.hidden=false; ce.textContent=e.message+' ';
+      var bt=el('button','btn small','Ingresar token'); bt.type='button'; bt.onclick=function(){ try{ localStorage.removeItem('elab_cfg'); }catch(x){} location.reload(); }; ce.appendChild(bt);
+      ['vGuardar','qGuardar','pGuardar','mGuardar'].forEach(function(i){ $(i).disabled=true; });
+      return;
+    }
   }
-  HORA=D.HORA; BOLSA=D.BOLSA; AMORT_VAC=D.AMORT_VAC; FILM=D.FILM; AMORT_TER=D.AMORT_TER; PIZ_ENV=D.PIZ_ENV; PIZ_MIN_REF=D.PIZ_MIN_REF; PIZ_MIN_OBJ=D.PIZ_MIN_OBJ;
-  Object.assign(VAC,D.VAC); Object.assign(QUE,D.QUE); Object.assign(PIZ,D.PIZ);
+  if(!conMaestro){ // todavía no existe el maestro: costos viejos
+    var D=null;
+    try{ D=await loadCosts(); }catch(e){
+      var ce2=$('costerr'); ce2.hidden=false; ce2.textContent=e.message+' ';
+      ['vGuardar','qGuardar','pGuardar','mGuardar'].forEach(function(i){ $(i).disabled=true; });
+      return;
+    }
+    HORA=D.HORA; BOLSA=D.BOLSA; AMORT_VAC=D.AMORT_VAC; FILM=D.FILM; AMORT_TER=D.AMORT_TER; PIZ_ENV=D.PIZ_ENV; PIZ_MIN_REF=D.PIZ_MIN_REF; PIZ_MIN_OBJ=D.PIZ_MIN_OBJ;
+    Object.assign(VAC,D.VAC); Object.assign(QUE,D.QUE); Object.assign(PIZ,D.PIZ);
+    $('tcRoot').textContent=''; $('tcRoot').appendChild(el('div','empty','Todavía no está el archivo de costos nuevo (togo_maestro.json) en el repo privado.'));
+  }
   boot();
   var C={elaboraciones:'el_elaboraciones',movimientos:'el_movimientos'};
   try{
@@ -864,6 +1000,7 @@ async function loadCosts(){
     var fbApp=A.initializeApp({apiKey:"AIzaSyC5voDKO_imN8QqRRpjMQdwV7QILrJw40g",authDomain:"frioteka-preventista.firebaseapp.com",projectId:"frioteka-preventista",storageBucket:"frioteka-preventista.firebasestorage.app",messagingSenderId:"212598423220",appId:"1:212598423220:web:aee51bc39626b3c08621e1"},'elaboraciones');
     await (await import('./login.js')).requireLogin(fbApp, { color: '#6a2fc0', titulo: 'Elaboraciones TOGO · Dueño' });
     var fs=F.getFirestore(fbApp);
+    TC.F=F; TC.fs=fs;
     db={collection:function(name){ var col=F.collection(fs,C[name]); return {
       add:function(o){ return F.addDoc(col,o); },
       doc:function(id){ var r=F.doc(col,id); return {delete:function(){ return F.deleteDoc(r); },update:function(u){ return F.updateDoc(r,u); }}; } }; }};
@@ -871,8 +1008,14 @@ async function loadCosts(){
     var tag=function(d){ var x=Object.assign({},d.data()); x._id=d.id; x._src='fb'; if(x.uid) names[x.uid]=x.uid; return x; };
     F.onSnapshot(F.collection(fs,C.elaboraciones),function(sn){ fbElabs=sn.docs.map(function(d){ return costOf(tag(d)); }); mergeData(); },function(){ $('dberr').hidden=false; });
     F.onSnapshot(F.collection(fs,C.movimientos),function(sn){ fbMovs=sn.docs.map(tag); mergeData(); },function(){ $('dberr').hidden=false; });
+    if(conMaestro){
+      F.onSnapshot(F.collection(fs,'el_precios_pend'),function(sn){ TC.pend=sn.docs.map(function(d){ return d.data(); }); if(TC.ui&&!$('s-costos').hidden) TC.ui.refresh(); },function(){});
+      TC.cat=undefined;
+      F.onSnapshot(F.doc(fs,'el_catalogo','actual'),function(d){ var first=TC.cat===undefined; TC.cat=d.exists()?d.data():null; if(first) publicarCatalogo(); },function(){});
+    }
   }catch(e){ db=null; }
   if(!db){ $('dberr').hidden=false; ['vGuardar','qGuardar','pGuardar','mGuardar'].forEach(function(i){ $(i).disabled=true; }); }
+  if(conMaestro) montarCostos();
 })();
 </script>
 

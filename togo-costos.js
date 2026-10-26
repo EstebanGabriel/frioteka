@@ -52,8 +52,8 @@
         .sort(function (a, b) { return String(b.fecha || '').localeCompare(String(a.fecha || '')) || (b.creado || 0) - (a.creado || 0); });
     }
     // Merma y minutos: promedio de las últimas N cargas sin "Dato raro"; si hay menos de MIN_CARGAS, la referencia.
-    function mt(r) {
-      var todas = cargasDe(r), raro = store.esRaro || function () { return false; };
+    function mt(r, soloRef) {
+      var todas = soloRef ? [] : cargasDe(r), raro = store.esRaro || function () { return false; };
       var ult = todas.slice(0, C.CARGAS + 6), usadas = [], marcadas = [];
       ult.forEach(function (e) { if (usadas.length >= C.CARGAS) return; if (raro(e)) marcadas.push(e); else usadas.push(e); });
       var out = { merma: r.ref.merma || 0, minutos: r.ref.minutos || 0, fuente: 'ref', n: usadas.length, usadas: usadas, raras: marcadas };
@@ -73,8 +73,8 @@
       }
       return out;
     }
-    function costo(r) {
-      var t = mt(r), m = Math.min(Math.max(t.merma || 0, 0), 95) / 100, sinI = 0, conI = 0, lin = [], falta = [];
+    function costo(r, soloRef) {
+      var t = mt(r, soloRef), m = Math.min(Math.max(t.merma || 0, 0), 95) / 100, sinI = 0, conI = 0, lin = [], falta = [];
       r.lineas.forEach(function (l) {
         var ins = byIns[l.ins], p = precio(ins), q = l.cant * (l.merma ? 1 / (1 - m) : 1);
         if (!p) falta.push(ins ? ins.nombre : l.ins);
@@ -421,7 +421,7 @@
           if (nuevo) {
             var n = 1; while (d.recetas.some(function (x) { return x.id === 'R-N' + String(n).padStart(3, '0'); })) n++;
             r.id = 'R-N' + String(n).padStart(3, '0'); r.activo = true;
-            if (!r.appKey) { r.appKey = r.nombre; r.appTipo = r.tipo === 'Al vacío' ? 'vacio' : r.tipo === 'Queso en film' ? 'queso' : r.tipo === 'Pizzita' ? 'pizzita' : 'otro'; }
+            if (!r.appKey) { r.appKey = r.nombre; r.appTipo = r.tipo === 'Al vacío' ? 'vacio' : r.tipo === 'Queso en film' ? 'queso' : 'pizzita'; }
             d.recetas.push(r);
           } else { var k = d.recetas.findIndex(function (x) { return x.id === r.id; }); d.recetas[k] = r; }
           guardar(d, (nuevo ? 'elaborado nuevo ' : 'receta ') + r.nombre).then(function (ok) { if (ok) close(); });
@@ -501,24 +501,28 @@
           var d = clone(D()), r = d.recetas.find(function (y) { return y.id === x.r.id; }), k = r.canales.find(function (k2) { return k2.codigo === x.k.codigo && k2.canal === x.k.canal; });
           d.cambios.push({ fecha: ahora(), tipo: 'precio', id: r.id, codigo: k.codigo, producto: r.nombre, canal: k.canal, anterior: k.actual, nuevo: v, costoSin: round2(x.cs), quien: store.usuario });
           k.actual = v; k.fuenteActual = 'cambiado ' + fdate(hoy()); k.cambio = hoy();
-          d.pendientes = (d.pendientes || []).filter(function (p) { return !(p.codigo === k.codigo && !p.hecho); });
-          d.pendientes.push({ fecha: ahora(), codigo: k.codigo, producto: r.nombre, canal: k.canal, costoSin: round2(x.cs), precioCon: v, anterior: x.k.actual, balanza: k.balanza || '', pidio: store.usuario, hecho: null });
-          guardar(d, 'precio ' + k.codigo + ' → ' + money(v)).then(function (ok) { if (ok) { close(); tab = 'lis'; render(); } });
+          var pe = { fecha: ahora(), codigo: k.codigo, producto: r.nombre, canal: k.canal, costoSin: round2(x.cs), precioCon: v, anterior: x.k.actual, balanza: k.balanza || '', pidio: store.usuario, hecho: null };
+          guardar(d, 'precio ' + k.codigo + ' → ' + money(v)).then(function (ok) { if (!ok) return; close(); return pendAdd(pe).then(function () { tab = 'lis'; render(); }); });
         }));
       });
     }
     function mandarCosto(x) {
       var d = clone(D()), r = d.recetas.find(function (y) { return y.id === x.r.id; }), k = r.canales.find(function (k2) { return k2.codigo === x.k.codigo && k2.canal === x.k.canal; });
       if (!k.codigo) return aviso('Este canal no tiene código del sistema.', false);
-      d.pendientes = (d.pendientes || []).filter(function (p) { return !(p.codigo === k.codigo && !p.hecho); });
-      d.pendientes.push({ fecha: ahora(), codigo: k.codigo, producto: r.nombre, canal: k.canal, costoSin: round2(x.cs), precioCon: k.actual, anterior: k.actual, balanza: k.balanza || '', soloCosto: true, pidio: store.usuario, hecho: null });
-      guardar(d, 'costo ' + k.codigo + ' a cargar');
+      pendAdd({ fecha: ahora(), codigo: k.codigo, producto: r.nombre, canal: k.canal, costoSin: round2(x.cs), precioCon: k.actual, anterior: k.actual, balanza: k.balanza || '', soloCosto: true, pidio: store.usuario, hecho: null })
+        .then(function () { aviso('Costo de ' + k.codigo + ' mandado a cargar.'); render(); });
     }
     function round2(v) { return v == null ? null : Math.round(v * 100) / 100; }
+    // Pendientes de cargar en el sistema: los guarda la página (store.pend) donde los ve también quien carga precios.
+    var PEND = store.pend || { lista: [], list: function () { return this.lista; },
+      add: function (p) { this.lista = this.lista.filter(function (x) { return x.codigo !== p.codigo || x.hecho; }); this.lista.push(p); return Promise.resolve(); },
+      done: function (p, quien) { p.hecho = ahora(); p.quien = quien; return Promise.resolve(); } };
+    function pendList() { return (PEND.list() || []).slice(); }
+    function pendAdd(p) { return Promise.resolve(PEND.add(p)).catch(function (e) { aviso('El precio se guardó, pero no pude dejarlo pendiente de cargar: ' + (e && e.message || e), false); }); }
 
     // ===== PESTAÑA 4 · LISTA VIGENTE =====
     function vLista() {
-      var P = (D().pendientes || []).filter(function (p) { return !p.hecho; });
+      var P = pendList().filter(function (p) { return !p.hecho; }).sort(function (a, b) { return String(a.fecha).localeCompare(String(b.fecha)); });
       var h = el('h2', null, 'Pendiente de cargar en el sistema y la balanza'); body.appendChild(h);
       if (!P.length) body.appendChild(el('div', 'note', 'Nada pendiente. Cuando cambies un precio en la pestaña Precios aparece acá, para que lo carguen vos o Gonzalo.'));
       P.forEach(function (p) {
@@ -532,8 +536,7 @@
         if (p.anterior != null && !p.soloCosto) pr.appendChild(el('div', 'mut', 'antes ' + money(p.anterior)));
         var bb = el('div', 'tc-bar'); bb.style.margin = '8px 0 0';
         bb.appendChild(btn('✓ Cargado en sistema y balanza', 'p s', function () {
-          var d = clone(D()), x = d.pendientes.find(function (y) { return y.codigo === p.codigo && y.fecha === p.fecha && !y.hecho; });
-          x.hecho = ahora(); x.quien = store.usuario; guardar(d, 'cargado ' + p.codigo);
+          Promise.resolve(PEND.done(p, store.usuario)).then(function () { aviso('Marcado como cargado: ' + p.codigo); render(); }, function (e) { aviso('No se pudo marcar: ' + (e && e.message || e), false); });
         }));
         c.appendChild(bb); body.appendChild(c);
       });
@@ -622,8 +625,13 @@
       setTimeout(function () { window.print(); setTimeout(function () { w.remove(); }, 500); }, 50);
     }
     function excel() {
-      if (!W.ExcelJS) return aviso('No cargó la librería de Excel (sin conexión).', false);
-      var wb = new W.ExcelJS.Workbook(), ws = wb.addWorksheet('LISTA VIGENTE');
+      Promise.resolve(store.loadExcel ? store.loadExcel() : W.ExcelJS).then(function (X) {
+        if (!X) throw new Error('sin conexión');
+        excel2(X);
+      }).catch(function (e) { aviso('No cargó el generador de Excel (' + (e && e.message || e) + ').', false); });
+    }
+    function excel2(X) {
+      var wb = new X.Workbook(), ws = wb.addWorksheet('LISTA VIGENTE');
       ws.columns = [{ header: 'Código', width: 10 }, { header: 'Producto', width: 34 }, { header: 'Tipo', width: 14 }, { header: 'Canal', width: 11 }, { header: 'Presentación', width: 22 },
         { header: 'Costo sin IVA', width: 14 }, { header: 'Costo con IVA', width: 14 }, { header: 'Precio con IVA', width: 14 }, { header: 'Precio sugerido', width: 14 }, { header: 'Markup real', width: 11 }, { header: 'Balanza', width: 10 }, { header: 'Último cambio', width: 13 }, { header: 'Merma y tiempo', width: 16 }];
       filas().forEach(function (x) {
@@ -631,7 +639,7 @@
       });
       ws.getRow(1).font = { bold: true }; [6, 7, 8, 9].forEach(function (k) { ws.getColumn(k).numFmt = '"$"#,##0.00'; });
       var wp = wb.addWorksheet('PENDIENTE DE CARGAR'); wp.columns = [{ header: 'Pedido', width: 17 }, { header: 'Código', width: 10 }, { header: 'Producto', width: 34 }, { header: 'Costo sin IVA', width: 14 }, { header: 'Precio con IVA', width: 14 }, { header: 'Cargado', width: 17 }, { header: 'Quién', width: 12 }];
-      (D().pendientes || []).forEach(function (p) { wp.addRow([p.fecha, p.codigo, p.producto, p.costoSin, p.precioCon, p.hecho || '', p.quien || '']); }); wp.getRow(1).font = { bold: true };
+      pendList().forEach(function (p) { wp.addRow([p.fecha, p.codigo, p.producto, p.costoSin, p.precioCon, p.hecho || '', p.quien || '']); }); wp.getRow(1).font = { bold: true };
       var wc = wb.addWorksheet('CAMBIOS'); wc.columns = [{ header: 'Fecha', width: 17 }, { header: 'Qué', width: 10 }, { header: 'Código', width: 10 }, { header: 'Producto / insumo', width: 34 }, { header: 'Anterior', width: 13 }, { header: 'Nuevo', width: 13 }, { header: 'Quién', width: 12 }];
       (D().cambios || []).forEach(function (c) { wc.addRow([c.fecha, c.tipo, c.codigo || c.id, c.producto || c.nombre || '', c.anterior, c.nuevo, c.quien]); }); wc.getRow(1).font = { bold: true };
       var wi = wb.addWorksheet('INSUMOS'); wi.columns = [{ header: 'Id', width: 9 }, { header: 'Insumo', width: 36 }, { header: 'Tipo', width: 12 }, { header: 'Unidad', width: 7 }, { header: 'Alícuota', width: 9 }, { header: 'Con IVA', width: 13 }, { header: 'Sin IVA', width: 13 }, { header: 'Fuente', width: 30 }];

@@ -221,16 +221,25 @@ function showTab(t){
   try{ localStorage.setItem('togo-tab',t); }catch(e){}
 }
 document.querySelectorAll('nav button').forEach(function(b){ b.addEventListener('click',function(){ showTab(b.dataset.tab); }); });
-Object.keys(VAC).forEach(function(p){ var o=el('option',null,p); o.value=p; $('vProd').appendChild(o); });
-Object.keys(QUE).forEach(function(p){ var o=el('option',null,p); o.value=p; $('qProd').appendChild(o); });
-Object.keys(PIZ).forEach(function(p){ var o=el('option',null,p); o.value=p; $('pProd').appendChild(o); });
+function llenarSelects(){
+  [['vProd',VAC],['qProd',QUE],['pProd',PIZ]].forEach(function(x){ var s=$(x[0]), v=s.value; s.textContent=''; Object.keys(x[1]).forEach(function(p){ var o=el('option',null,p); o.value=p; s.appendChild(o); }); if(x[1][v]) s.value=v; });
+  var m=$('mProd'), mv=m.value; m.textContent=''; stockItems().forEach(function(i){ var o=el('option',null,i.label); o.value=i.key; m.appendChild(o); }); if(mv) m.value=mv;
+}
+// La lista de productos la arma el dueño en "Costos" (colección el_catalogo, sin costos ni precios). Si no llega, queda la lista de arriba.
+function aplicarCatalogo(c){
+  if(!c||!c.vac||!c.que||!c.piz) return;
+  VAC={}; c.vac.forEach(function(p){ VAC[p]={}; });
+  QUE={}; Object.keys(c.que).forEach(function(p){ QUE[p]={kg:c.que[p]&&c.que[p].kg}; });
+  PIZ={}; c.piz.forEach(function(p){ PIZ[p]={}; });
+  llenarSelects(); renderAll();
+}
 function stockItems(){
   var l=[]; Object.keys(VAC).forEach(function(p){ l.push({key:p,label:p+' (bolsas)',unit:'bolsas'}); });
   Object.keys(QUE).forEach(function(p){ l.push({key:p+' (porciones)',label:p+' (porciones)',unit:'porciones'}); l.push({key:p+' (cuartos/mitades)',label:p+' (cuartos/mitades)',unit:'unidades'}); });
   Object.keys(PIZ).forEach(function(p){ l.push({key:p,label:p+' (unidades)',unit:'pizzitas'}); });
   return l;
 }
-stockItems().forEach(function(i){ var o=el('option',null,i.label); o.value=i.key; $('mProd').appendChild(o); });
+llenarSelects();
 ['vFecha','qFecha','pFecha'].forEach(function(i){ $(i).value=today(); });
 
 function num(id){ return parseFloat(String($(id).value).replace(',','.')); }
@@ -352,6 +361,7 @@ try{ var tb=localStorage.getItem('togo-tab'); if(tb&&TABS.indexOf(tb)>=0) showTa
       add:function(o){ return F.addDoc(col,o); },
       doc:function(id){ var r=F.doc(col,id); return {delete:function(){ return F.deleteDoc(r); }}; },
       onSnapshot:function(cb,err){ return F.onSnapshot(col,cb,err); } }; }};
+    F.onSnapshot(F.doc(fs,'el_catalogo','actual'),function(d){ if(d.exists()) aplicarCatalogo(d.data()); },function(){});
   }catch(e){ db=null; }
   if(!db){ $('dberr').hidden=false; ['vGuardar','qGuardar','pGuardar','mGuardar'].forEach(function(i){ $(i).disabled=true; }); return; }
   db.collection('elaboraciones').onSnapshot(function(s){ elabs=fromSnap(s); renderAll(); },function(){ $('dberr').hidden=false; });
