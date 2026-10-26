@@ -73,22 +73,103 @@
       }
       return out;
     }
-    function costo(r, soloRef) {
+    // Precio "de origen" de un insumo: el que tenía cuando se armó el maestro (Excel del 14/10),
+    // o sea el primer valor "anterior" de su historial; si nunca se cambió, el precio a mano.
+    function precioOrig(ins) {
+      if (!ins) return null;
+      var a = 1 + (ins.alic == null ? 0.21 : ins.alic);
+      var h = (D.cambios || []).filter(function (c) { return c.tipo === 'insumo' && c.id === ins.id && c.anterior != null; });
+      var con = h.length ? h[0].anterior : (ins.manual ? ins.manual.conIva : null);
+      if (con == null) return null;
+      return { con: con, sin: con / a, fuente: 'excel', fecha: ins.manual && ins.manual.fecha };
+    }
+    function costo(r, soloRef, precioFn) {
+      precioFn = precioFn || precio;
       var t = mt(r, soloRef), m = Math.min(Math.max(t.merma || 0, 0), 95) / 100, sinI = 0, conI = 0, lin = [], falta = [];
       r.lineas.forEach(function (l) {
-        var ins = byIns[l.ins], p = precio(ins), q = l.cant * (l.merma ? 1 / (1 - m) : 1);
+        var ins = byIns[l.ins], p = precioFn(ins), q = l.cant * (l.merma ? 1 / (1 - m) : 1);
         if (!p) falta.push(ins ? ins.nombre : l.ins);
         var s = p ? p.sin * q : 0, c = p ? p.con * q : 0;
         sinI += s; conI += c; lin.push({ l: l, ins: ins, p: p, q: q, sin: s, con: c });
       });
       var mo = t.minutos / 60 * C.HORA, am = r.amort || 0;
-      var base = r.base ? precio(byIns[r.base]) : null;
-      return { mt: t, lin: lin, insSin: sinI, insCon: conI, mo: mo, amort: am, sin: sinI + mo + am, con: conI + mo + am, falta: falta, baseSin: base ? base.sin : null };
+      var base = r.base ? precioFn(byIns[r.base]) : null;
+      return { mt: t, lin: lin, insSin: sinI, insCon: conI, mo: mo, amort: am, sin: sinI + mo + am, con: conI + mo + am, falta: falta, baseSin: base ? base.sin : null, baseP: base };
     }
     function costoCanal(r, k, c) { c = c || costo(r); return k.canal === 'pieza' ? c.baseSin : c.sin; }
     function redondeo(r) { return (C.REDONDEO || {})[r.rinde] || 10; }
-    function sugerido(r, k, c) { var cs = costoCanal(r, k, c); if (cs == null) return null; var red = redondeo(r); return Math.ceil(cs * (k.markup || 1) * 1.21 / red) * red; }
-    return { D: D, byIns: byIns, precio: precio, compras: compras, costo: costo, costoCanal: costoCanal, sugerido: sugerido, mt: mt, cargasDe: cargasDe };
+    function sugCon(r, cs, mk) { if (cs == null) return null; var red = redondeo(r); return Math.ceil(cs * (mk || 1) * 1.21 / red) * red; }
+    function sugerido(r, k, c) { return sugCon(r, costoCanal(r, k, c), k.markup); }
+
+    // "Foto" del costo: el desglose línea por línea que se guarda cuando se fija un precio.
+    function r4(v) { return v == null ? null : Math.round(v * 10000) / 10000; }
+    function foto(r, c) {
+      c = c || costo(r);
+      return {
+        fecha: ahora(), merma: r4(c.mt.merma), minutos: r4(c.mt.minutos), fuenteMT: c.mt.fuente, n: c.mt.n, hora: C.HORA,
+        mo: r4(c.mo), amort: r4(c.amort), insSin: r4(c.insSin), sin: r4(c.sin), baseSin: r4(c.baseSin),
+        lineas: c.lin.map(function (x) {
+          return { ins: x.l.ins, nombre: x.ins ? x.ins.nombre : x.l.ins, tipo: x.ins ? x.ins.tipo : null, unidad: x.ins ? x.ins.unidad : null,
+            cant: x.l.cant, merma: !!x.l.merma, q: Math.round(x.q * 1e8) / 1e8, pSin: x.p ? r4(x.p.sin) : null, fuente: x.p ? x.p.fuente : null,
+            pFecha: x.p ? x.p.fecha || null : null, prov: x.p ? x.p.prov || null : null, sin: r4(x.sin) };
+        })
+      };
+    }
+    // Contra qué foto se compara un canal: la guardada al fijar el precio; si el precio viene de antes
+    // de la app, el costo con los precios del Excel del 14/10 y la merma/tiempo de referencia.
+    function fotoBase(r, k) {
+      if (k.foto) return { f: k.foto, origen: 'cambio' };
+      var cm = (D.cambios || []).filter(function (c) { return c.tipo === 'precio' && c.codigo === k.codigo && c.canal === k.canal; });
+      var conF = cm.filter(function (c) { return c.foto; });
+      if (conF.length) return { f: conF[conF.length - 1].foto, origen: 'cambio' };
+      var f = foto(r, costo(r, true, precioOrig)); f.fecha = '2026-10-14';
+      return { f: f, origen: 'excel', sinFoto: cm.length ? cm[cm.length - 1] : null };
+    }
+    function catIns(l, r) {
+      if (l.tipo === 'Envase') return 'env';
+      if (l.ins === r.base || l.tipo === 'Fiambre' || l.tipo === 'Queso' || l.tipo === 'Panificado') return 'mp';
+      return 'otros';
+    }
+    // Explicación del sugerido: qué cambió desde la foto, con el impacto en $ (sin IVA) por kg/unidad.
+    // La suma de los impactos da exactamente la diferencia de costo.
+    function explicar(r, k, now) {
+      now = now || costo(r);
+      var B = fotoBase(r, k), f = B.f, it = [];
+      var mkB = f.markup != null ? f.markup : k.markup;
+      if (k.canal === 'pieza') {
+        var lb = (f.lineas || []).filter(function (l) { return l.ins === r.base; })[0];
+        var pB = f.baseSin != null ? f.baseSin : (lb ? lb.pSin : null), pN = now.baseSin;
+        it.push({ cat: 'mp', que: 'Compra de ' + (byIns[r.base] ? byIns[r.base].nombre : 'la pieza'), antes: pB, ahora: pN, unidad: byIns[r.base] && byIns[r.base].unidad,
+          infoA: lb ? { fuente: lb.fuente, fecha: lb.pFecha, prov: lb.prov } : null, infoN: now.baseP, imp: (pN || 0) - (pB || 0), precio: true });
+        var costA = pB, costB = pN;
+      } else {
+        var cl = function (v) { return Math.min(Math.max(v || 0, 0), 95) / 100; };
+        var mB = cl(f.merma), usadas = {}, mermaImp = 0, hayMerma = false;
+        now.lin.forEach(function (x) {
+          var j = -1; (f.lineas || []).some(function (l, i) { if (!usadas[i] && l.ins === x.l.ins) { j = i; return true; } return false; });
+          var nom = x.ins ? x.ins.nombre : x.l.ins, pN = x.p ? x.p.sin : 0;
+          if (j < 0) { it.push({ cat: 'receta', que: nom + ' (nuevo en la receta)', imp: x.sin }); return; }
+          usadas[j] = 1;
+          var l = f.lineas[j], pB = l.pSin || 0, qB = l.q || 0, qMid = x.l.cant * (x.l.merma ? 1 / (1 - mB) : 1);
+          it.push({ cat: catIns(l, r), que: (catIns(l, r) === 'mp' ? 'Compra de ' : '') + nom, antes: l.pSin, ahora: x.p ? x.p.sin : null, unidad: l.unidad,
+            infoA: { fuente: l.fuente, fecha: l.pFecha, prov: l.prov }, infoN: x.p, imp: (pN - pB) * qB, precio: true });
+          var dc = pN * (qMid - qB);
+          if (Math.abs(x.l.cant - l.cant) > 1e-9) it.push({ cat: 'receta', que: 'Cantidad de ' + nom + ' en la receta', antes: l.cant, ahora: x.l.cant, unidad: l.unidad, imp: dc, cant: true });
+          else mermaImp += dc; // redondeos
+          if (x.l.merma || l.merma) hayMerma = true;
+          mermaImp += pN * (x.q - qMid);
+        });
+        (f.lineas || []).forEach(function (l, i) { if (!usadas[i]) it.push({ cat: 'receta', que: l.nombre + ' (salió de la receta)', imp: -(l.sin || 0) }); });
+        if (hayMerma) it.push({ cat: 'merma', que: 'Merma', antes: f.merma, ahora: now.mt.merma, imp: mermaImp, pctv: true, fuenteN: now.mt });
+        it.push({ cat: 'mo', que: 'Tiempo de mano de obra', antes: f.minutos, ahora: now.mt.minutos, imp: now.mo - (f.mo || 0), min: true, fuenteN: now.mt });
+        it.push({ cat: 'amort', que: 'Amortización', antes: f.amort || 0, ahora: now.amort, imp: now.amort - (f.amort || 0), plata: true });
+        costA = f.sin; costB = now.sin;
+      }
+      var orden = { mp: 0, merma: 1, mo: 2, env: 3, amort: 4, otros: 5, receta: 6 };
+      it.sort(function (a, b) { return orden[a.cat] - orden[b.cat]; });
+      return { base: B, items: it, costA: costA, costB: costB, mkA: mkB, mkB: k.markup, sugA: sugCon(r, costA, mkB), sugB: sugCon(r, costB, k.markup) };
+    }
+    return { D: D, byIns: byIns, precio: precio, precioOrig: precioOrig, compras: compras, costo: costo, costoCanal: costoCanal, sugerido: sugerido, mt: mt, cargasDe: cargasDe, foto: foto, fotoBase: fotoBase, explicar: explicar };
   }
 
   // ---------- estilos ----------
@@ -149,6 +230,24 @@
 .tc .kv{display:grid;grid-template-columns:1fr auto;gap:2px 10px;font-size:14px}.tc .kv .tot{font-weight:750;border-top:1px solid var(--tc-line);padding-top:4px}\
 .tc .pencil{border:none;background:none;color:var(--tc-acc);cursor:pointer;font-size:14px;padding:0 4px}\
 .tc .diff-up{color:var(--tc-acc);font-weight:700}.tc .diff-dn{color:var(--tc-ok);font-weight:700}\
+.tc details.it{border-top:1px solid var(--tc-line)}\
+.tc details.it>summary{list-style:none;cursor:pointer;display:block}.tc details.it>summary::-webkit-details-marker{display:none}\
+.tc details.it>summary:focus-visible{outline:2px solid var(--tc-acc);outline-offset:-2px}\
+.tc details.it[open]>summary{background:var(--tc-soft)}\
+.tc .it-row{display:flex;gap:10px;align-items:center;padding:10px 14px}.tc .it-row .grow{flex:1;min-width:0}\
+.tc .it-row .t::before{content:"▸ ";color:var(--tc-mut)}.tc details.it[open] .it-row .t::before{content:"▾ "}\
+.tc .it-body{padding:10px 14px 14px;border-top:1px dashed var(--tc-line)}\
+.tc details.it .lv-row{border-bottom:none}.tc details.it .lv-name .t::before{content:"▸ ";color:var(--tc-mut)}.tc details.it[open] .lv-name .t::before{content:"▾ "}\
+.tc details.it .lv-cell{cursor:pointer}.tc details.it .lv-cell:hover{outline:none}\
+.tc .lv-sug{font-size:12.5px;color:var(--tc-mut)}.tc .lv-dif{font-size:12.5px}\
+.tc .top5{border:2px solid var(--tc-acc);border-radius:14px;padding:10px 12px;margin:8px 0 12px;background:var(--tc-card)}\
+.tc .top5 .ln5{display:flex;gap:8px;align-items:baseline;padding:6px 0;border-top:1px solid var(--tc-line);cursor:pointer}.tc .top5 .ln5:first-of-type{border-top:none}\
+.tc .top5 .ln5 .grow{flex:1;min-width:0}\
+.tc .canal{border:1px solid var(--tc-line);border-radius:12px;padding:10px 12px;margin:8px 0;background:var(--tc-card)}\
+.tc .canal h4{margin:0 0 6px;font-size:14px}\
+.tc .expl{margin-top:10px}.tc .expl table td{font-variant-numeric:tabular-nums}.tc .expl .tot{font-weight:650;margin-top:8px}\
+.tc .expl .eq{color:var(--tc-mut)}\
+.tc .scroll{overflow-x:auto}\
 @media (max-width:620px){.tc .hide-s{display:none}.tc table{font-size:13px}.tc td,.tc th{padding:6px 4px}}\
 @media print{body *{visibility:hidden}.tc-print,.tc-print *{visibility:visible}.tc-print{position:absolute;left:0;top:0;width:100%;color:#000;background:#fff;font:11pt/1.3 Arial,sans-serif}\
 .tc-print table{width:100%;border-collapse:collapse}.tc-print th,.tc-print td{border-bottom:1px solid #bbb;padding:4px 6px;text-align:left}.tc-print .r{text-align:right}.tc-print h1{font-size:16pt;margin:0 0 4px}}';
@@ -193,41 +292,98 @@
       ({ ins: vInsumos, rec: vRecetas, pre: vPrecios, lis: vLista })[tab]();
     }
 
+    // ===== VISTA AGRUPADA DESPLEGABLE (Insumos, Recetas, Precios) =====
+    var abiertos = { ins: {}, rec: {}, pre: {} };
+    function lsGet(k, def) { try { var v = localStorage.getItem(k); return v == null ? def : JSON.parse(v); } catch (e) { return def; } }
+    function lsSet(k, v) { try { if (v == null) localStorage.removeItem(k); else localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} }
+    // cfg: key, tipos[], items(tp)->[], id(it), head(tp,L)->el|null, fila(it,tp)->el, detalle(it,cont), vacio
+    function agrupada(cfg) {
+      var L = {}, orden = [];
+      cfg.tipos.forEach(function (tp) { var x = cfg.items(tp); if (x.length) { L[tp] = x; orden.push(tp); } });
+      if (!orden.length) { body.appendChild(el('div', 'note', q ? 'Nada coincide con "' + q + '".' : cfg.vacio || 'No hay nada cargado.')); return; }
+      var solo = lsGet('tc-' + cfg.key + '-solo', null); if (solo && orden.indexOf(solo) < 0) solo = null;
+      var cerr = lsGet('tc-' + cfg.key + '-cerr', {});
+      var chips = el('div', 'chips'); body.appendChild(chips);
+      [null].concat(orden).forEach(function (tp) {
+        chips.appendChild(btn((tp || 'Todos') + (tp ? ' (' + L[tp].length + ')' : ''), 's' + (solo === tp ? ' on' : ''), function () { lsSet('tc-' + cfg.key + '-solo', tp); render(); }));
+      });
+      orden.forEach(function (tp) {
+        if (solo && solo !== tp) return;
+        var det = el('details', 'lv'); det.dataset.grupo = tp; det.open = q ? true : !cerr[tp];
+        det.addEventListener('toggle', function () { if (q) return; cerr[tp] = !det.open; lsSet('tc-' + cfg.key + '-cerr', cerr); });
+        var sm = el('summary'); sm.appendChild(el('span', 'lv-t', tp)); sm.appendChild(el('span', 'mut', L[tp].length + (L[tp].length === 1 ? cfg.uno || ' producto' : cfg.varios || ' productos'))); det.appendChild(sm);
+        var grid = el('div', 'lv-grid'); det.appendChild(grid);
+        var hd = cfg.head ? cfg.head(tp, L[tp]) : null; if (hd) grid.appendChild(hd);
+        L[tp].forEach(function (it) {
+          var id = cfg.id(it), d = el('details', 'it'); d.id = 'tc-' + cfg.key + '-' + id;
+          var s = el('summary'); s.appendChild(cfg.fila(it, tp)); d.appendChild(s);
+          var cont = el('div', 'it-body'); d.appendChild(cont);
+          if (abiertos[cfg.key][id]) { d.open = true; cfg.detalle(it, cont); }
+          d.addEventListener('toggle', function () { abiertos[cfg.key][id] = d.open; if (d.open && !cont.hasChildNodes()) cfg.detalle(it, cont); });
+          grid.appendChild(d);
+        });
+        body.appendChild(det);
+      });
+    }
+    function abrir(key, tp, id) {
+      abiertos[key][id] = true;
+      var cerr = lsGet('tc-' + key + '-cerr', {}); if (cerr[tp]) { cerr[tp] = false; lsSet('tc-' + key + '-cerr', cerr); }
+      var solo = lsGet('tc-' + key + '-solo', null); if (solo && solo !== tp) lsSet('tc-' + key + '-solo', null);
+      render();
+      var n = document.getElementById('tc-' + key + '-' + id); if (n && n.scrollIntoView) n.scrollIntoView({ block: 'start', behavior: 'smooth' });
+    }
+    function etqPrecio(p) {
+      if (!p) return el('span', 'tag a', 'sin precio');
+      return el('span', 'tag ' + (p.fuente === 'factura' ? 'ok' : 'w'), p.fuente === 'factura' ? 'factura ' + fdate(p.fecha).slice(0, 5) : 'a mano');
+    }
+
     // ===== PESTAÑA 1 · INSUMOS =====
     function vInsumos() {
       var b = bar(body); buscador(b, 'Buscar insumo');
       b.appendChild(btn(verPausados ? 'Ocultar pausados' : 'Ver pausados', 'g s', function () { verPausados = !verPausados; render(); }));
       b.appendChild(btn('+ Nuevo insumo', 'p', function () { editInsumo(null); }));
-      body.appendChild(el('div', 'note', 'Precio automático: la última factura de COSTOS_MATERIA_PRIMA_TOGO (copia al ' + (store.comprasAl || '—') + '). Lo que no entra por factura queda "a mano" hasta que llegue una. Sin IVA = con IVA ÷ (1 + alícuota).'));
-      TIPOS_INS.forEach(function (tp) {
-        var L = D().insumos.filter(function (i) { return (i.tipo === tp || (tp === 'Provisorio' && TIPOS_INS.indexOf(i.tipo) < 0)) && (verPausados || i.activo !== false) && match(i.nombre + ' ' + (i.codigoMP || '') + ' ' + i.id); });
-        if (!L.length) return;
-        body.appendChild(el('div', 'grp', tp + (tp === 'Provisorio' ? ' (totales a reemplazar por receta)' : '')));
-        L.forEach(function (i) {
-          var p = M.precio(i), c = el('div', 'card'), r = el('div', 'row'); c.appendChild(r);
-          var g = el('div', 'grow'); r.appendChild(g);
+      body.appendChild(el('div', 'note', 'Precio automático: la última factura de COSTOS_MATERIA_PRIMA_TOGO (copia al ' + (store.comprasAl || '—') + '). Lo que no entra por factura queda "a mano" hasta que llegue una. Sin IVA = con IVA ÷ (1 + alícuota). Tocá un insumo para ver sus compras.'));
+      agrupada({
+        key: 'ins', tipos: TIPOS_INS, uno: ' insumo', varios: ' insumos', vacio: 'No hay insumos cargados.',
+        items: function (tp) { return D().insumos.filter(function (i) { return (i.tipo === tp || (tp === 'Provisorio' && TIPOS_INS.indexOf(i.tipo) < 0)) && (verPausados || i.activo !== false) && match(i.nombre + ' ' + (i.codigoMP || '') + ' ' + i.id); }); },
+        id: function (i) { return i.id; },
+        fila: function (i) {
+          var p = M.precio(i), r = el('div', 'it-row'), g = el('div', 'grow'); r.appendChild(g);
           g.appendChild(el('div', 't', i.nombre));
-          var tg = el('div'); g.appendChild(tg);
-          tg.appendChild(el('span', 'tag', i.codigoMP || i.id));
-          tg.appendChild(el('span', 'tag', 'IVA ' + pct(i.alic, 1)));
-          if (p) tg.appendChild(el('span', 'tag ' + (p.fuente === 'factura' ? 'ok' : 'w'), p.fuente === 'factura' ? 'Factura ' + fdate(p.fecha) + ' · ' + (p.prov || '') : 'A mano · ' + fdate(p.fecha)));
+          var tg = el('div'); g.appendChild(tg); tg.appendChild(etqPrecio(p));
           if (i.activo === false) tg.appendChild(el('span', 'tag a', 'Pausado'));
-          var hist = M.compras(i).slice(0, 3);
-          if (hist.length) {
-            var h = el('div', 'mut'); h.style.marginTop = '5px';
-            h.textContent = 'Últimas compras: ' + hist.map(function (x, k) {
-              var prev = hist[k + 1], d = prev ? (x.pagadoFinal / prev.pagadoFinal - 1) : null;
-              return fdate(x.fechaFactura) + ' ' + money(x.pagadoFinal) + (d != null ? ' (' + (d >= 0 ? '+' : '') + pct(d, 0) + ')' : '');
-            }).join(' · ');
-            g.appendChild(h);
-          }
           var pr = el('div', 'r'); r.appendChild(pr);
-          pr.appendChild(el('div', 'big', p ? m2(p.sin) : 'Sin precio'));
-          pr.appendChild(el('div', 'mut', p ? 'sin IVA / ' + i.unidad : ''));
-          pr.appendChild(el('div', 'mut', p ? m2(p.con) + ' con IVA' : ''));
-          c.style.cursor = 'pointer'; c.onclick = function () { editInsumo(i); };
-          body.appendChild(c);
-        });
+          pr.appendChild(el('div', 't', p ? m2(p.sin) : '—'));
+          pr.appendChild(el('div', 'mut', p ? 'sin IVA · ' + m2(p.con) + ' con IVA / ' + i.unidad : ''));
+          return r;
+        },
+        detalle: function (i, c) {
+          var p = M.precio(i), hist = M.compras(i).slice(0, 4);
+          if (hist.length) {
+            c.appendChild(el('div', 'mut', 'Últimas compras (COSTOS_MATERIA_PRIMA_TOGO):'));
+            var w = el('div', 'scroll'), t = el('table'), th = el('tr');
+            ['Factura', 'Proveedor', 'Con IVA', 'Sin IVA', 'Cambio'].forEach(function (h, k) { th.appendChild(el('th', k > 1 ? 'r' : null, h)); }); t.appendChild(th);
+            hist.slice(0, 3).forEach(function (x, k) {
+              var prev = hist[k + 1], d = prev && prev.pagadoFinal ? (x.pagadoFinal / prev.pagadoFinal - 1) : null, a = 1 + (i.alic == null ? 0.21 : i.alic);
+              var tr = el('tr');
+              [[fdate(x.fechaFactura), null], [(x.proveedor || '') + (x.comprobante ? ' · ' + x.comprobante : ''), null], [m2(x.pagadoFinal), 'r'], [m2(x.pagadoFinal / a), 'r'],
+                [d == null ? '—' : (d >= 0 ? '+' : '') + pct(d), 'r ' + (d > 0 ? 'diff-up' : d < 0 ? 'diff-dn' : '')]].forEach(function (v) { tr.appendChild(el('td', v[1], v[0])); });
+              t.appendChild(tr);
+            });
+            w.appendChild(t); c.appendChild(w);
+          } else c.appendChild(el('div', 'mut', i.codigoMP ? 'Sin facturas cargadas para ' + i.codigoMP + '.' : 'Sin código de materia prima: el precio va a mano.'));
+          var kv = el('div', 'kv'); kv.style.marginTop = '8px'; c.appendChild(kv);
+          function k(a, v) { kv.appendChild(el('div', null, a)); kv.appendChild(el('div', 'r', v)); }
+          k('Precio vigente', p ? m2(p.sin) + ' sin IVA · ' + m2(p.con) + ' con IVA' : 'sin precio');
+          k('De dónde sale', p ? (p.fuente === 'factura' ? 'factura ' + fdate(p.fecha) + ' · ' + (p.prov || '') : 'a mano ' + fdate(p.fecha)) : '—');
+          k('Alícuota IVA', pct(i.alic == null ? 0.21 : i.alic, 1));
+          k('Código', i.codigoMP || i.id);
+          if (i.manual && i.manual.conIva != null) k('Precio a mano', m2(i.manual.conIva) + ' con IVA (' + fdate(i.manual.fecha) + ')');
+          if (i.manual && i.manual.nota) c.appendChild(el('div', 'note', 'Nota: ' + i.manual.nota));
+          var usos = D().recetas.filter(function (r) { return r.lineas.some(function (l) { return l.ins === i.id; }); });
+          c.appendChild(el('div', 'mut', usos.length ? 'Lo usan: ' + usos.map(function (r) { return r.nombre; }).join(', ') : 'No lo usa ninguna receta.'));
+          bar(c).appendChild(btn('Editar', 'p s', function () { editInsumo(i); }));
+        }
       });
     }
     function editInsumo(i0) {
@@ -278,30 +434,56 @@
     }
 
     // ===== PESTAÑA 2 · RECETAS =====
+    function porUnidad(r) { return r.rinde === 'kg' ? 'kg' : r.rinde === 'pack' ? 'pack' : 'unidad'; }
     function vRecetas() {
       var b = bar(body); buscador(b, 'Buscar elaborado');
       b.appendChild(btn(verPausados ? 'Ocultar pausados' : 'Ver pausados', 'g s', function () { verPausados = !verPausados; render(); }));
       b.appendChild(btn('+ Nuevo', 'p', function () { editReceta(null); }));
-      TIPOS_REC.forEach(function (tp) {
-        var L = D().recetas.filter(function (r) { return (r.tipo === tp || (tp === 'Otro' && TIPOS_REC.indexOf(r.tipo) < 0)) && (verPausados || r.activo !== false) && match(r.nombre); });
-        if (!L.length) return;
-        body.appendChild(el('div', 'grp', tp));
-        L.forEach(function (r) {
-          var c0 = M.costo(r), c = el('div', 'card'), row = el('div', 'row'); c.appendChild(row);
-          var g = el('div', 'grow'); row.appendChild(g);
+      agrupada({
+        key: 'rec', tipos: TIPOS_REC, vacio: 'No hay recetas cargadas.',
+        items: function (tp) { return D().recetas.filter(function (r) { return (r.tipo === tp || (tp === 'Otro' && TIPOS_REC.indexOf(r.tipo) < 0)) && (verPausados || r.activo !== false) && match(r.nombre + ' ' + r.canales.map(function (k) { return k.codigo; }).join(' ')); }); },
+        id: function (r) { return r.id; },
+        fila: function (r) {
+          var c0 = M.costo(r), row = el('div', 'it-row'), g = el('div', 'grow'); row.appendChild(g);
           g.appendChild(el('div', 't', r.nombre));
           var tg = el('div'); g.appendChild(tg);
           tg.appendChild(el('span', 'tag', r.rindeDesc || ('por ' + r.rinde)));
-          tg.appendChild(el('span', 'tag ' + (c0.mt.fuente === 'cargas' ? 'ok' : 'w'), c0.mt.fuente === 'cargas' ? 'Merma y tiempo: ' + c0.mt.n + ' cargas' : 'Merma y tiempo: referencia'));
-          if (c0.falta.length) tg.appendChild(el('span', 'tag a', 'Sin precio: ' + c0.falta.join(', ')));
+          tg.appendChild(el('span', 'tag ' + (c0.mt.fuente === 'cargas' ? 'ok' : 'w'), c0.mt.fuente === 'cargas' ? c0.mt.n + ' cargas' : 'referencia'));
+          if (c0.falta.length) tg.appendChild(el('span', 'tag a', 'falta precio'));
           if (r.activo === false) tg.appendChild(el('span', 'tag a', 'Pausado'));
           var pr = el('div', 'r'); row.appendChild(pr);
-          pr.appendChild(el('div', 'big', m2(c0.sin)));
-          pr.appendChild(el('div', 'mut', 'costo sin IVA'));
-          pr.appendChild(el('div', 'mut', m2(c0.con) + ' con IVA'));
-          c.style.cursor = 'pointer'; c.onclick = function () { fichaReceta(r); };
-          body.appendChild(c);
-        });
+          pr.appendChild(el('div', 't', m2(c0.sin)));
+          pr.appendChild(el('div', 'mut', 'sin IVA / ' + porUnidad(r)));
+          return row;
+        },
+        detalle: function (r, c) {
+          var c0 = M.costo(r), t = el('table'), th = el('tr');
+          ['Insumo', 'Cantidad', 'Sin IVA'].forEach(function (h, k) { th.appendChild(el('th', k ? 'r' : null, h)); }); t.appendChild(th);
+          c0.lin.forEach(function (x) {
+            var tr = el('tr'), td = el('td', null, x.ins ? x.ins.nombre : x.l.ins);
+            if (!x.p) td.appendChild(el('div', 'mut', 'sin precio')); else if (x.l.merma) td.appendChild(el('div', 'mut', 'con merma'));
+            tr.appendChild(td); tr.appendChild(el('td', 'r', cant(x.q, x.ins && x.ins.unidad))); tr.appendChild(el('td', 'r', m2(x.sin))); t.appendChild(tr);
+          });
+          c.appendChild(t);
+          var kv = el('div', 'kv'); kv.style.marginTop = '8px'; c.appendChild(kv);
+          function k(a, v, cl) { kv.appendChild(el('div', cl, a)); kv.appendChild(el('div', 'r ' + (cl || ''), v)); }
+          k('Insumos y envase', m2(c0.insSin));
+          k('Mano de obra (' + c0.mt.minutos.toLocaleString('es-AR', { maximumFractionDigits: 2 }) + ' min)', m2(c0.mo));
+          if (c0.amort) k('Amortización', m2(c0.amort));
+          k('Costo sin IVA por ' + porUnidad(r), m2(c0.sin), 'tot');
+          c.appendChild(el('div', 'mut', c0.mt.fuente === 'cargas'
+            ? 'Merma ' + c0.mt.merma.toLocaleString('es-AR', { maximumFractionDigits: 1 }) + '% y tiempo: promedio de ' + c0.mt.n + ' cargas.'
+            : 'Merma ' + (r.ref.merma || 0).toLocaleString('es-AR') + '% y tiempo de referencia (hay ' + c0.mt.n + ' cargas; hacen falta ' + D().constantes.MIN_CARGAS + ').'));
+          c.appendChild(el('div', 'mut', 'Códigos: ' + r.canales.map(function (kk) { return CANAL_C[kk.canal] + ' ' + (kk.codigo || 'sin código') + ' · ' + money(kk.actual); }).join(' — ')));
+          var bb = bar(c);
+          bb.appendChild(btn('Ver ficha completa', 's', function () { fichaReceta(r); }));
+          bb.appendChild(btn('Editar', 'p s', function () { editReceta(r); }));
+          bb.appendChild(btn('Copiar de este', 's', function () { var x = clone(r); x.id = null; x.nombre = r.nombre + ' (copia)'; x.canales.forEach(function (k2) { k2.codigo = ''; k2.actual = null; k2.cambio = null; delete k2.foto; }); x.appKey = null; editReceta(x, true); }));
+          bb.appendChild(btn(r.activo === false ? 'Reactivar' : 'Pausar', 'g s', function () {
+            var d = clone(D()), it = d.recetas.find(function (x) { return x.id === r.id; }); it.activo = it.activo === false;
+            guardar(d, (it.activo ? 'reactivado ' : 'pausado ') + it.nombre);
+          }));
+        }
       });
     }
     function fichaReceta(r) {
@@ -443,34 +625,148 @@
       });
       return out;
     }
+    function agrupar(F) {
+      var porTipo = {}, orden = [];
+      F.forEach(function (x) {
+        var g = porTipo[x.r.tipo]; if (!g) { g = porTipo[x.r.tipo] = { prods: {}, lista: [] }; orden.push(x.r.tipo); }
+        var p = g.prods[x.r.id]; if (!p) { p = g.prods[x.r.id] = { r: x.r, c: x.c, k: {}, xs: [] }; g.lista.push(p); }
+        if (!p.k[x.k.canal]) p.k[x.k.canal] = x; else p.k[x.k.canal + '2'] = x;
+        p.xs.push(x);
+      });
+      return { porTipo: porTipo, orden: orden };
+    }
+    function difTxt(d) { return d == null ? '' : (d > 0 ? '+' : '') + pct(d); }
     function vPrecios() {
       var b = bar(body); buscador(b, 'Buscar código o producto');
-      body.appendChild(el('div', 'note', 'Sugerido = costo sin IVA × markup del canal × 1,21, redondeado hacia arriba ($100 por kg, $10 por unidad). La app nunca cambia el precio: lo cambiás vos con "Cambiar" y queda pendiente de cargar en el sistema y la balanza. Diferencia = cuánto tendría que subir (+) o bajar (−) el precio actual para llegar al sugerido.'));
-      var F = filas().filter(function (x) { return match(x.k.codigo + ' ' + x.r.nombre); });
-      F.sort(function (a, b) { return (b.dif == null ? -1 : Math.abs(b.dif)) - (a.dif == null ? -1 : Math.abs(a.dif)); });
-      F.forEach(function (x) {
-        var c = el('div', 'card'), row = el('div', 'row'); c.appendChild(row);
-        var g = el('div', 'grow'); row.appendChild(g);
-        var t = el('div', 't'); t.appendChild(el('span', 'cod', x.k.codigo || 'sin código')); t.appendChild(document.createTextNode('  ' + x.r.nombre)); g.appendChild(t);
-        g.appendChild(el('div', 'mut', CANAL[x.k.canal] + ' · costo ' + m2(x.cs) + ' sin IVA'));
-        var mkl = el('div', 'mut'); mkl.appendChild(document.createTextNode('Markup ×' + String(x.k.markup).replace('.', ',') + ' '));
-        var pen = el('button', 'pencil', '✎'); pen.type = 'button'; pen.title = 'Cambiar markup'; pen.onclick = function () { editMarkup(x); }; mkl.appendChild(pen);
-        if (x.real) mkl.appendChild(document.createTextNode(' · real ×' + x.real.toLocaleString('es-AR', { maximumFractionDigits: 2 })));
-        g.appendChild(mkl);
-        if (x.c.mt.fuente !== 'cargas') g.appendChild(el('span', 'tag w', 'costo con merma y tiempo de referencia'));
-        if (x.c.falta.length) g.appendChild(el('span', 'tag a', 'falta precio de insumo'));
-        var pr = el('div', 'r'); row.appendChild(pr);
-        pr.appendChild(el('div', 'mut', 'Sugerido'));
-        pr.appendChild(el('div', 'big', money(x.sg)));
-        pr.appendChild(el('div', 'mut', 'Actual ' + money(x.k.actual)));
-        if (x.dif != null) pr.appendChild(el('div', x.dif > 0 ? 'diff-up' : 'diff-dn', (x.dif > 0 ? '+' : '') + pct(x.dif)));
-        var bb = el('div', 'tc-bar'); bb.style.margin = '8px 0 0';
-        if (x.k.codigo) bb.appendChild(btn('Cambiar precio', 's', function () { cambiarPrecio(x); }));
+      var Fall = filas(), F = Fall.filter(function (x) { return match(x.k.codigo + ' ' + x.r.nombre); });
+      // recuadro con los 5 más desfasados (de todos, no solo lo buscado)
+      var top = Fall.filter(function (x) { return x.dif != null && x.k.codigo; }).sort(function (a, b) { return Math.abs(b.dif) - Math.abs(a.dif); }).slice(0, 5);
+      if (top.length && !q) {
+        var bx = el('div', 'top5'); bx.appendChild(el('div', 't', 'Los 5 más desfasados'));
+        bx.appendChild(el('div', 'mut', 'Diferencia = cuánto tendría que cambiar el precio actual para llegar al sugerido. Rojo: el actual está por debajo.'));
+        top.forEach(function (x) {
+          var ln = el('div', 'ln5'); ln.tabIndex = 0; ln.setAttribute('role', 'button');
+          ln.appendChild(el('span', 'cod', x.k.codigo));
+          var g = el('div', 'grow'); g.appendChild(el('div', null, x.r.nombre)); g.appendChild(el('div', 'mut', CANAL_C[x.k.canal] + ' · actual ' + money(x.k.actual) + ' → sugerido ' + money(x.sg))); ln.appendChild(g);
+          ln.appendChild(el('span', x.dif > 0 ? 'diff-up' : 'diff-dn', difTxt(x.dif)));
+          ln.onclick = function () { abrir('pre', x.r.tipo, x.r.id); };
+          ln.onkeydown = function (e) { if (e.key === 'Enter') ln.onclick(); };
+          bx.appendChild(ln);
+        });
+        body.appendChild(bx);
+      }
+      var G = agrupar(F), cols = {};
+      G.orden.forEach(function (tp) { cols[tp] = ['min', 'may', 'pieza'].filter(function (k) { return G.porTipo[tp].lista.some(function (p) { return p.k[k]; }); }); });
+      var tiposOrd = TIPOS_REC.filter(function (t) { return G.orden.indexOf(t) >= 0; }).concat(G.orden.filter(function (t) { return TIPOS_REC.indexOf(t) < 0; }));
+      agrupada({
+        key: 'pre', tipos: tiposOrd, vacio: 'No hay productos con precio.',
+        items: function (tp) { return G.porTipo[tp] ? G.porTipo[tp].lista : []; },
+        id: function (p) { return p.r.id; },
+        head: function (tp) {
+          var hd = el('div', 'lv-row lv-head'); hd.style.setProperty('--n', cols[tp].length); hd.appendChild(el('div', 'lv-name', 'Producto'));
+          cols[tp].forEach(function (k) { var h = el('div', 'lv-cell lv-' + k); h.appendChild(el('div', 'lv-lab', CANAL_C[k])); h.appendChild(el('div', 'lv-sub', 'código · actual · sugerido (con IVA)')); hd.appendChild(h); });
+          return hd;
+        },
+        fila: function (p, tp) {
+          var row = el('div', 'lv-row'), nm = el('div', 'lv-name'); row.style.setProperty('--n', cols[tp].length);
+          nm.appendChild(el('div', 't', p.r.nombre));
+          var sub = el('div', 'mut', p.r.rinde === 'kg' ? 'precio por kg' : (p.r.rindeDesc || p.r.rinde)); nm.appendChild(sub);
+          if (p.c.mt.fuente !== 'cargas') nm.appendChild(el('span', 'tag w', 'merma/tiempo de referencia'));
+          if (p.c.falta.length) nm.appendChild(el('span', 'tag a', 'falta precio de insumo'));
+          row.appendChild(nm);
+          cols[tp].forEach(function (k) {
+            var x = p.k[k], c = el('div', 'lv-cell lv-' + k);
+            c.appendChild(el('div', 'lv-lab lv-ph', CANAL_C[k]));
+            if (!x) { c.appendChild(el('div', 'mut', '—')); c.classList.add('vacio'); row.appendChild(c); return; }
+            c.appendChild(el('div', 'cod', x.k.codigo || 'sin código'));
+            c.appendChild(el('div', 'lv-pre', money(x.k.actual)));
+            c.appendChild(el('div', 'lv-sug', 'sug. ' + money(x.sg)));
+            if (x.dif != null) c.appendChild(el('div', 'lv-dif ' + (x.dif > 0.0005 ? 'diff-up' : 'diff-dn'), difTxt(x.dif)));
+            row.appendChild(c);
+          });
+          return row;
+        },
+        detalle: function (p, cont) { detallePrecio(p, cont); }
+      });
+      body.appendChild(el('div', 'mut', 'Sugerido = costo sin IVA × markup del canal × 1,21, redondeado hacia arriba ($100 por kg, $10 por unidad/pack). La app nunca cambia el precio sola: lo cambiás vos con "Cambiar precio" y queda pendiente de cargar en el sistema y la balanza.'));
+    }
+    function sgn(v, uni) { if (v == null || !isFinite(v)) return '—'; var d = Math.abs(v) < 100 ? 2 : 0; return (v > 0.004 ? '+' : v < -0.004 ? '−' : '') + money(Math.abs(v), d); }
+    function infoP(i) {
+      if (!i) return '';
+      if (i.fuente === 'factura') return 'factura ' + fdate(i.fecha).slice(0, 5) + (i.prov ? ' · ' + i.prov : '');
+      if (i.fuente === 'excel') return 'Excel 14/10';
+      if (i.fuente === 'mano') return 'a mano ' + fdate(i.fecha).slice(0, 5);
+      return '';
+    }
+    function detallePrecio(p, cont) {
+      var prevSig = null, prevBox = null;
+      p.xs.forEach(function (x) {
+        var box = el('div', 'canal'); cont.appendChild(box);
+        box.appendChild(el('h4', null, CANAL[x.k.canal] + ' · ' + (x.k.codigo || 'sin código')));
+        var kv = el('div', 'kv'); box.appendChild(kv);
+        function k(a, v, cl) { var e1 = el('div', cl), e2 = el('div', 'r ' + (cl || '')); if (typeof a === 'string') e1.textContent = a; else e1.appendChild(a); if (typeof v === 'string') e2.textContent = v; else e2.appendChild(v); kv.appendChild(e1); kv.appendChild(e2); }
+        k('Costo sin IVA', m2(x.cs));
+        var mk = el('span'); mk.appendChild(document.createTextNode('Markup ×' + String(x.k.markup).replace('.', ',') + ' '));
+        var pen = el('button', 'pencil', '✎'); pen.type = 'button'; pen.title = 'Cambiar markup'; pen.setAttribute('aria-label', 'Cambiar markup'); pen.onclick = function () { editMarkup(x); }; mk.appendChild(pen);
+        k(mk, x.real ? 'real ×' + x.real.toLocaleString('es-AR', { maximumFractionDigits: 2 }) : '—');
+        k('Sugerido con IVA', money(x.sg), 't');
+        k('Actual con IVA', money(x.k.actual) + (x.k.fuenteActual ? ' (' + x.k.fuenteActual + ')' : ''));
+        if (x.dif != null) k('Diferencia', difTxt(x.dif), x.dif > 0.0005 ? 'diff-up' : 'diff-dn');
+        var bb = bar(box);
+        if (x.k.codigo) bb.appendChild(btn('Cambiar precio', 'p s', function () { cambiarPrecio(x); }));
         else bb.appendChild(btn('Falta el código: cargarlo', 's', function () { editReceta(x.r); }));
         if (x.k.actual != null && x.k.codigo) bb.appendChild(btn('Mandar solo el costo nuevo', 's g', function () { mandarCosto(x); }));
-        c.appendChild(bb);
-        body.appendChild(c);
+        // explicación del sugerido
+        var E = M.explicar(x.r, x.k, x.c);
+        var sig = x.k.canal === 'pieza' ? null : (E.base.origen + '|' + E.base.f.fecha);
+        if (sig && sig === prevSig) {
+          // misma foto que el canal anterior: no repetir la tabla
+          box.appendChild(el('div', 'expl tot', resumenExpl(E, x)));
+        } else {
+          renderExpl(E, x, box);
+        }
+        prevSig = sig; prevBox = box;
       });
+    }
+    function resumenExpl(E, x) {
+      var d = (E.costA && E.costB != null) ? E.costB / E.costA - 1 : null;
+      if (d != null && Math.abs(E.costB - E.costA) < 0.5 && E.mkA === E.mkB) return 'El costo sigue en ' + m2(E.costB) + ' sin IVA: el sugerido queda en ' + money(E.sugB) + '.';
+      var s = 'El costo pasó de ' + m2(E.costA) + ' a ' + m2(E.costB) + (d != null ? ' (' + difTxt(d) + ')' : '');
+      if (E.mkA !== E.mkB) s += ' y el markup de ×' + String(E.mkA).replace('.', ',') + ' a ×' + String(E.mkB).replace('.', ',');
+      return s + ', por eso el sugerido pasa de ' + money(E.sugA) + ' a ' + money(E.sugB) + '.';
+    }
+    function renderExpl(E, x, box) {
+      var w = el('div', 'expl'); box.appendChild(w);
+      var B = E.base, desde;
+      if (B.origen === 'cambio') desde = 'Qué cambió desde que fijaste el precio (' + fdate(B.f.fecha) + (B.f.precio != null ? ', ' + money(B.f.precio) : '') + ')';
+      else desde = 'Qué cambió desde el Excel del 14/10 (precio de antes de la app; merma y tiempo de referencia)';
+      w.appendChild(el('div', 't', desde));
+      if (B.sinFoto) w.appendChild(el('div', 'mut', 'El ' + fdate(B.sinFoto.fecha) + ' se cambió el precio a ' + money(B.sinFoto.nuevo) + ' (costo ese día ' + m2(B.sinFoto.costoSin) + '), pero sin desglose guardado: se compara contra el Excel. Desde ahora cada cambio guarda su foto.'));
+      var uni = x.k.canal === 'pieza' ? 'kg' : porUnidad(x.r);
+      var sc = el('div', 'scroll'), t = el('table'), th = el('tr');
+      ['Qué', 'Antes', 'Ahora', 'Impacto / ' + uni].forEach(function (h, k) { th.appendChild(el('th', k ? 'r' : null, h)); }); t.appendChild(th);
+      var quietos = [];
+      E.items.forEach(function (it) {
+        var cambio = Math.abs(it.imp || 0) >= 0.5 || (it.antes != null && it.ahora != null && Math.abs(it.antes - it.ahora) > 1e-6 && !it.precio);
+        if (!cambio) { quietos.push(it.que.replace(/^Compra de /, '')); return; }
+        var tr = el('tr'), td = el('td', null, it.que), a, n;
+        if (it.precio) {
+          a = it.antes != null ? m2(it.antes) : '—'; n = it.ahora != null ? m2(it.ahora) : '—';
+          var ia = infoP(it.infoA), ib = infoP(it.infoN);
+          if (ia || ib) td.appendChild(el('div', 'mut', 'sin IVA por ' + (it.unidad === 'u' ? 'unidad' : it.unidad || '') + (ia ? ' · antes ' + ia : '') + (ib ? ' · ahora ' + ib : '')));
+        } else if (it.pctv) { a = (it.antes || 0).toLocaleString('es-AR', { maximumFractionDigits: 1 }) + '%'; n = (it.ahora || 0).toLocaleString('es-AR', { maximumFractionDigits: 1 }) + '%'; td.appendChild(el('div', 'mut', it.fuenteN.fuente === 'cargas' ? 'ahora: promedio de ' + it.fuenteN.n + ' cargas' : 'ahora: referencia de la receta')); }
+        else if (it.min) { a = (it.antes || 0).toLocaleString('es-AR', { maximumFractionDigits: 2 }) + ' min'; n = (it.ahora || 0).toLocaleString('es-AR', { maximumFractionDigits: 2 }) + ' min'; td.appendChild(el('div', 'mut', 'por ' + uni + ' · $' + D().constantes.HORA.toLocaleString('es-AR') + '/h' + (it.fuenteN.fuente === 'cargas' ? ' · ahora: ' + it.fuenteN.n + ' cargas' : ''))); }
+        else if (it.plata) { a = m2(it.antes); n = m2(it.ahora); }
+        else if (it.cant) { a = cant(it.antes, it.unidad); n = cant(it.ahora, it.unidad); }
+        else { a = ''; n = ''; }
+        tr.appendChild(td); tr.appendChild(el('td', 'r', a)); tr.appendChild(el('td', 'r', n));
+        tr.appendChild(el('td', 'r ' + (it.imp > 0.5 ? 'diff-up' : it.imp < -0.5 ? 'diff-dn' : ''), sgn(it.imp)));
+        t.appendChild(tr);
+      });
+      if (t.children.length > 1) { sc.appendChild(t); w.appendChild(sc); }
+      else w.appendChild(el('div', 'mut', 'Nada cambió en el costo.'));
+      if (quietos.length) w.appendChild(el('div', 'mut eq', 'Sin cambios: ' + quietos.join(', ') + '.'));
+      w.appendChild(el('div', 'tot', resumenExpl(E, x)));
     }
     function editMarkup(x) {
       sheet('Markup · ' + (x.k.codigo || '') + ' ' + x.r.nombre, function (c, close) {
@@ -500,7 +796,9 @@
           if (!x.k.codigo) return aviso('Este canal no tiene código del sistema: cargalo en la receta primero.', false);
           var d = clone(D()), r = d.recetas.find(function (y) { return y.id === x.r.id; }), k = r.canales.find(function (k2) { return k2.codigo === x.k.codigo && k2.canal === x.k.canal; });
           d.cambios.push({ fecha: ahora(), tipo: 'precio', id: r.id, codigo: k.codigo, producto: r.nombre, canal: k.canal, anterior: k.actual, nuevo: v, costoSin: round2(x.cs), quien: store.usuario });
-          k.actual = v; k.fuenteActual = 'cambiado ' + fdate(hoy()); k.cambio = hoy();
+          var ft = M.foto(r); ft.markup = k.markup; ft.precio = v; ft.canal = k.canal;
+          d.cambios[d.cambios.length - 1].foto = ft;
+          k.actual = v; k.fuenteActual = 'cambiado ' + fdate(hoy()); k.cambio = hoy(); k.foto = ft;
           var pe = { fecha: ahora(), codigo: k.codigo, producto: r.nombre, canal: k.canal, costoSin: round2(x.cs), precioCon: v, anterior: x.k.actual, balanza: k.balanza || '', pidio: store.usuario, hecho: null };
           guardar(d, 'precio ' + k.codigo + ' → ' + money(v)).then(function (ok) { if (!ok) return; close(); return pendAdd(pe).then(function () { tab = 'lis'; render(); }); });
         }));
