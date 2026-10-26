@@ -200,7 +200,7 @@
       b.appendChild(btn('+ Nuevo insumo', 'p', function () { editInsumo(null); }));
       body.appendChild(el('div', 'note', 'Precio automático: la última factura de COSTOS_MATERIA_PRIMA_TOGO (copia al ' + (store.comprasAl || '—') + '). Lo que no entra por factura queda "a mano" hasta que llegue una. Sin IVA = con IVA ÷ (1 + alícuota).'));
       TIPOS_INS.forEach(function (tp) {
-        var L = D().insumos.filter(function (i) { return i.tipo === tp && (verPausados || i.activo !== false) && match(i.nombre + ' ' + (i.codigoMP || '') + ' ' + i.id); });
+        var L = D().insumos.filter(function (i) { return (i.tipo === tp || (tp === 'Provisorio' && TIPOS_INS.indexOf(i.tipo) < 0)) && (verPausados || i.activo !== false) && match(i.nombre + ' ' + (i.codigoMP || '') + ' ' + i.id); });
         if (!L.length) return;
         body.appendChild(el('div', 'grp', tp + (tp === 'Provisorio' ? ' (totales a reemplazar por receta)' : '')));
         L.forEach(function (i) {
