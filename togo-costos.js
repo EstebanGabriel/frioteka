@@ -181,7 +181,7 @@
     }
     function field(p, lab, inp) { var f = el('div', 'f'); f.appendChild(el('label', null, lab)); f.appendChild(inp); p.appendChild(f); return inp; }
     function input(v, ph, mode) { var i = el('input'); i.value = v == null ? '' : v; if (ph) i.placeholder = ph; if (mode) { i.inputMode = mode; } return i; }
-    function select(opts, v) { var s = el('select'); opts.forEach(function (o) { var op = el('option', null, o[1] != null ? o[1] : o); op.value = o[0] != null && o[1] != null ? o[0] : o; s.appendChild(op); }); s.value = v; return s; }
+    function select(opts, v) { var s = el('select'); opts.forEach(function (o) { var par = Array.isArray(o), op = el('option', null, par ? o[1] : o); op.value = par ? o[0] : o; s.appendChild(op); }); s.value = v; return s; }
     function bar(p) { var b = el('div', 'tc-bar'); p.appendChild(b); return b; }
     function btn(txt, cls, fn) { var b = el('button', 'b ' + (cls || ''), txt); b.type = 'button'; b.onclick = fn; return b; }
     function buscador(b, ph) { var s = el('input'); s.type = 'search'; s.placeholder = ph; s.value = q; s.oninput = function () { q = s.value; var pos = s.selectionStart; render(); var n = $('input[type=search]', body); if (n) { n.focus(); n.setSelectionRange(pos, pos); } }; b.appendChild(s); }
@@ -283,7 +283,7 @@
       b.appendChild(btn(verPausados ? 'Ocultar pausados' : 'Ver pausados', 'g s', function () { verPausados = !verPausados; render(); }));
       b.appendChild(btn('+ Nuevo', 'p', function () { editReceta(null); }));
       TIPOS_REC.forEach(function (tp) {
-        var L = D().recetas.filter(function (r) { return r.tipo === tp && (verPausados || r.activo !== false) && match(r.nombre); });
+        var L = D().recetas.filter(function (r) { return (r.tipo === tp || (tp === 'Otro' && TIPOS_REC.indexOf(r.tipo) < 0)) && (verPausados || r.activo !== false) && match(r.nombre); });
         if (!L.length) return;
         body.appendChild(el('div', 'grp', tp));
         L.forEach(function (r) {
