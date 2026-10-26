@@ -93,9 +93,9 @@
 
   // ---------- estilos ----------
   var CSS = '\
-:root{--tc-bg:#f6f5f1;--tc-card:#fff;--tc-ink:#1d1c1a;--tc-mut:#6d6a63;--tc-line:#e4e1d8;--tc-acc:#b40000;--tc-acc2:#7a0d0d;--tc-ok:#1f7a3f;--tc-warn:#a65d00;--tc-soft:#f1efe8}\
-@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--tc-bg:#16150f;--tc-card:#211f19;--tc-ink:#efece4;--tc-mut:#a7a296;--tc-line:#38352c;--tc-acc:#ff5a4e;--tc-acc2:#ff8a7f;--tc-ok:#5fcf8a;--tc-warn:#f0a63c;--tc-soft:#2a2820;color-scheme:dark}}\
-:root[data-theme="dark"]{--tc-bg:#16150f;--tc-card:#211f19;--tc-ink:#efece4;--tc-mut:#a7a296;--tc-line:#38352c;--tc-acc:#ff5a4e;--tc-acc2:#ff8a7f;--tc-ok:#5fcf8a;--tc-warn:#f0a63c;--tc-soft:#2a2820;color-scheme:dark}\
+:root{--tc-bg:#f6f5f1;--tc-card:#fff;--tc-ink:#1d1c1a;--tc-mut:#6d6a63;--tc-line:#e4e1d8;--tc-acc:#b40000;--tc-acc2:#7a0d0d;--tc-ok:#1f7a3f;--tc-warn:#a65d00;--tc-soft:#f1efe8;--tc-c1:#fff8d9;--tc-c2:#ffefd9;--tc-c3:#fbe7e6}\
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--tc-bg:#16150f;--tc-card:#211f19;--tc-ink:#efece4;--tc-mut:#a7a296;--tc-line:#38352c;--tc-acc:#ff5a4e;--tc-acc2:#ff8a7f;--tc-ok:#5fcf8a;--tc-warn:#f0a63c;--tc-soft:#2a2820;--tc-c1:#2b2914;--tc-c2:#2f2414;--tc-c3:#2f1d1c;color-scheme:dark}}\
+:root[data-theme="dark"]{--tc-bg:#16150f;--tc-card:#211f19;--tc-ink:#efece4;--tc-mut:#a7a296;--tc-line:#38352c;--tc-acc:#ff5a4e;--tc-acc2:#ff8a7f;--tc-ok:#5fcf8a;--tc-warn:#f0a63c;--tc-soft:#2a2820;--tc-c1:#2b2914;--tc-c2:#2f2414;--tc-c3:#2f1d1c;color-scheme:dark}\
 .tc{font:15px/1.4 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;color:var(--tc-ink);background:var(--tc-bg);max-width:980px;margin:0 auto;padding-block:0 60px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}\
 .tc *{box-sizing:border-box}.tc h2{font-size:18px;margin:18px 0 8px}.tc h3{font-size:15px;margin:14px 0 6px}\
 .tc-tabs{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;display:flex;gap:4px;background:var(--tc-bg);padding:10px 0 8px;overflow-x:auto}\
@@ -123,6 +123,26 @@
 .tc .f{display:flex;flex-direction:column;gap:3px;margin:8px 0}.tc .f label{font-size:12.5px;font-weight:650;color:var(--tc-mut)}\
 .tc .f2{display:grid;grid-template-columns:1fr 1fr;gap:8px}.tc .f3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}\
 .tc .ln{display:grid;grid-template-columns:1fr 86px auto auto;gap:6px;align-items:center;margin:5px 0}\
+.tc .chips{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 6px}.tc .chips .b.on{background:var(--tc-ink);border-color:var(--tc-ink);color:var(--tc-bg)}\
+.tc details.lv{background:var(--tc-card);border:1px solid var(--tc-line);border-radius:14px;margin:10px 0;overflow:hidden}\
+.tc details.lv>summary{display:flex;gap:10px;align-items:baseline;padding:12px 14px;cursor:pointer;list-style:none}\
+.tc details.lv>summary::-webkit-details-marker{display:none}\
+.tc details.lv>summary::before{content:"▸";color:var(--tc-mut);transition:transform .15s}.tc details.lv[open]>summary::before{transform:rotate(90deg)}\
+.tc .lv-t{font-weight:750;font-size:16px}\
+.tc .lv-grid{border-top:1px solid var(--tc-line)}\
+.tc .lv-row{display:grid;grid-template-columns:minmax(150px,1.3fr) repeat(var(--n),minmax(0,1fr));border-bottom:1px solid var(--tc-line)}\
+.tc .lv-row:last-child{border-bottom:none}\
+.tc .lv-name{padding:10px 12px;min-width:0}\
+.tc .lv-cell{padding:9px 10px;border-left:1px solid var(--tc-line);min-width:0;cursor:pointer;font-variant-numeric:tabular-nums}\
+.tc .lv-cell.vacio{cursor:default}\
+.tc .lv-cell:hover:not(.vacio),.tc .lv-cell:focus-visible{outline:2px solid var(--tc-acc);outline-offset:-2px}\
+.tc .lv-min{background:var(--tc-c1)}.tc .lv-may{background:var(--tc-c2)}.tc .lv-pieza{background:var(--tc-c3)}\
+.tc .lv-head .lv-cell{cursor:default}.tc .lv-head .lv-name{font-size:12px;color:var(--tc-mut);font-weight:650;align-self:end}\
+.tc .lv-lab{font-size:12px;font-weight:750;letter-spacing:.04em;text-transform:uppercase}.tc .lv-sub{font-size:11px;color:var(--tc-mut)}\
+.tc .lv-ph{display:none}\
+.tc .lv-pre{font-size:17px;font-weight:750;margin-top:2px}.tc .lv-cos{font-size:12.5px;color:var(--tc-mut)}\
+@media (max-width:620px){.tc .lv-row{grid-template-columns:repeat(var(--n),minmax(0,1fr))}.tc .lv-name{grid-column:1/-1;padding-bottom:4px}\
+.tc .lv-head{display:none}.tc .lv-ph{display:block;font-size:10.5px}.tc .lv-cell{border-left:none;border-right:1px solid var(--tc-line);padding:7px 8px}.tc .lv-cell:last-child{border-right:none}.tc .lv-pre{font-size:15px}.tc .lv-cos{font-size:11.5px}}\
 .tc .toast{position:fixed;left:0;right:0;bottom:0;z-index:60;padding-bottom:calc(12px + env(safe-area-inset-bottom,0px));padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));pointer-events:none}.tc .toast .msg{max-width:560px;margin:0 auto;box-shadow:0 4px 18px rgba(0,0,0,.18);background:var(--tc-card);border:1px solid var(--tc-line)}\
 .tc .toast .msg.ok,.tc .toast .msg.er{background:var(--tc-card)}\
 .tc .msg{padding:9px 11px;border-radius:10px;margin:8px 0;font-size:14px}.tc .msg.ok{background:rgba(31,122,63,.12);color:var(--tc-ok)}.tc .msg.er{background:rgba(180,0,0,.1);color:var(--tc-acc)}\
@@ -524,22 +544,60 @@
       b.appendChild(btn('Excel', 's', excel));
       var b2 = bar(body); buscador(b2, 'Buscar código o producto');
       var F = filas().filter(function (x) { return match(x.k.codigo + ' ' + x.r.nombre); });
-      var t = el('table'), th = el('tr');
-      [['Código'], ['Producto'], ['Costo sin IVA', 'r'], ['Precio con IVA', 'r'], ['Markup real', 'r hide-s'], ['Cambio', 'r hide-s']].forEach(function (x) { th.appendChild(el('th', x[1], x[0])); });
-      t.appendChild(th);
-      var last = null;
+      // agrupar: tipo -> producto -> canal
+      var porTipo = {}, orden = [];
       F.forEach(function (x) {
-        if (x.r.tipo !== last) { last = x.r.tipo; var gr = el('tr'), gd = el('td', null); gd.colSpan = 6; gd.appendChild(el('div', 'grp', x.r.tipo)); gr.appendChild(gd); t.appendChild(gr); }
-        var tr = el('tr');
-        tr.appendChild(el('td', 'cod', x.k.codigo || '—'));
-        var td = el('td'); td.appendChild(el('div', null, x.r.nombre)); td.appendChild(el('div', 'mut', CANAL_C[x.k.canal] + ' · ' + (x.r.rinde === 'kg' ? 'por kg' : x.r.rindeDesc || x.r.rinde) + (x.k.balanza ? ' · balanza ' + x.k.balanza : '') + ' · con IVA ' + m2(x.k.canal === 'pieza' ? (x.cs * 1.21) : x.c.con))); tr.appendChild(td);
-        tr.appendChild(el('td', 'r t', m2(x.cs)));
-        tr.appendChild(el('td', 'r t', money(x.k.actual)));
-        tr.appendChild(el('td', 'r hide-s', x.real ? '×' + x.real.toLocaleString('es-AR', { maximumFractionDigits: 2 }) : '—'));
-        tr.appendChild(el('td', 'r hide-s', x.k.cambio ? fdate(x.k.cambio) : '—'));
-        t.appendChild(tr);
+        var g = porTipo[x.r.tipo]; if (!g) { g = porTipo[x.r.tipo] = { prods: {}, lista: [] }; orden.push(x.r.tipo); }
+        var p = g.prods[x.r.id]; if (!p) { p = g.prods[x.r.id] = { r: x.r, c: x.c, k: {} }; g.lista.push(p); }
+        if (!p.k[x.k.canal]) p.k[x.k.canal] = x; else p.k[x.k.canal + '2'] = x;
       });
-      body.appendChild(t);
+      var chips = el('div', 'chips'); body.appendChild(chips);
+      var solo = null; try { solo = localStorage.getItem('tc-lis-solo'); } catch (e) {}
+      if (solo && orden.indexOf(solo) < 0) solo = null;
+      [null].concat(orden).forEach(function (tp) {
+        var b = btn(tp || 'Todos', 's' + (solo === tp ? ' on' : ''), function () { try { tp ? localStorage.setItem('tc-lis-solo', tp) : localStorage.removeItem('tc-lis-solo'); } catch (e) {} render(); });
+        chips.appendChild(b);
+      });
+      var pendCod = {}; P.forEach(function (p) { pendCod[p.codigo] = 1; });
+      var cerr = {}; try { cerr = JSON.parse(localStorage.getItem('tc-lis-cerr') || '{}'); } catch (e) {}
+      orden.forEach(function (tp) {
+        if (solo && solo !== tp) return;
+        var g = porTipo[tp], det = el('details', 'lv'); det.open = !cerr[tp];
+        det.addEventListener('toggle', function () { cerr[tp] = !det.open; try { localStorage.setItem('tc-lis-cerr', JSON.stringify(cerr)); } catch (e) {} });
+        var sm = el('summary'); sm.appendChild(el('span', 'lv-t', tp)); sm.appendChild(el('span', 'mut', g.lista.length + (g.lista.length === 1 ? ' producto' : ' productos'))); det.appendChild(sm);
+        var canales = ['min', 'may', 'pieza'].filter(function (k) { return g.lista.some(function (p) { return p.k[k]; }); });
+        var grid = el('div', 'lv-grid'); grid.style.setProperty('--n', canales.length); det.appendChild(grid);
+        var hd = el('div', 'lv-row lv-head'); hd.appendChild(el('div', 'lv-name', 'Producto'));
+        canales.forEach(function (k) { var h = el('div', 'lv-cell lv-' + k); h.appendChild(el('div', 'lv-lab', CANAL_C[k])); h.appendChild(el('div', 'lv-sub', 'código · precio con IVA · costo sin IVA')); hd.appendChild(h); });
+        grid.appendChild(hd);
+        g.lista.forEach(function (p) {
+          var row = el('div', 'lv-row'), nm = el('div', 'lv-name');
+          nm.appendChild(el('div', 't', p.r.nombre));
+          nm.appendChild(el('div', 'mut', p.r.rinde === 'kg' ? 'precio por kg' : (p.r.rindeDesc || p.r.rinde)));
+          row.appendChild(nm);
+          canales.forEach(function (k) {
+            var x = p.k[k], c = el('div', 'lv-cell lv-' + k);
+            c.appendChild(el('div', 'lv-lab lv-ph', CANAL_C[k]));
+            if (!x) { c.appendChild(el('div', 'mut', '—')); c.classList.add('vacio'); row.appendChild(c); return; }
+            c.appendChild(el('div', 'cod', x.k.codigo || 'sin código'));
+            c.appendChild(el('div', 'lv-pre', money(x.k.actual)));
+            c.appendChild(el('div', 'lv-cos', 'costo ' + m2(x.cs)));
+            var extra = [];
+            if (x.k.balanza) extra.push('bal. ' + x.k.balanza);
+            if (x.k.cambio) extra.push('cambió ' + fdate(x.k.cambio));
+            if (extra.length) c.appendChild(el('div', 'lv-cos', extra.join(' · ')));
+            if (pendCod[x.k.codigo]) c.appendChild(el('span', 'tag a', 'pendiente de cargar'));
+            c.title = 'Tocá para cambiar el precio';
+            c.tabIndex = 0; c.setAttribute('role', 'button');
+            c.onclick = function () { if (x.k.codigo) cambiarPrecio(x); else editReceta(x.r); };
+            c.onkeydown = function (e) { if (e.key === 'Enter') c.onclick(); };
+            row.appendChild(c);
+          });
+          grid.appendChild(row);
+        });
+        body.appendChild(det);
+      });
+      body.appendChild(el('div', 'mut', 'Tocá un código para cambiar su precio. El costo es sin IVA y el precio con IVA, como se cargan en el sistema.'));
       var cm = (D().cambios || []).filter(function (c) { return c.tipo === 'precio'; }).slice(-15).reverse();
       if (cm.length) {
         body.appendChild(el('h3', null, 'Últimos cambios de precio'));
