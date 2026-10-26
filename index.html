@@ -1538,8 +1538,9 @@ function renderVentas(c){
     var sistLabel=enSist
       ?'<span style="display:inline-block;font-size:11px;font-weight:700;padding:2px 8px;border-radius:10px;background:#E8F5E9;color:#1B5E20;margin-left:6px;">✓ En sistema</span>'
       :'<span style="display:inline-block;font-size:11px;font-weight:700;padding:2px 8px;border-radius:10px;background:#FFEBEE;color:#B71C1C;margin-left:6px;">⚠ Falta cargar</span>';
+    var waLabel=p.enviadoWA?'<span style="display:inline-block;font-size:11px;font-weight:700;padding:2px 8px;border-radius:10px;background:#E3F2FD;color:#0D47A1;margin-left:6px;">💬 WA enviado</span>':'';
     d.innerHTML='<div class="hist-hdr"><span class="hist-nv">'+p.nv+'</span><span class="hist-f">'+p.fecha+'</span></div>'
-      +'<div style="font-size:14px;font-weight:600;margin:2px 0;">'+p.cliente+tipoBadge(p.tipoCliente||"sin_clasificar")+sistLabel+'</div>'
+      +'<div style="font-size:14px;font-weight:600;margin:2px 0;">'+p.cliente+tipoBadge(p.tipoCliente||"sin_clasificar")+sistLabel+waLabel+'</div>'
       +'<div class="hist-tot"'+(enSist?' style="color:#999;"':'')+'>'+fmt(p.total)+margenStr+'</div>'
       +'<div class="hist-fp"'+(enSist?' style="color:#aaa;"':'')+'>'+p.fpago+(enSist?' — cargado el '+p.fechaSistema:'')+'</div>';
     var acc=document.createElement("div");acc.className="card-acc";acc.style.marginTop="8px";
@@ -1569,6 +1570,21 @@ function renderVentas(c){
       };})(p,realIdx);
     }
     acc.appendChild(btnSis);
+    // Botón WA enviado (toggle manual)
+    var btnWA=document.createElement("button");
+    if(p.enviadoWA){
+      btnWA.className="btn-sm";btnWA.style.cssText="background:#E3F2FD;color:#0D47A1;font-size:12px;";btnWA.textContent="💬 WA ✓";
+      (function(pRecord,idx){btnWA.onclick=function(){
+        if(confirm("¿Desmarcar '"+pRecord.nv+"' como enviado por WhatsApp?")){
+          pedidos[idx].enviadoWA=false;window.guardarPedidos();renderGestion();
+        }
+      };})(p,realIdx);
+    } else {
+      btnWA.className="btn-sm";btnWA.style.cssText="background:#f5f5f5;color:#555;font-size:12px;";btnWA.textContent="💬 WA";
+      (function(pRecord,idx){btnWA.onclick=function(){
+        pedidos[idx].enviadoWA=true;window.guardarPedidos();toast("Marcado como enviado por WA ✓");renderGestion();
+      };})(p,realIdx);
+    }
     // Editar
     var btnEdit=document.createElement("button");btnEdit.className="btn-sm";btnEdit.textContent="Editar";
     (function(pRecord,idx){btnEdit.onclick=function(){editarVenta(idx);};})(p,realIdx);
@@ -1579,7 +1595,7 @@ function renderVentas(c){
         pedidos.splice(idx,1);window.guardarPedidos();toast("Venta eliminada");renderGestion();
       }
     };})(p,realIdx);
-    acc.appendChild(btnPDF);acc.appendChild(btnEdit);acc.appendChild(btnDel);
+    acc.appendChild(btnPDF);acc.appendChild(btnWA);acc.appendChild(btnEdit);acc.appendChild(btnDel);
     d.appendChild(acc);lv.appendChild(d);
   });
 }
@@ -2686,7 +2702,9 @@ $("dt10d").onclick=function(){setDescEsp(10);};
 $("bnuevo").onclick=nuevoPedido;
 
 // Guardar pedido pendiente al enviar por WhatsApp
+var _nvWaSent=false;
 $("bwa").addEventListener("click", function(){
+  _nvWaSent=true;
   var cl=$("cliente").value.trim();
   var dir=$("direccion").value.trim();
   var r=calcT(),f=calcFinal(r.t,r.n,r.tMin);
@@ -2802,7 +2820,8 @@ document.addEventListener("DOMContentLoaded", function(){
       // Buscar tipoCliente del cliente en lista
       var cliObj=clientes.find(function(c){return c.nombre.toLowerCase()===cl.toLowerCase();});
       var tipoCli=cliObj?cliObj.tipoCliente||"sin_clasificar":"sin_clasificar";
-      var rec={nv:nvFmt(nv),fecha:new Date().toLocaleDateString("es-AR"),cliente:cl,dir:dir2,fpago:nvFpago,entrega:nvEntrega,preventista:nvPreventistaVal,total:f.final,costo:costoTotal,margen:f.final-costoTotal,tipoCliente:tipoCli,cobrado:false,fechaCobro:"",fpagoCobro:"",pasadaAlSistema:false,fechaPasada:"",enSistema:false,fechaSistema:"",items:items.map(function(it){return{nombre:it.nombre,cant:it.cantidad,cantNum:it.cantNum||it.cantidad,precio:it.precioUnit,codigo:it.codigo};})};
+      var rec={nv:nvFmt(nv),fecha:new Date().toLocaleDateString("es-AR"),cliente:cl,dir:dir2,fpago:nvFpago,entrega:nvEntrega,preventista:nvPreventistaVal,total:f.final,costo:costoTotal,margen:f.final-costoTotal,tipoCliente:tipoCli,cobrado:false,fechaCobro:"",fpagoCobro:"",pasadaAlSistema:false,fechaPasada:"",enSistema:false,fechaSistema:"",enviadoWA:_nvWaSent,items:items.map(function(it){return{nombre:it.nombre,cant:it.cantidad,cantNum:it.cantNum||it.cantidad,precio:it.precioUnit,codigo:it.codigo};})};
+      _nvWaSent=false;
       pedidos.unshift(rec);if(pedidos.length>500) pedidos=pedidos.slice(0,500);
       window.guardarPedidos();
       // Crear cliente nuevo si no existe
