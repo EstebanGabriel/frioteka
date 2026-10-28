@@ -147,6 +147,18 @@ input[type=date],input[type=time],input[type=text]{width:100%;min-width:0;font:5
       <div class="msg" id="msg" aria-live="polite"></div>
       <a class="ghost btn" id="waSalida" hidden target="_blank" rel="noopener">Mandar esta salida por WhatsApp</a>
     </form>
+    <form class="panel" id="formNafta" novalidate>
+      <h2>Cargué combustible</h2>
+      <div class="field"><label for="nFecha">Fecha</label><input type="date" id="nFecha"></div>
+      <div class="row2">
+        <div class="field"><label for="nPesos">Pagué, $</label><input type="text" inputmode="numeric" id="nPesos" placeholder="50.000" autocomplete="off"></div>
+        <div class="field"><label for="nLitros">Litros</label><input type="text" inputmode="decimal" id="nLitros" placeholder="23,8" autocomplete="off"></div>
+      </div>
+      <div class="field"><label for="nKm">Km del tablero (opcional)</label><input type="text" inputmode="numeric" id="nKm" placeholder="192.900" autocomplete="off"></div>
+      <div class="calc" id="nCalc" aria-live="polite"></div>
+      <button class="primary" id="nGuardar" type="submit">Guardar carga</button>
+      <div class="msg" id="nMsg" aria-live="polite"></div>
+    </form>
   </section>
 
   <section id="p-resumen" hidden>
@@ -162,6 +174,7 @@ input[type=date],input[type=time],input[type=text]{width:100%;min-width:0;font:5
       <button type="button" class="ghost" id="diaSig" aria-label="Día siguiente">›</button>
     </div>
     <div id="resumen"></div>
+    <div id="naftaRes"></div>
     <div class="panel" id="exportar" hidden>
       <h2>Mandar o guardar</h2>
       <a class="primary btn" id="waResumen" target="_blank" rel="noopener">Mandar este resumen por WhatsApp</a>
@@ -207,7 +220,7 @@ const app = initializeApp({
 await requireLogin(app, { color: "#2E7D32", titulo: "Reparto FRIOTEKA" });
 const fs = getFirestore(app);
 // Colecciones propias de esta app (no tocan las de preventistas ni pedidos)
-const C = { salidas: "rp_salidas", config: "rp_config" };
+const C = { salidas: "rp_salidas", config: "rp_config", cargas: "rp_cargas" };
 const docs = s => ({ docs: s.docs.map(d => ({ id: d.id, data: () => d.data() })) });
 window.RP = {
   collection(name){
@@ -327,7 +340,66 @@ function delPeriodo(){
   return all.filter(x => x.fecha >= d);
 }
 
-function pintar(){ pintarResumen(); pintarHistorial(); }
+function pintar(){ pintarResumen(); pintarHistorial(); pintarNafta(); }
+
+/* ---------- combustible ---------- */
+let cargas = [];
+function litrosDe(v){ const n = parseFloat(String(v ?? '').trim().replace(',','.')); return isFinite(n) && n > 0 ? n : NaN; }
+function nCalc(){
+  const ps = ent($('nPesos').value), l = litrosDe($('nLitros').value);
+  $('nCalc').textContent = !isNaN(ps) && !isNaN(l) ? money(ps/l) + ' por litro' : '';
+}
+['nPesos','nLitros'].forEach(id => $(id).addEventListener('input', nCalc));
+$('nKm').addEventListener('blur', () => { const n = ent($('nKm').value); if(!isNaN(n)) $('nKm').value = nf(n); });
+function nMsg(t, c){ $('nMsg').textContent = t; $('nMsg').className = 'msg ' + (c||''); }
+$('formNafta').addEventListener('submit', async e => {
+  e.preventDefault();
+  const x = { fecha:$('nFecha').value, pesos:ent($('nPesos').value), litros:litrosDe($('nLitros').value), km:ent($('nKm').value) };
+  if(!x.fecha) return nMsg('Falta la fecha.','err');
+  if(isNaN(x.pesos)) return nMsg('Faltan los pesos que pagó.','err');
+  if(isNaN(x.litros)) return nMsg('Faltan los litros.','err');
+  if(isNaN(x.km)) x.km = null;
+  if(!db) return nMsg('Sin conexión con la base de datos. Revisá internet y volvé a abrir la página.','err');
+  $('nGuardar').disabled = true; nMsg('Guardando…');
+  try{
+    x.creado = new Date().toISOString();
+    const ref = db.collection('cargas').doc(); await ref.set(x);
+    if(!cargas.some(c => c.id===ref.id)) cargas.push({id:ref.id, ...x});
+    nMsg('Carga guardada: ' + money(x.pesos) + ', ' + String(x.litros).replace('.',',') + ' litros (' + money(x.pesos/x.litros) + ' por litro).','ok');
+    $('nPesos').value = ''; $('nLitros').value = ''; $('nKm').value = ''; nCalc(); pintarNafta();
+  }catch(err){ nMsg('No se pudo guardar. Revisá que haya internet y probá de nuevo.','err'); }
+  $('nGuardar').disabled = false;
+});
+function cargasPeriodo(){
+  const all = cargas.slice().sort((a,b) => (a.fecha+a.creado).localeCompare(b.fecha+b.creado));
+  if(periodo==='todo') return all;
+  if(periodo==='dia') return all.filter(c => c.fecha === diaVer);
+  const d = parseF(lunes(hoy())); if(periodo==='4') d.setDate(d.getDate() - 21);
+  const desde = iso(d); return all.filter(c => c.fecha >= desde);
+}
+function pintarNafta(){
+  const el = $('naftaRes'); if(!el) return;
+  const L = cargasPeriodo();
+  if(!L.length){ el.innerHTML = ''; return; }
+  const ps = L.reduce((s,c) => s+c.pesos,0), lt = L.reduce((s,c) => s+c.litros,0);
+  // rendimiento real: km entre la primera y la última carga con km, dividido los litros cargados desde la segunda
+  const conKm = cargas.filter(c => c.km).sort((a,b) => a.km - b.km);
+  let rinde = '';
+  if(conKm.length >= 2){ const kmR = conKm[conKm.length-1].km - conKm[0].km, lR = conKm.slice(1).reduce((s,c) => s+c.litros,0); if(kmR > 0 && lR > 0) rinde = kmR / lR; }
+  let h = '<div class="panel"><h2>Combustible</h2>' + kv('Cargas', L.length + ' · ' + money(ps)) + kv('Litros', lt.toLocaleString('es-AR',{maximumFractionDigits:1}))
+    + kv('Precio promedio por litro', money(ps/lt));
+  if(rinde) h += kv('Rendimiento real', rinde.toLocaleString('es-AR',{maximumFractionDigits:1}) + ' km por litro');
+  h += '<p class="note" style="margin:0">' + (rinde ? 'Sale de los km del tablero de todas las cargas. Si difiere mucho del que está cargado en costos, actualizalo abajo.' : 'Cargando los km del tablero en cada carga, la app calcula el rendimiento real de la camioneta.') + '</p>';
+  h += L.slice().reverse().map(c => '<div class="kv"><span>' + diaCorto(c.fecha) + (c.km ? ' · ' + nf(c.km) + ' km' : '') + '</span><b>' + money(c.pesos) + ' · ' + String(c.litros).replace('.',',') + ' l <button class="ghost del" style="padding:2px 8px;font-size:13px" data-ndel="' + esc(c.id) + '">Borrar</button></b></div>').join('');
+  el.innerHTML = h + '</div>';
+}
+document.addEventListener('click', async e => {
+  const b = e.target.closest('button[data-ndel]'); if(!b || !db) return;
+  if(b.dataset.ok !== '1'){ b.dataset.ok = '1'; b.textContent = '¿Seguro?'; return; }
+  b.disabled = true;
+  try{ await db.collection('cargas').doc(b.dataset.ndel).delete(); cargas = cargas.filter(c => c.id !== b.dataset.ndel); pintarNafta(); }
+  catch(err){ b.disabled = false; b.textContent = 'No se pudo'; }
+});
 
 function pintarResumen(){
   const el = $('resumen');
@@ -499,9 +571,9 @@ $('historial').addEventListener('click', async e => {
 /* ---------- periodo y costos ---------- */
 document.querySelectorAll('#periodos button').forEach(b => b.onclick = () => {
   periodo = b.dataset.p; document.querySelectorAll('#periodos button').forEach(o => o.setAttribute('aria-pressed', o===b));
-  $('diaSel').hidden = periodo !== 'dia'; pintarResumen();
+  $('diaSel').hidden = periodo !== 'dia'; pintarResumen(); pintarNafta();
 });
-function verDia(f){ diaVer = f; $('diaFecha').value = f; pintarResumen(); }
+function verDia(f){ diaVer = f; $('diaFecha').value = f; pintarResumen(); pintarNafta(); }
 function moverDia(n){ const d = parseF(diaVer || hoy()); d.setDate(d.getDate() + n); verDia(iso(d)); }
 $('diaAnt').onclick = () => moverDia(-1);
 $('diaSig').onclick = () => moverDia(1);
@@ -517,6 +589,7 @@ Object.keys(CF).forEach(id => $(id).addEventListener('change', async () => {
 
 /* ---------- arranque ---------- */
 diaVer = hoy(); $('diaFecha').value = diaVer;
+$('nFecha').value = hoy();
 limpiar(); pintar();
 Object.keys(CF).forEach(id => { $(id).value = fmtCfg(CF[id], cfg[CF[id]]); }); pintarCalc();
 (async () => {
@@ -527,6 +600,7 @@ Object.keys(CF).forEach(id => { $(id).value = fmtCfg(CF[id], cfg[CF[id]]); }); p
     const primera = !cargado; cargado = true; pintar(); pintarCalc();
     if(primera && !editId && !$('kmSale').value){ const u = ordenadas().slice(-1)[0]; if(u) $('kmSale').value = nf(u.kmVuelve); }
   }, () => { cargado = true; $('sinDb').hidden = false; pintar(); });
+  db.collection('cargas').limit(1000).onSnapshot(snap => { cargas = snap.docs.map(d => ({id:d.id, ...d.data()})).filter(c => c.fecha && c.pesos && c.litros); pintarNafta(); }, () => {});
   db.doc('config/costos').onSnapshot(s => {
     if(!s.exists) return; const d = s.data();
     cfg = {precio:Number(d.precio)||0, rinde:Number(d.rinde)||0, fijos:Number(d.fijos)||0, kmMes:Number(d.kmMes)||0, costoKm:Number(d.costoKm)||0, costoHora:Number(d.costoHora)||0};
