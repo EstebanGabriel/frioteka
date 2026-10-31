@@ -814,17 +814,31 @@
     // Pendientes de cargar en el sistema: los guarda la página (store.pend) donde los ve también quien carga precios.
     var PEND = store.pend || { lista: [], list: function () { return this.lista; },
       add: function (p) { this.lista = this.lista.filter(function (x) { return x.codigo !== p.codigo || x.hecho; }); this.lista.push(p); return Promise.resolve(); },
-      done: function (p, quien) { p.hecho = ahora(); p.quien = quien; return Promise.resolve(); } };
+      done: function (p, quien) { p.hecho = ahora(); p.quien = quien; return Promise.resolve(); },
+      upd: function (p, f) { Object.assign(p, f); return Promise.resolve(); } };
+    // Cola "cargar en el sistema" (carga_sistema.json del repo privado): la carga PRECIOS ALMACEN en el tablero.
+    var CARGA = store.carga || { items: [], list: function () { return this.items; }, add: function (it) { this.items.push(it); return Promise.resolve(); }, refresh: function () { return Promise.resolve(); } };
     function pendList() { return (PEND.list() || []).slice(); }
     function pendAdd(p) { return Promise.resolve(PEND.add(p)).catch(function (e) { aviso('El precio se guardó, pero no pude dejarlo pendiente de cargar: ' + (e && e.message || e), false); }); }
+    function pendUpd(p, f, ok) { var fn = PEND.upd || function (x, y) { Object.assign(x, y); return Promise.resolve(); }; return Promise.resolve(fn.call(PEND, p, f)).then(function () { aviso(ok); render(); }, function (e) { aviso('No se pudo guardar: ' + (e && e.message || e), false); }); }
+    // Estado de cada pendiente: sistema (PRECIOS ALMACEN o Banchi) y balanza (el elaborador).
+    function cargaDe(p) { var L = (CARGA.list() || []).filter(function (x) { return x.codigo === p.codigo && String(x.pedido || '') >= String(p.fecha || '').slice(0, 16); }); return L.length ? L[L.length - 1] : null; }
+    function estado(p) {
+      var it = cargaDe(p);
+      var sis = p.hecho ? { ok: p.hecho, quien: p.quien } : p.sistemaOk ? { ok: p.sistemaOk, quien: p.sistemaQuien } : it && it.ok ? { ok: it.ok, quien: it.okQuien || 'PRECIOS ALMACEN' } : null;
+      var bal = p.soloCosto ? { ok: '—', quien: 'no hace falta' } : p.hecho ? { ok: p.hecho, quien: p.quien } : p.balanzaOk ? { ok: p.balanzaOk, quien: p.balanzaQuien } : null;
+      return { it: it, sis: sis, bal: bal, listo: !!(sis && bal) };
+    }
+    function fh(s) { s = String(s || ''); return s.length >= 16 ? s.slice(8, 10) + '/' + s.slice(5, 7) + ' ' + s.slice(11, 16) : s; }
 
     // ===== PESTAÑA 4 · LISTA VIGENTE =====
     function vLista() {
-      var P = pendList().filter(function (p) { return !p.hecho; }).sort(function (a, b) { return String(a.fecha).localeCompare(String(b.fecha)); });
-      var h = el('h2', null, 'Pendiente de cargar en el sistema y la balanza'); body.appendChild(h);
-      if (!P.length) body.appendChild(el('div', 'note', 'Nada pendiente. Cuando cambies un precio en la pestaña Precios aparece acá, para que lo carguen vos o Gonzalo.'));
+      var P = pendList().filter(function (p) { return !estado(p).listo; }).sort(function (a, b) { return String(a.fecha).localeCompare(String(b.fecha)); });
+      var hb = bar(body); var h = el('h2', 'sp', 'Pendiente de cargar en el sistema y la balanza'); h.style.margin = '0'; hb.appendChild(h);
+      hb.appendChild(btn('Actualizar', 's g', function () { Promise.resolve(CARGA.refresh()).then(function () { render(); aviso('Actualizado.'); }, function (e) { aviso('No se pudo actualizar: ' + (e && e.message || e), false); }); }));
+      if (!P.length) body.appendChild(el('div', 'note', 'Nada pendiente. Cuando cambies un precio en Precios aparece acá: lo mandás a cargar al sistema y le avisás al elaborador para la balanza.'));
       P.forEach(function (p) {
-        var c = el('div', 'card pend'), row = el('div', 'row'); c.appendChild(row);
+        var E = estado(p), c = el('div', 'card pend'), row = el('div', 'row'); c.appendChild(row);
         var g = el('div', 'grow'); row.appendChild(g);
         g.appendChild(el('div', 'cod', p.codigo)); g.appendChild(el('div', 't', p.producto));
         g.appendChild(el('div', 'mut', CANAL_C[p.canal] + (p.balanza ? ' · balanza ' + p.balanza : '') + ' · pedido ' + p.fecha.slice(8, 10) + '/' + p.fecha.slice(5, 7) + (p.soloCosto ? ' · solo costo' : '')));
@@ -832,11 +846,30 @@
         pr.appendChild(el('div', 'mut', 'Costo sin IVA')); pr.appendChild(el('div', 'big', m2(p.costoSin)));
         pr.appendChild(el('div', 'mut', 'Precio con IVA')); pr.appendChild(el('div', 'big', money(p.precioCon)));
         if (p.anterior != null && !p.soloCosto) pr.appendChild(el('div', 'mut', 'antes ' + money(p.anterior)));
-        var bb = el('div', 'tc-bar'); bb.style.margin = '8px 0 0';
-        bb.appendChild(btn('✓ Cargado en sistema y balanza', 'p s', function () {
-          Promise.resolve(PEND.done(p, store.usuario)).then(function () { aviso('Marcado como cargado: ' + p.codigo); render(); }, function (e) { aviso('No se pudo marcar: ' + (e && e.message || e), false); });
-        }));
-        c.appendChild(bb); body.appendChild(c);
+        // Sistema
+        var s1 = el('div', 'tc-bar'); s1.style.margin = '8px 0 0'; s1.appendChild(el('span', 't', 'Sistema:'));
+        if (E.sis) s1.appendChild(el('span', 'tag ok', '✓ cargado · ' + (E.sis.quien || '') + ' · ' + fh(E.sis.ok)));
+        else {
+          if (E.it) s1.appendChild(el('span', 'tag w', 'mandado ' + fh(E.it.pedido) + ' · esperando a PRECIOS ALMACEN'));
+          else s1.appendChild(btn('Mandar a cargar en el sistema', 'p s', function () {
+            var it = { id: p.codigo + '_' + ahora().replace(/\D/g, ''), codigo: p.codigo, producto: p.producto, canal: p.canal, precioCon: p.precioCon, costoSin: p.costoSin, anterior: p.anterior, balanza: p.balanza || '', soloCosto: !!p.soloCosto, pedido: ahora(), pidio: store.usuario, ok: null, okQuien: null, nota: null };
+            Promise.resolve(CARGA.add(it)).then(function () { aviso('Mandado a cargar: ' + p.codigo + '. Decile a PRECIOS ALMACEN "cargá los elaborados".'); render(); }, function (e) { aviso('No se pudo mandar: ' + (e && e.message || e), false); });
+          }));
+          s1.appendChild(btn('Lo cargué yo', 's g', function () { pendUpd(p, { sistemaOk: ahora(), sistemaQuien: store.usuario }, 'Sistema marcado como cargado: ' + p.codigo); }));
+        }
+        c.appendChild(s1);
+        // Balanza
+        if (!p.soloCosto) {
+          var s2 = el('div', 'tc-bar'); s2.style.margin = '6px 0 0'; s2.appendChild(el('span', 't', 'Balanza:'));
+          if (E.bal) s2.appendChild(el('span', 'tag ok', '✓ cambiada · ' + (E.bal.quien || '') + ' · ' + fh(E.bal.ok)));
+          else {
+            if (p.avisado) s2.appendChild(el('span', 'tag w', 'avisado ' + fh(p.avisado) + ' · esperando el OK del elaborador'));
+            else s2.appendChild(btn('Avisar al elaborador', 'p s', function () { pendUpd(p, { avisado: ahora(), avisoQuien: store.usuario }, 'Avisado al elaborador: ' + p.codigo); }));
+            s2.appendChild(btn('Lo cambié yo', 's g', function () { pendUpd(p, { balanzaOk: ahora(), balanzaQuien: store.usuario }, 'Balanza marcada como cambiada: ' + p.codigo); }));
+          }
+          c.appendChild(s2);
+        }
+        body.appendChild(c);
       });
       var b = bar(body); b.style.marginTop = '18px';
       var t2 = el('h2', 'sp', 'Lista vigente'); t2.style.margin = '0'; b.appendChild(t2);
@@ -936,8 +969,8 @@
         ws.addRow([x.k.codigo || '', x.r.nombre, x.r.tipo, CANAL_C[x.k.canal], x.r.rinde === 'kg' ? 'por kg' : (x.r.rindeDesc || x.r.rinde), round2(x.cs), round2(x.k.canal === 'pieza' ? x.cs * 1.21 : x.c.con), x.k.actual, x.sg, x.real ? Math.round(x.real * 100) / 100 : null, x.k.balanza || '', x.k.cambio || '', x.c.mt.fuente === 'cargas' ? x.c.mt.n + ' cargas' : 'referencia']);
       });
       ws.getRow(1).font = { bold: true }; [6, 7, 8, 9].forEach(function (k) { ws.getColumn(k).numFmt = '"$"#,##0.00'; });
-      var wp = wb.addWorksheet('PENDIENTE DE CARGAR'); wp.columns = [{ header: 'Pedido', width: 17 }, { header: 'Código', width: 10 }, { header: 'Producto', width: 34 }, { header: 'Costo sin IVA', width: 14 }, { header: 'Precio con IVA', width: 14 }, { header: 'Cargado', width: 17 }, { header: 'Quién', width: 12 }];
-      pendList().forEach(function (p) { wp.addRow([p.fecha, p.codigo, p.producto, p.costoSin, p.precioCon, p.hecho || '', p.quien || '']); }); wp.getRow(1).font = { bold: true };
+      var wp = wb.addWorksheet('PENDIENTE DE CARGAR'); wp.columns = [{ header: 'Pedido', width: 17 }, { header: 'Código', width: 10 }, { header: 'Producto', width: 34 }, { header: 'Costo sin IVA', width: 14 }, { header: 'Precio con IVA', width: 14 }, { header: 'Sistema', width: 28 }, { header: 'Balanza', width: 28 }];
+      pendList().forEach(function (p) { var E = estado(p); wp.addRow([p.fecha, p.codigo, p.producto, p.costoSin, p.precioCon, E.sis ? 'OK ' + E.sis.ok + ' ' + (E.sis.quien || '') : (E.it ? 'mandado ' + E.it.pedido : 'pendiente'), E.bal ? 'OK ' + E.bal.ok + ' ' + (E.bal.quien || '') : (p.avisado ? 'avisado ' + p.avisado : 'pendiente')]); }); wp.getRow(1).font = { bold: true };
       var wc = wb.addWorksheet('CAMBIOS'); wc.columns = [{ header: 'Fecha', width: 17 }, { header: 'Qué', width: 10 }, { header: 'Código', width: 10 }, { header: 'Producto / insumo', width: 34 }, { header: 'Anterior', width: 13 }, { header: 'Nuevo', width: 13 }, { header: 'Quién', width: 12 }];
       (D().cambios || []).forEach(function (c) { wc.addRow([c.fecha, c.tipo, c.codigo || c.id, c.producto || c.nombre || '', c.anterior, c.nuevo, c.quien]); }); wc.getRow(1).font = { bold: true };
       var wi = wb.addWorksheet('INSUMOS'); wi.columns = [{ header: 'Id', width: 9 }, { header: 'Insumo', width: 36 }, { header: 'Tipo', width: 12 }, { header: 'Unidad', width: 7 }, { header: 'Alícuota', width: 9 }, { header: 'Con IVA', width: 13 }, { header: 'Sin IVA', width: 13 }, { header: 'Fuente', width: 30 }];

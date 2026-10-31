@@ -951,9 +951,27 @@ function montarCostos(){
   if(TC.F&&TC.fs){
     TC.store.pend={list:function(){ return TC.pend; },
       add:function(p){ return TC.F.setDoc(TC.F.doc(TC.fs,'el_precios_pend',pendId(p.codigo)),p); },
-      done:function(p,q){ return TC.F.updateDoc(TC.F.doc(TC.fs,'el_precios_pend',pendId(p.codigo)),{hecho:ahoraTxt(),quien:q}); }};
+      done:function(p,q){ return TC.F.updateDoc(TC.F.doc(TC.fs,'el_precios_pend',pendId(p.codigo)),{hecho:ahoraTxt(),quien:q}); },
+      upd:function(p,f){ return TC.F.updateDoc(TC.F.doc(TC.fs,'el_precios_pend',pendId(p.codigo)),f); }};
   }
+  TC.store.carga=cargaStore();
   TC.ui=TogoCostos.mount(box,TC.store);
+}
+// Cola "cargar en el sistema" (carga_sistema.json, repo privado). La lee y la marca PRECIOS ALMACEN (herramientas/carga_sistema.py).
+function cargaStore(){
+  var S={items:(TC.carga&&TC.carga.json.items)||[],
+    list:function(){ return S.items; },
+    refresh:async function(){ var g=await ghGet(TC.cfg,'carga_sistema.json'); TC.carga=g; S.items=g?(g.json.items||[]):[]; },
+    add:async function(it){
+      for(var k=0;k<3;k++){
+        var g=await ghGet(TC.cfg,'carga_sistema.json'), doc=g?g.json:{_nota:'Cola de precios de elaborados TOGO para cargar en el sistema. La escribe la app del dueño (Mandar a cargar) y la marca PRECIOS ALMACEN con herramientas/carga_sistema.py.',items:[]};
+        doc.items=(doc.items||[]).filter(function(x){ return x.ok||x.codigo!==it.codigo; }); doc.items.push(it);
+        try{ await ghPut(TC.cfg,'carga_sistema.json',doc,g&&g.sha,'app costos: mandar a cargar '+it.codigo); TC.carga={json:doc}; S.items=doc.items; return; }
+        catch(e){ if(!e.conflict) throw e; }
+      }
+      throw new Error('GitHub está ocupado, probá de nuevo.');
+    }};
+  return S;
 }
 async function cargarMaestro(){
   TC.cfg=ghCfg();
@@ -962,6 +980,7 @@ async function cargarMaestro(){
   TC.sha.m=m.sha;
   TC.store={doc:m.json,compras:c?c.json.compras||[]:[],comprasAl:c?c.json.actualizado:'—',cargas:[]};
   lsSet('elab_maestro',JSON.stringify({m:m.json,c:c?c.json:null}));
+  try{ TC.carga=await ghGet(TC.cfg,'carga_sistema.json'); }catch(e){ TC.carga=null; }
   aplicarMaestro(); return true;
 }
 (async function(){

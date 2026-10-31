@@ -86,6 +86,13 @@ select optgroup{font-style:normal}
 .line:last-child{border-bottom:0}.line b{font-variant-numeric:tabular-nums}
 .sub{margin:0;font:600 13px var(--disp);letter-spacing:.07em;text-transform:uppercase;color:var(--muted)}
 
+.avisos{display:flex;flex-direction:column;gap:10px;margin:0 0 14px}
+.aviso{border:2px solid var(--accent);border-radius:12px;padding:12px 14px;background:var(--accent-soft)}
+.aviso .tit{font-weight:700;font-size:15px;margin-bottom:4px}
+.aviso .prod{font-size:17px;font-weight:700}
+.aviso .det{color:var(--muted);font-size:14px;margin:2px 0 6px}
+.aviso .pre{font-size:26px;font-weight:800;font-variant-numeric:tabular-nums}
+.aviso .ant{color:var(--muted);font-size:13px;margin-bottom:8px}
 </style>
 </head>
 <body><div class="wrap">
@@ -102,6 +109,7 @@ select optgroup{font-style:normal}
     <button role="tab" id="t-hist" aria-selected="false" data-tab="hist">Historial</button>
   </nav>
   <div class="msg bad" id="dberr" hidden>No se pudo conectar con los datos. Revisá tu conexión a internet.</div>
+  <div class="avisos" id="avisos" aria-live="polite"></div>
 
   <!-- AL VACIO -->
   <section id="s-vac">
@@ -342,6 +350,23 @@ function renderHist(){
   });
 }
 function renderAll(){ renderStock(); renderHist(); }
+function ahoraAR(){ var d=new Date(Date.now()-3*3600e3); return d.toISOString().slice(0,16).replace('T',' '); }
+function fmtPeso(v){ return v==null?'—':'$'+Number(v).toLocaleString('es-AR',{maximumFractionDigits:0}); }
+var CANAL_TXT={min:'Minorista',may:'Mayorista',pieza:'Pieza'};
+function renderAvisos(list,F,fs){
+  var box=$('avisos'); box.textContent='';
+  list.filter(function(p){ return p.avisado&&!p.balanzaOk&&!p.hecho&&!p.soloCosto; }).sort(function(a,b){ return String(a.avisado).localeCompare(String(b.avisado)); }).forEach(function(p){
+    var c=el('div','aviso'); c.appendChild(el('div','tit','Cambiar precio en la balanza'));
+    c.appendChild(el('div','prod',p.producto));
+    c.appendChild(el('div','det',(CANAL_TXT[p.canal]||p.canal)+' · código '+p.codigo+(p.balanza?' · balanza '+p.balanza:'')));
+    c.appendChild(el('div','pre',fmtPeso(p.precioCon)+' con IVA'));
+    if(p.anterior!=null) c.appendChild(el('div','ant','antes '+fmtPeso(p.anterior)));
+    var b=el('button','btn','OK, ya está cambiado'); b.type='button';
+    b.onclick=function(){ b.disabled=true; F.updateDoc(F.doc(fs,'el_precios_pend',p._id),{balanzaOk:ahoraAR(),balanzaQuien:uid}).then(function(){ c.remove(); },function(e){ b.disabled=false; alertMsg('No se pudo guardar el OK: '+(e&&e.message||e)); }); };
+    c.appendChild(b); box.appendChild(c);
+  });
+}
+function alertMsg(t){ var m=el('div','msg bad',t); $('avisos').prepend(m); setTimeout(function(){ m.remove(); },6000); }
 function fromSnap(snap){ return snap.docs.map(function(d){ var x=Object.assign({},d.data()); x._id=d.id; return x; }); }
 liveVac(); liveQue(); livePiz(); renderAll();
 try{ var tb=localStorage.getItem('togo-tab'); if(tb&&TABS.indexOf(tb)>=0) showTab(tb); }catch(e){}
@@ -362,6 +387,8 @@ try{ var tb=localStorage.getItem('togo-tab'); if(tb&&TABS.indexOf(tb)>=0) showTa
       doc:function(id){ var r=F.doc(col,id); return {delete:function(){ return F.deleteDoc(r); }}; },
       onSnapshot:function(cb,err){ return F.onSnapshot(col,cb,err); } }; }};
     F.onSnapshot(F.doc(fs,'el_catalogo','actual'),function(d){ if(d.exists()) aplicarCatalogo(d.data()); },function(){});
+    // Avisos de cambio de precio para la balanza (los manda el dueño desde Costos › Lista vigente).
+    F.onSnapshot(F.collection(fs,'el_precios_pend'),function(sn){ renderAvisos(sn.docs.map(function(d){ var x=d.data(); x._id=d.id; return x; }),F,fs); },function(){});
   }catch(e){ db=null; }
   if(!db){ $('dberr').hidden=false; ['vGuardar','qGuardar','pGuardar','mGuardar'].forEach(function(i){ $(i).disabled=true; }); return; }
   db.collection('elaboraciones').onSnapshot(function(s){ elabs=fromSnap(s); renderAll(); },function(){ $('dberr').hidden=false; });
