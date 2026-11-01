@@ -1,0 +1,382 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">
+<title>❄ FRIOTEKA — Hacé tu pedido</title>
+<style>
+:root{--rojo:#B40000;--bg:#F2F2F2;--card:#fff;--borde:#E0E0E0;--verde:#1B7D33;--txt:#222;}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:var(--bg);color:var(--txt);padding-bottom:120px;}
+
+/* HEADER */
+.hdr{background:var(--rojo);color:#fff;padding:14px 16px 10px;position:sticky;top:0;z-index:20;box-shadow:0 2px 8px rgba(0,0,0,.3);}
+.hdr-top{display:flex;align-items:center;justify-content:space-between;}
+.logo{font-size:22px;font-weight:900;letter-spacing:.5px;}
+.logo-sub{font-size:10px;opacity:.8;letter-spacing:.4px;margin-top:1px;}
+.badge-ped{background:#fff;color:var(--rojo);font-size:12px;font-weight:800;padding:4px 10px;border-radius:20px;display:none;}
+.badge-ped.on{display:block;}
+
+/* ENVÍO GRATIS BANNER */
+.banner-envio{background:#1B7D33;color:#fff;text-align:center;font-size:12px;font-weight:700;padding:6px 16px;letter-spacing:.3px;}
+.banner-envio span{font-weight:400;opacity:.9;}
+
+/* FAMILIAS */
+.fam-wrap{background:#fff;padding:10px 12px 8px;border-bottom:1px solid var(--borde);overflow-x:auto;white-space:nowrap;-webkit-overflow-scrolling:touch;}
+.fam-wrap::-webkit-scrollbar{display:none;}
+.fam-btn{display:inline-block;padding:7px 14px;margin-right:6px;border-radius:20px;border:1.5px solid var(--borde);background:#fff;font-size:13px;font-weight:600;color:#555;cursor:pointer;white-space:nowrap;transition:all .15s;}
+.fam-btn.active{background:var(--rojo);color:#fff;border-color:var(--rojo);}
+
+/* CATALOGO */
+.cat-titulo{font-size:11px;font-weight:800;color:#888;text-transform:uppercase;letter-spacing:.8px;padding:12px 16px 6px;}
+.prod-card{background:#fff;margin:0 12px 8px;border-radius:14px;padding:12px 14px;box-shadow:0 1px 4px rgba(0,0,0,.07);}
+.prod-nombre{font-size:14px;font-weight:700;color:#1a1a1a;margin-bottom:8px;line-height:1.3;}
+
+/* BOTONES PRECIO */
+.precio-row{display:flex;gap:8px;align-items:stretch;}
+.precio-btn{flex:1;border:none;border-radius:10px;padding:9px 8px;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:2px;transition:all .15s;position:relative;}
+.precio-btn .pb-label{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;opacity:.75;}
+.precio-btn .pb-precio{font-size:15px;font-weight:800;}
+.precio-btn .pb-detalle{font-size:10px;opacity:.7;}
+
+/* Unitario — azul oscuro */
+.btn-unit{background:#EBF2FF;color:#1a3a7c;}
+.btn-unit.activo{background:#1a3a7c;color:#fff;}
+
+/* Caja — naranja oscuro — MÁS SEPARADO */
+.btn-caja{background:#FFF3E0;color:#7b3a00;}
+.btn-caja.activo{background:#E65100;color:#fff;}
+
+.precio-btn .cant-badge{position:absolute;top:-6px;right:-4px;background:#B40000;color:#fff;font-size:11px;font-weight:800;width:20px;height:20px;border-radius:50%;display:flex;align-items:center;justify-content:center;display:none;}
+.precio-btn .cant-badge.on{display:flex;}
+
+/* CONTROLES CANTIDAD */
+.ctrl-row{display:flex;gap:8px;align-items:center;margin-top:8px;}
+.ctrl-box{flex:1;display:flex;align-items:center;justify-content:space-between;background:#F5F5F5;border-radius:10px;padding:4px 8px;}
+.ctrl-box.oculto{visibility:hidden;}
+.ctrl-lbl{font-size:10px;color:#888;font-weight:700;text-align:center;margin-bottom:2px;}
+.btn-menos,.btn-mas{background:none;border:none;font-size:20px;color:#555;cursor:pointer;width:30px;height:30px;display:flex;align-items:center;justify-content:center;border-radius:8px;}
+.btn-menos:active,.btn-mas:active{background:#e0e0e0;}
+.cant-num{font-size:16px;font-weight:800;min-width:24px;text-align:center;}
+
+/* FORMULARIO */
+.form-section{background:#fff;margin:12px 12px 0;border-radius:14px;padding:16px;box-shadow:0 1px 4px rgba(0,0,0,.07);}
+.form-titulo{font-size:14px;font-weight:800;color:#333;margin-bottom:14px;}
+.form-group{margin-bottom:12px;}
+.form-group label{font-size:12px;font-weight:700;color:#666;display:block;margin-bottom:5px;text-transform:uppercase;letter-spacing:.3px;}
+.form-group input{width:100%;padding:11px 12px;border:1.5px solid #ddd;border-radius:10px;font-size:15px;outline:none;transition:border .15s;}
+.form-group input:focus{border-color:var(--rojo);}
+.fpago-row{display:flex;gap:8px;}
+.fpago-btn{flex:1;padding:11px;border:1.5px solid #ddd;border-radius:10px;background:#fff;font-size:14px;font-weight:700;color:#555;cursor:pointer;transition:all .15s;text-align:center;}
+.fpago-btn.sel{background:var(--rojo);color:#fff;border-color:var(--rojo);}
+
+/* BARRA INFERIOR */
+.barra-inf{position:fixed;bottom:0;left:0;right:0;background:#fff;border-top:1px solid #ddd;padding:10px 12px 16px;z-index:20;box-shadow:0 -2px 10px rgba(0,0,0,.1);}
+.total-row{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;}
+.total-lbl{font-size:13px;color:#888;font-weight:600;}
+.total-num{font-size:20px;font-weight:900;color:var(--rojo);}
+.envio-lbl{font-size:11px;color:var(--verde);font-weight:700;}
+.btns-inf{display:flex;gap:8px;}
+.btn-limpiar{flex:0 0 auto;padding:13px 16px;border:1.5px solid #ddd;border-radius:12px;background:#fff;font-size:13px;font-weight:700;color:#888;cursor:pointer;}
+.btn-enviar{flex:1;padding:13px;border:none;border-radius:12px;background:#25D366;color:#fff;font-size:15px;font-weight:800;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;}
+.btn-enviar:disabled{background:#ccc;cursor:default;}
+</style>
+</head>
+<body>
+
+<div class="hdr">
+  <div class="hdr-top">
+    <div>
+      <div class="logo">❄ FRIOTEKA</div>
+      <div class="logo-sub">Villa Carlos Paz · Congelados de calidad</div>
+    </div>
+    <div class="badge-ped" id="badgePed">0 items</div>
+  </div>
+</div>
+
+<div class="banner-envio">🚚 Envío GRATIS <span>en compras mayores a $60.000</span></div>
+
+<div class="fam-wrap" id="famWrap"></div>
+
+<div id="catalogo"></div>
+
+<div class="form-section">
+  <div class="form-titulo">📋 Tus datos</div>
+  <div class="form-group">
+    <label>Nombre *</label>
+    <input type="text" id="inpNombre" placeholder="Tu nombre completo" oninput="updTotal()">
+  </div>
+  <div class="form-group">
+    <label>Dirección *</label>
+    <input type="text" id="inpDir" placeholder="Calle y número" oninput="updTotal()">
+  </div>
+  <div class="form-group">
+    <label>Forma de pago *</label>
+    <div class="fpago-row">
+      <button class="fpago-btn" id="fpEfectivo" onclick="selFpago('efectivo')">💵 Efectivo</button>
+      <button class="fpago-btn" id="fpTransf" onclick="selFpago('transferencia')">🏦 Transferencia</button>
+    </div>
+  </div>
+</div>
+
+<div class="barra-inf">
+  <div class="total-row">
+    <div>
+      <div class="total-lbl">Total del pedido</div>
+      <div class="envio-lbl" id="envioLbl" style="display:none;">✓ Envío gratis incluido</div>
+    </div>
+    <div class="total-num" id="totalNum">$0</div>
+  </div>
+  <div class="btns-inf">
+    <button class="btn-limpiar" onclick="limpiarPedido()">🗑 Limpiar</button>
+    <button class="btn-enviar" id="btnEnviar" onclick="enviarWA()" disabled>
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="white"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
+      Enviar pedido por WhatsApp
+    </button>
+  </div>
+</div>
+
+<script>
+var P=[{"codigo": 3001, "nombre": "PAQ. ACELGA X 600 GR", "unidadesCaja": 16, "unidad": "U", "precioMinorista":3790, "precioMayorista":3267, "categoria": "FRUTAS Y VERDURAS", "iva": 10.5}, {"codigo": 3002, "nombre": "PAQ. ARANDANOS X 400GR", "unidadesCaja": 30, "unidad": "U", "precioMinorista": 5999, "precioMayorista": 4430, "categoria": "FRUTAS Y VERDURAS", "iva": 10.5}, {"codigo": 3003, "nombre": "PAQ. ARVEJA X 600GR", "unidadesCaja": 20, "unidad": "U", "precioMinorista": 6190, "precioMayorista": 4477, "categoria": "FRUTAS Y VERDURAS", "iva": 10.5}, {"codigo": 3004, "nombre": "PAQ. CALABAZA EN CUBOS X 600GR", "unidadesCaja": 20, "unidad": "U", "precioMinorista":4490, "precioMayorista":2823, "categoria": "FRUTAS Y VERDURAS", "iva": 10.5}, {"codigo": 3005, "nombre": "PAQ. CHAMPIGNONES X 400GR", "unidadesCaja": 20, "unidad": "U", "precioMinorista":8290, "precioMayorista":5584, "categoria": "FRUTAS Y VERDURAS", "iva": 10.5}, {"codigo": 3006, "nombre": "PAQ. CHAUCHAS TROZADAS X600 GR", "unidadesCaja": 18, "unidad": "U", "precioMinorista":5299, "precioMayorista":4482, "categoria": "FRUTAS Y VERDURAS", "iva": 10.5}, {"codigo": 3007, "nombre": "PAQ. ESPINACA  X 600GR", "unidadesCaja": 14, "unidad": "U", "precioMinorista": 4590, "precioMayorista": 3761, "categoria": "FRUTAS Y VERDURAS", "iva": 10.5}, {"codigo": 3008, "nombre": "PAQ. FRUTILLAS X 600GR", "unidadesCaja": 20, "unidad": "U", "precioMinorista":6490, "precioMayorista":4567, "categoria": "FRUTAS Y VERDURAS", "iva": 10.5}, {"codigo": 3009, "nombre": "PAQ. MIX FRUTOS ROJOS X 400GR", "unidadesCaja": 30, "unidad": "U", "precioMinorista":4690, "precioMayorista":4177, "categoria": "FRUTAS Y VERDURAS", "iva": 10.5}, {"codigo": 3010, "nombre": "PAQ. ENSALADA JARDINERA X 600GR", "unidadesCaja": 20, "unidad": "U", "precioMinorista":4899, "precioMayorista":3246, "categoria": "FRUTAS Y VERDURAS", "iva": 10.5}, {"codigo": 3011, "nombre": "PAQ. ENSALADA PRIMAVERA X 600GR", "unidadesCaja": 20, "unidad": "U", "precioMinorista":5790, "precioMayorista":4258, "categoria": "FRUTAS Y VERDURAS", "iva": 10.5}, {"codigo": 3012, "nombre": "PAQ. RELLENO TARTA VERDURA X 600GR", "unidadesCaja": 18, "unidad": "U", "precioMinorista": 6199, "precioMayorista": 4270, "categoria": "FRUTAS Y VERDURAS", "iva": 10.5}, {"codigo": 3013, "nombre": "PAQ. RELLENO TARTA ZAPALLITOS X 600GR", "unidadesCaja": 20, "unidad": "U", "precioMinorista":5150, "precioMayorista":3262, "categoria": "FRUTAS Y VERDURAS", "iva": 10.5}, {"codigo": 3014, "nombre": "PAQ. MIX SALSA DE TOMATE X 600GR", "unidadesCaja": 20, "unidad": "U", "precioMinorista": 4199, "precioMayorista": 3547, "categoria": "FRUTAS Y VERDURAS", "iva": 10.5}, {"codigo": 3015, "nombre": "PAQ. MIX VEGETALES PARA SOPA X 600GR", "unidadesCaja": 20, "unidad": "U", "precioMinorista":5399, "precioMayorista":3471, "categoria": "FRUTAS Y VERDURAS", "iva": 10.5}, {"codigo": 3017, "nombre": "PAQ. PIMIENTO CUBO CONGELADO X 600GR", "unidadesCaja": 20, "unidad": "U", "precioMinorista":8190, "precioMayorista":5203, "categoria": "FRUTAS Y VERDURAS", "iva": 10.5}, {"codigo": 3018, "nombre": "PAQ. ZANAHORIA CUBOS X 600GR", "unidadesCaja": 20, "unidad": "U", "precioMinorista":2790, "precioMayorista":2376, "categoria": "FRUTAS Y VERDURAS", "iva": 10.5}, {"codigo": 3020, "nombre": "PAQ. MIX WOK DE VEGETALES X 600GR", "unidadesCaja": 20, "unidad": "U", "precioMinorista":6390, "precioMayorista":4085, "categoria": "FRUTAS Y VERDURAS", "iva": 10.5}, {"codigo": 3021, "nombre": "PAQ. CHOCLO EN GRANOS X 600GR", "unidadesCaja": 20, "unidad": "U", "precioMinorista": 6090, "precioMayorista": 4007, "categoria": "FRUTAS Y VERDURAS", "iva": 10.5}, {"codigo": 3022, "nombre": "PAQ. CEBOLLA EN CUBOS X 600GR", "unidadesCaja": 20, "unidad": "U", "precioMinorista": 4990, "precioMayorista": 3389, "categoria": "FRUTAS Y VERDURAS", "iva": 10.5}, {"codigo": 3023, "nombre": "PAQ. MIX PARA TACOS X600GR", "unidadesCaja": 20, "unidad": "U", "precioMinorista":6390, "precioMayorista":5400, "categoria": "FRUTAS Y VERDURAS", "iva": 10.5}, {"codigo": 3024, "nombre": "PAQ. BROCOLI CONGELADO X600GR", "unidadesCaja": 12, "unidad": "U", "precioMinorista": 7990, "precioMayorista": 5317, "categoria": "FRUTAS Y VERDURAS", "iva": 10.5}, {"codigo": 3025, "nombre": "PAQ. MANGO EN CUBOS X400GR", "unidadesCaja": 26, "unidad": "U", "precioMinorista":3690, "precioMayorista":2789, "categoria": "FRUTAS Y VERDURAS", "iva": 10.5}, {"codigo": 3026, "nombre": "PAQ. MIX ARROZ CON VEGETALES X 600GR", "unidadesCaja": 20, "unidad": "U", "precioMinorista":7090, "precioMayorista":4598, "categoria": "FRUTAS Y VERDURAS", "iva": 10.5}, {"codigo": 3033, "nombre": "PAQ. PULPA DE PALTA BIOMAC X500GR", "unidadesCaja": 20, "unidad": "U", "precioMinorista":7990, "precioMayorista":5626, "categoria": "FRUTAS Y VERDURAS", "iva": 10.5}, {"codigo": 3034, "nombre": "PAQ. PALTA EN MITADES BIOMAC X500GR", "unidadesCaja": 20, "unidad": "U", "precioMinorista":10990, "precioMayorista":7404, "categoria": "FRUTAS Y VERDURAS", "iva": 10.5}, {"codigo": 3038, "nombre": "PAQ. PIMIENTO TRICOLOR JULIANA X 600 GR", "unidadesCaja": 18, "unidad": "U", "precioMinorista": 9099, "precioMayorista": 6152, "categoria": "FRUTAS Y VERDURAS", "iva": 10.5}, {"codigo": 3060, "nombre": "PAQ. MANGO EN CUBOS X 500GR BIOMAC", "unidadesCaja": 20, "unidad": "U", "precioMinorista":3900, "precioMayorista":3877, "categoria": "FRUTAS Y VERDURAS", "iva": 10.5}, {"codigo": 3064, "nombre": "PAQ. MORA X 500GR", "unidadesCaja": 20, "unidad": "U", "precioMinorista":7950, "precioMayorista":5718, "categoria": "FRUTAS Y VERDURAS", "iva": 10.5}, {"codigo": 3065, "nombre": "PAQ. DURAZNOS REBANADAS X500GR", "unidadesCaja": 20, "unidad": "U", "precioMinorista":6690, "precioMayorista":4589, "categoria": "FRUTAS Y VERDURAS", "iva": 10.5}, {"codigo": 3066, "nombre": "PAQ. ANANA TROZOS X500GR", "unidadesCaja": 20, "unidad": "U", "precioMinorista":8590, "precioMayorista":5607, "categoria": "FRUTAS Y VERDURAS", "iva": 10.5}, {"codigo": 2740, "nombre": "MIX BERRIES X 15KG", "unidadesCaja": 1, "unidad": "U", "precioMinorista":153070, "precioMayorista":153070, "categoria": "FRUTAS Y VERDURAS AL POR MAYOR", "iva": 10.5}, {"codigo": 2741, "nombre": "CHOCLO X 15KG", "unidadesCaja": 1, "unidad": "U", "precioMinorista":78690, "precioMayorista":78690, "categoria": "FRUTAS Y VERDURAS AL POR MAYOR", "iva": 10.5}, {"codigo": 2742, "nombre": "ESPINACA x10kg", "unidadesCaja": 1, "unidad": "U", "precioMinorista":56759, "precioMayorista":56759, "categoria": "FRUTAS Y VERDURAS AL POR MAYOR", "iva": 10.5}, {"codigo": 2743, "nombre": "FRUTILLAS ENTERAS X 13.6KG", "unidadesCaja": 1, "unidad": "U", "precioMinorista":68559, "precioMayorista":68559, "categoria": "FRUTAS Y VERDURAS AL POR MAYOR", "iva": 10.5}, {"codigo": 2744, "nombre": "CEBOLLA PICADA X 10KG", "unidadesCaja": 1, "unidad": "U", "precioMinorista":47656, "precioMayorista":47656, "categoria": "FRUTAS Y VERDURAS AL POR MAYOR", "iva": 10.5}, {"codigo": 2745, "nombre": "ARANDANOS X 13.6KG", "unidadesCaja": 1, "unidad": "U", "precioMinorista":78645, "precioMayorista":78645, "categoria": "FRUTAS Y VERDURAS AL POR MAYOR", "iva": 10.5}, {"codigo": 2746, "nombre": "ACELGA X 10KG GRANEL", "unidadesCaja": 1, "unidad": "U", "precioMinorista":46024, "precioMayorista":46024, "categoria": "FRUTAS Y VERDURAS AL POR MAYOR", "iva": 10.5}, {"codigo": 2747, "nombre": "PRIMAVERA X 15KG", "unidadesCaja": 1, "unidad": "U", "precioMinorista": 93194, "precioMayorista": 93194, "categoria": "FRUTAS Y VERDURAS AL POR MAYOR", "iva": 10.5}, {"codigo": 2748, "nombre": "ARVEJAS X 15KG", "unidadesCaja": 1, "unidad": "U", "precioMinorista":78902, "precioMayorista":78902, "categoria": "FRUTAS Y VERDURAS AL POR MAYOR", "iva": 10.5}, {"codigo": 2749, "nombre": "CHAUCHAS TROZADAS X 10KG", "unidadesCaja": 1, "unidad": "U", "precioMinorista":52783, "precioMayorista":52783, "categoria": "FRUTAS Y VERDURAS AL POR MAYOR", "iva": 10.5}, {"codigo": 2750, "nombre": "PIMIENTO ROJO/VERDE X 10KG", "unidadesCaja": 1, "unidad": "U", "precioMinorista":78894, "precioMayorista":78894, "categoria": "FRUTAS Y VERDURAS AL POR MAYOR", "iva": 10.5}, {"codigo": 2751, "nombre": "ZAPALLO EN CUBOS X 15KG", "unidadesCaja": 1, "unidad": "U", "precioMinorista":58874, "precioMayorista":58874, "categoria": "FRUTAS Y VERDURAS AL POR MAYOR", "iva": 10.5}, {"codigo": 2752, "nombre": "ZAPALLITO ZUQUINI X 15KG", "unidadesCaja": 1, "unidad": "U", "precioMinorista":58182, "precioMayorista":58182, "categoria": "FRUTAS Y VERDURAS AL POR MAYOR", "iva": 10.5}, {"codigo": 2753, "nombre": "ZANAHORIA EN CUBOS X 15KG", "unidadesCaja": 1, "unidad": "U", "precioMinorista":51085, "precioMayorista":51085, "categoria": "FRUTAS Y VERDURAS AL POR MAYOR", "iva": 10.5}, {"codigo": 1829, "nombre": "PANCITOS INTEGRALES HORNEADOS 12u 460GR", "unidadesCaja": 24, "unidad": "U", "precioMinorista":4290, "precioMayorista":3767, "categoria": "SALUDABLES", "iva": 21.0}, {"codigo": 3705, "nombre": "PAQ. MIL. SOJA CLAS. X6 450G", "unidadesCaja": 30, "unidad": "U", "precioMinorista":3499, "precioMayorista":2554, "categoria": "SALUDABLES", "iva": 21.0}, {"codigo": 3706, "nombre": "PAQ. MED. SOJA C/ESPIN X6 375G", "unidadesCaja": 34, "unidad": "U", "precioMinorista":2870, "precioMayorista":2424, "categoria": "SALUDABLES", "iva": 21.0}, {"codigo": 3707, "nombre": "PAQ. MED. SOJA CAPRESE X4 350G", "unidadesCaja": 37, "unidad": "U", "precioMinorista":4299, "precioMayorista":3247, "categoria": "SALUDABLES", "iva": 21.0}, {"codigo": 1802, "nombre": "NATUFANS REB ACEL Y ARROZ YAMANI x380GR", "unidadesCaja": 24, "unidad": "U", "precioMinorista": 3890, "precioMayorista": 2581, "categoria": "SIN GLUTEN", "iva": 21.0}, {"codigo": 1805, "nombre": "NATUFANS CALAB. ZANAH. Y CHOCLO (S/R) x340GR", "unidadesCaja": 24, "unidad": "U", "precioMinorista": 3590, "precioMayorista": 2942, "categoria": "SIN GLUTEN", "iva": 21.0}, {"codigo": 1806, "nombre": "NATUFANS S/R ACEL Y ARROZ YAMANI x340GR", "unidadesCaja": 24, "unidad": "U", "precioMinorista": 3530, "precioMayorista": 2314, "categoria": "SIN GLUTEN", "iva": 21.0}, {"codigo": 1807, "nombre": "NATUFANS MED. ESPINACA S/R X340GR", "unidadesCaja": 24, "unidad": "U", "precioMinorista": 3880, "precioMayorista": 2500, "categoria": "SIN GLUTEN", "iva": 21.0}, {"codigo": 1808, "nombre": "NATUFANS MEDALLONES DE LENTEJA X 340GR", "unidadesCaja": 24, "unidad": "U", "precioMinorista": 2790, "precioMayorista": 2284, "categoria": "SIN GLUTEN", "iva": 21.0}, {"codigo": 1809, "nombre": "PIZZA DE ARROZ RUCULA NATUFANS X370G", "unidadesCaja": 14, "unidad": "U", "precioMinorista": 6690, "precioMayorista": 5428, "categoria": "SIN GLUTEN", "iva": 21.0}, {"codigo": 1810, "nombre": "PIZZA DE ARROZ MOZZARELLA NATUFANS X360G", "unidadesCaja": 14, "unidad": "U", "precioMinorista": 7490, "precioMayorista": 5519, "categoria": "SIN GLUTEN", "iva": 21.0}, {"codigo": 1811, "nombre": "PIZZA  DE ARROZ JAMON Y QUESO NATUFANS X390G", "unidadesCaja": 14, "unidad": "U", "precioMinorista": 7490, "precioMayorista": 5519, "categoria": "SIN GLUTEN", "iva": 21.0}, {"codigo": 1812, "nombre": "PIZZA  DE ARROZ CAPRESE NATUFANS X400G", "unidadesCaja": 14, "unidad": "U", "precioMinorista": 7490, "precioMayorista": 5519, "categoria": "SIN GLUTEN", "iva": 21.0}, {"codigo": 1813, "nombre": "EMPANADAS XL JYQ X3U S/GLUTEN", "unidadesCaja": 12, "unidad": "U", "precioMinorista": 9990, "precioMayorista": 9546, "categoria": "SIN GLUTEN", "iva": 21.0}, {"codigo": 1814, "nombre": "EMPANADAS XL CARNE X3U S/GLUTEN", "unidadesCaja": 12, "unidad": "U", "precioMinorista": 9990, "precioMayorista": 9546, "categoria": "SIN GLUTEN", "iva": 21.0}, {"codigo": 1815, "nombre": "FETUCCINI DE ESPINACA S/GLUTEN", "unidadesCaja": 12, "unidad": "U", "precioMinorista": 9790, "precioMayorista": 8974, "categoria": "SIN GLUTEN", "iva": 21.0}, {"codigo": 1816, "nombre": "FETUCCINI AL HUEVO S/GLUTEN", "unidadesCaja": 12, "unidad": "U", "precioMinorista": 9750, "precioMayorista": 9032, "categoria": "SIN GLUTEN", "iva": 21.0}, {"codigo": 1817, "nombre": "ÑOQUIS DE PAPA S/GLUTEN", "unidadesCaja": 12, "unidad": "U", "precioMinorista": 8690, "precioMayorista": 7981, "categoria": "SIN GLUTEN", "iva": 21.0}, {"codigo": 1818, "nombre": "RAVIOLES DE RICOTA Y MOZZARELLA S/GLUTEN", "unidadesCaja": 12, "unidad": "U", "precioMinorista": 9790, "precioMayorista": 8713, "categoria": "SIN GLUTEN", "iva": 21.0}, {"codigo": 1819, "nombre": "RAVIOLES DE JYQ S/GLUTEN", "unidadesCaja": 12, "unidad": "U", "precioMinorista": 10190, "precioMayorista": 9374, "categoria": "SIN GLUTEN", "iva": 21.0}, {"codigo": 1820, "nombre": "BASTONCITO DE MOZZARELLA S/GLUTEN", "unidadesCaja": 16, "unidad": "U", "precioMinorista": 8090, "precioMayorista": 7461, "categoria": "SIN GLUTEN", "iva": 21.0}, {"codigo": 1821, "nombre": "SORRENTINOS QUESO AZUL S/GLUTEN", "unidadesCaja": 12, "unidad": "U", "precioMinorista": 9990, "precioMayorista": 9109, "categoria": "SIN GLUTEN", "iva": 21.0}, {"codigo": 1822, "nombre": "SORRENTINO DE CALABAZA Y QUESO S/GLUTEN", "unidadesCaja": 12, "unidad": "U", "precioMinorista": 9990, "precioMayorista": 8760, "categoria": "SIN GLUTEN", "iva": 21.0}, {"codigo": 1823, "nombre": "TARTA INDIVIDUAL ESPINACA S/GLUTEN", "unidadesCaja": 16, "unidad": "U", "precioMinorista": 8350, "precioMayorista": 7792, "categoria": "SIN GLUTEN", "iva": 21.0}, {"codigo": 1824, "nombre": "TARTA INDIVIDUAL DE JYQ S/GLUTEN", "unidadesCaja": 16, "unidad": "U", "precioMinorista": 8750, "precioMayorista": 7961, "categoria": "SIN GLUTEN", "iva": 21.0}, {"codigo": 1828, "nombre": "SORRENTINO DE JYQ S/GLUTEN", "unidadesCaja": 12, "unidad": "U", "precioMinorista": 10150, "precioMayorista": 9070, "categoria": "SIN GLUTEN", "iva": 21.0}, {"codigo": 1831, "nombre": "EMPANADAS DE ESPINACA S/GLUTEN", "unidadesCaja": 12, "unidad": "U", "precioMinorista":10150, "precioMayorista":9384, "categoria": "SIN GLUTEN", "iva": 21.0}, {"codigo": 2610, "nombre": "PREPIZZA DE ARROZ Y ESPINACA X 2", "unidadesCaja": 20, "unidad": "U", "precioMinorista":5499, "precioMayorista":4163, "categoria": "SIN GLUTEN", "iva": 21.0}, {"codigo": 2611, "nombre": "PREPIZZA DE ARROZ Y TOMATE X 2", "unidadesCaja": 20, "unidad": "U", "precioMinorista":5499, "precioMayorista":4163, "categoria": "SIN GLUTEN", "iva": 21.0}, {"codigo": 1703, "nombre": "FILET DE SABALO", "unidadesCaja": 10, "unidad": "K", "precioMinorista":18199, "precioMayorista":16125, "categoria": "PESCADOS", "iva": 21.0}, {"codigo": 1704, "nombre": "TARARIRA DESPINADA", "unidadesCaja": 10, "unidad": "K", "precioMinorista":14900, "precioMayorista":13207, "categoria": "PESCADOS", "iva": 21.0}, {"codigo": 1714, "nombre": "MEDIO PACU DESPINADO (C/COSTILLA)", "unidadesCaja": 15, "unidad": "K", "precioMinorista": 21390, "precioMayorista": 16777, "categoria": "PESCADOS", "iva": 21.0}, {"codigo": 1717, "nombre": "FILET DE CARPA", "unidadesCaja": 10, "unidad": "K", "precioMinorista":8390, "precioMayorista":6382, "categoria": "PESCADOS", "iva": 21.0}, {"codigo": 1719, "nombre": "LANGOSTINO PELADO X 250GR", "unidadesCaja": 20, "unidad": "U", "precioMinorista": 11190, "precioMayorista": 8186, "categoria": "PESCADOS", "iva": 21.0}, {"codigo": 1720, "nombre": "CAMARON X250GR", "unidadesCaja": 20, "unidad": "U", "precioMinorista": 10900, "precioMayorista": 10116, "categoria": "PESCADOS", "iva": 21.0}, {"codigo": 1721, "nombre": "MEJILLON X250GR", "unidadesCaja": 20, "unidad": "U", "precioMinorista": 8190, "precioMayorista": 5880, "categoria": "PESCADOS", "iva": 21.0}, {"codigo": 1724, "nombre": "BOGA DESPINADA", "unidadesCaja": 15, "unidad": "K", "precioMinorista":21990, "precioMayorista":18834, "categoria": "PESCADOS", "iva": 21.0}, {"codigo": 1725, "nombre": "SABALO DESPINADO XKG", "unidadesCaja": 15, "unidad": "K", "precioMinorista":20190, "precioMayorista":17184, "categoria": "PESCADOS", "iva": 21.0}, {"codigo": 1728, "nombre": "FILET DE PACU DESPINADO SIN COSTILLA", "unidadesCaja": 15, "unidad": "K", "precioMinorista": 23900, "precioMayorista": 22048, "categoria": "PESCADOS", "iva": 21.0}, {"codigo": 1729, "nombre": "CAZUELA MARISCO X500", "unidadesCaja": 10, "unidad": "U", "precioMinorista": 15590, "precioMayorista": 13094, "categoria": "PESCADOS", "iva": 21.0}, {"codigo": 3513, "nombre": "MEDALLON DE MERLUZA X400G", "unidadesCaja": 20, "unidad": "U", "precioMinorista": 3690, "precioMayorista": 3110, "categoria": "PESCADOS", "iva": 21.0}, {"codigo": 3514, "nombre": "MED. MERL. C/ESPIN. X400G", "unidadesCaja": 20, "unidad": "U", "precioMinorista": 4650, "precioMayorista": 3270, "categoria": "PESCADOS", "iva": 21.0}, {"codigo": 3515, "nombre": "RABAS X300 GR", "unidadesCaja": 25, "unidad": "U", "precioMinorista":10899, "precioMayorista":8231, "categoria": "PESCADOS", "iva": 21.0}, {"codigo": 3516, "nombre": "PAELLA X400GR", "unidadesCaja": 20, "unidad": "U", "precioMinorista":10399, "precioMayorista":7423, "categoria": "PESCADOS", "iva": 21.0}, {"codigo": 3521, "nombre": "PAQ. ANILLAS DE CALAMAR X 400GR", "unidadesCaja": 10, "unidad": "U", "precioMinorista":17900, "precioMayorista":14206, "categoria": "PESCADOS", "iva": 21.0}, {"codigo": 3550, "nombre": "MEDALLON DE BOGA X4 340GR", "unidadesCaja": 24, "unidad": "U", "precioMinorista":4050, "precioMayorista":2918, "categoria": "PESCADOS", "iva": 21.0}, {"codigo": 3555, "nombre": "FILET DE MERLUZA X 1KG DOÑA FRANCISCA", "unidadesCaja": 8, "unidad": "U", "precioMinorista":17490, "precioMayorista":14297, "categoria": "PESCADOS", "iva": 21.0}, {"codigo": 3410, "nombre": "RAVIOLES RICOTA X500GR", "unidadesCaja": 20, "unidad": "U", "precioMinorista":2999, "precioMayorista":2207, "categoria": "PASTAS", "iva": 21.0}, {"codigo": 3411, "nombre": "RAVIOLES VERDURA X500G", "unidadesCaja": 20, "unidad": "U", "precioMinorista":2490, "precioMayorista":1986, "categoria": "PASTAS", "iva": 21.0}, {"codigo": 3412, "nombre": "RAVIOLON 4 QUESOS X500GR", "unidadesCaja": 20, "unidad": "U", "precioMinorista":2990, "precioMayorista":2600, "categoria": "PASTAS", "iva": 21.0}, {"codigo": 3413, "nombre": "RAVIOLON VERDURA X500GR", "unidadesCaja": 20, "unidad": "U", "precioMinorista":3790, "precioMayorista":2644, "categoria": "PASTAS", "iva": 21.0}, {"codigo": 3414, "nombre": "RAVIOLES DE POLLO X500 GR", "unidadesCaja": 20, "unidad": "U", "precioMinorista":2999, "precioMayorista":2207, "categoria": "PASTAS", "iva": 21.0}, {"codigo": 3417, "nombre": "ÑOQUIS X500GR", "unidadesCaja": 20, "unidad": "U", "precioMinorista":3090, "precioMayorista":2214, "categoria": "PASTAS", "iva": 21.0}, {"codigo": 3418, "nombre": "FIDEOS AL HUEVO X500GR", "unidadesCaja": 16, "unidad": "U", "precioMinorista":1890, "precioMayorista":1272, "categoria": "PASTAS", "iva": 21.0}, {"codigo": 3419, "nombre": "ÑOQUIS TRICOLOR X 500GR", "unidadesCaja": 20, "unidad": "U", "precioMinorista":2490, "precioMayorista":1993, "categoria": "PASTAS", "iva": 21.0}, {"codigo": 3423, "nombre": "FIDEOS CON ESPINACA X500 GR", "unidadesCaja": 16, "unidad": "U", "precioMinorista":1890, "precioMayorista":1272, "categoria": "PASTAS", "iva": 21.0}, {"codigo": 3424, "nombre": "FIDEOS CON MORRON X500GR", "unidadesCaja": 16, "unidad": "U", "precioMinorista":1890, "precioMayorista":1272, "categoria": "PASTAS", "iva": 21.0}, {"codigo": 1557, "nombre": "PAPAS BASTON COOL MIND x2kg", "unidadesCaja": 7, "unidad": "U", "precioMinorista":10490, "precioMayorista":7625, "categoria": "PAPAS", "iva": 21.0}, {"codigo": 3040, "nombre": "PAQ. PAPA NOISETTE MCCAIN x600GR", "unidadesCaja": 16, "unidad": "U", "precioMinorista":8990, "precioMayorista":6903, "categoria": "PAPAS", "iva": 21.0}, {"codigo": 3041, "nombre": "PAQ. PAPA SMILE MCCAIN X 700GR", "unidadesCaja": 14, "unidad": "U", "precioMinorista":8990, "precioMayorista":8207, "categoria": "PAPAS", "iva": 21.0}, {"codigo": 3044, "nombre": "PAQ. PAPAS BASTON 9MM LW X 2.5KG", "unidadesCaja": 6, "unidad": "U", "precioMinorista":15500, "precioMayorista":11141, "categoria": "PAPAS", "iva": 21.0}, {"codigo": 3046, "nombre": "PAQ. PAPA RESTAURANTE 12X12 X 2,5 KG LANGWESTONE", "unidadesCaja": 4, "unidad": "U", "precioMinorista":15900, "precioMayorista":12382, "categoria": "PAPAS", "iva": 21.0}, {"codigo": 3047, "nombre": "PAQ. PAPAS LW 9MM FRY ESSENTIALS X2.5KG", "unidadesCaja": 6, "unidad": "U", "precioMinorista":12900, "precioMayorista":9532, "categoria": "PAPAS", "iva": 21.0}, {"codigo": 3049, "nombre": "PAQ. PAPAS MCCAIN AIR FRYER FINITAS X700GR", "unidadesCaja": 16, "unidad": "U", "precioMinorista":8990, "precioMayorista":7830, "categoria": "PAPAS", "iva": 21.0}, {"codigo": 3052, "nombre": "PAQ. PAPAS BASTON MCCAIN TRADICIONAL X400GR", "unidadesCaja": 20, "unidad": "U", "precioMinorista":4499, "precioMayorista":3919, "categoria": "PAPAS", "iva": 21.0}, {"codigo": 3053, "nombre": "PAQ. PAPAS BASTON MCCAIN TRADICIONAL X700GR", "unidadesCaja": 16, "unidad": "U", "precioMinorista":7390, "precioMayorista":5435, "categoria": "PAPAS", "iva": 21.0}, {"codigo": 3054, "nombre": "PAQ. PAPAS 7MM LW X2.5KG", "unidadesCaja": 5, "unidad": "U", "precioMinorista":17990, "precioMayorista":14358, "categoria": "PAPAS", "iva": 21.0}, {"codigo": 3058, "nombre": "PAQ. PAPAS NOISETTE MCCAIN X1.2KG", "unidadesCaja": 10, "unidad": "U", "precioMinorista":14490, "precioMayorista":11196, "categoria": "PAPAS", "iva": 21.0}, {"codigo": 3059, "nombre": "PAQ PAPAS ZIGGY FRIES X2.5KG", "unidadesCaja": 4, "unidad": "U", "precioMinorista":22990, "precioMayorista":18074, "categoria": "PAPAS", "iva": 21.0}, {"codigo": 3067, "nombre": "PAPAS MCCAIN GOLAZO X700GR", "unidadesCaja": 12, "unidad": "U", "precioMinorista":10490, "precioMayorista":7870, "categoria": "PAPAS", "iva": 21.0}, {"codigo": 3525, "nombre": "PAQ. PAPAS NOISETTE MYDIBEL X2.5KG", "unidadesCaja": 4, "unidad": "U", "precioMinorista":22450, "precioMayorista":18226, "categoria": "PAPAS", "iva": 21.0}, {"codigo": 3820, "nombre": "MEDIALUNAS SALADAS X12UNI", "unidadesCaja": 12, "unidad": "U", "precioMinorista":6990, "precioMayorista":5909, "categoria": "PANIFICACION", "iva": 21.0}, {"codigo": 3821, "nombre": "CROISSANT AGRIDULCE X12UN", "unidadesCaja": 15, "unidad": "U", "precioMinorista":8090, "precioMayorista":5919, "categoria": "PANIFICACION", "iva": 21.0}, {"codigo": 3822, "nombre": "PAQ. BIZCOCHOS SALADOS X500gr", "unidadesCaja": 8, "unidad": "U", "precioMinorista":4850, "precioMayorista":3147, "categoria": "PANIFICACION", "iva": 21.0}, {"codigo": 3826, "nombre": "PAQ. CHIPA X500GR", "unidadesCaja": 10, "unidad": "U", "precioMinorista":7690, "precioMayorista":6669, "categoria": "PANIFICACION", "iva": 21.0}, {"codigo": 3827, "nombre": "PAQ. BIZCOCHO CON QUESO X 500GR", "unidadesCaja": 8, "unidad": "U", "precioMinorista":8750, "precioMayorista":6084, "categoria": "PANIFICACION", "iva": 21.0}, {"codigo": 1512, "nombre": "PATITA DE CARNE X380 GR", "unidadesCaja": 12, "unidad": "U", "precioMinorista":9850, "precioMayorista":7039, "categoria": "MILANESAS Y REBOZADOS", "iva": 21.0}, {"codigo": 3522, "nombre": "PAQ. MILANESA DE MERLUZA X 500GR", "unidadesCaja": 18, "unidad": "U", "precioMinorista": 12190, "precioMayorista": 8815, "categoria": "MILANESAS Y REBOZADOS", "iva": 21.0}, {"codigo": 3605, "nombre": "MILANESA DE POLLO X800", "unidadesCaja": 6, "unidad": "U", "precioMinorista":12290, "precioMayorista":9875, "categoria": "MILANESAS Y REBOZADOS", "iva": 21.0}, {"codigo": 3620, "nombre": "PAQ. MILANESA DE CARNE X750GR", "unidadesCaja": 15, "unidad": "U", "precioMinorista":16990, "precioMayorista":15470, "categoria": "MILANESAS Y REBOZADOS", "iva": 21.0}, {"codigo": 3621, "nombre": "PAQ. MILANESAS DE CERDO X750GR", "unidadesCaja": 14, "unidad": "U", "precioMinorista":9990, "precioMayorista":8208, "categoria": "MILANESAS Y REBOZADOS", "iva": 21.0}, {"codigo": 3039, "nombre": "PAQ. AROS DE CEBOLLA X 500GR PAMPA GREEN", "unidadesCaja": 22, "unidad": "U", "precioMinorista":8290, "precioMayorista":6307, "categoria": "FINGER FOOD", "iva": 21.0}, {"codigo": 3510, "nombre": "BARRITA MOZZARELLA X400GR", "unidadesCaja": 20, "unidad": "U", "precioMinorista": 6790, "precioMayorista": 5772, "categoria": "FINGER FOOD", "iva": 21.0}, {"codigo": 3511, "nombre": "FORMITAS DE MERLUZA X400G", "unidadesCaja": 20, "unidad": "U", "precioMinorista": 4699, "precioMayorista": 3092, "categoria": "FINGER FOOD", "iva": 21.0}, {"codigo": 3512, "nombre": "CROQ. PAPA JAM/QUE X400GR", "unidadesCaja": 20, "unidad": "U", "precioMinorista": 4999, "precioMayorista": 3426, "categoria": "FINGER FOOD", "iva": 21.0}, {"codigo": 3520, "nombre": "CROQUETAS DE ESPINACA Y QUESO X 400GR", "unidadesCaja": 20, "unidad": "U", "precioMinorista": 5990, "precioMayorista": 3899, "categoria": "FINGER FOOD", "iva": 21.0}, {"codigo": 3523, "nombre": "FORMITA DE POLLO X400GR", "unidadesCaja": 20, "unidad": "U", "precioMinorista":5250, "precioMayorista":3953, "categoria": "FINGER FOOD", "iva": 21.0}, {"codigo": 3297, "nombre": "TORTA HELADA CHOCOTORTA", "unidadesCaja": 3, "unidad": "U", "precioMinorista":19990, "precioMayorista":17776, "categoria": "HELADOS Y POSTRES", "iva": 21.0}, {"codigo": 3298, "nombre": "TORTA HELADA SELVA NEGRA", "unidadesCaja": 3, "unidad": "U", "precioMinorista":19990, "precioMayorista":17776, "categoria": "HELADOS Y POSTRES", "iva": 21.0}, {"codigo": 3299, "nombre": "TORTA HELADA TIRAMISU", "unidadesCaja": 3, "unidad": "U", "precioMinorista":19990, "precioMayorista":17776, "categoria": "HELADOS Y POSTRES", "iva": 21.0}, {"codigo": 3300, "nombre": "TORTA HELADA FRUTILLA", "unidadesCaja": 3, "unidad": "U", "precioMinorista":19990, "precioMayorista":17776, "categoria": "HELADOS Y POSTRES", "iva": 21.0}, {"codigo": 3301, "nombre": "CONO ECCO 1 D.NEVE", "unidadesCaja": 14, "unidad": "U", "precioMinorista":2469, "precioMayorista":1682, "categoria": "HELADOS Y POSTRES", "iva": 21.0}, {"codigo": 3302, "nombre": "CONO ECCO 2 D.NEVE", "unidadesCaja": 14, "unidad": "U", "precioMinorista":2469, "precioMayorista":1682, "categoria": "HELADOS Y POSTRES", "iva": 21.0}, {"codigo": 3303, "nombre": "CONO ECCO 3 D.NEVE", "unidadesCaja": 14, "unidad": "U", "precioMinorista":2469, "precioMayorista":1682, "categoria": "HELADOS Y POSTRES", "iva": 21.0}, {"codigo": 3304, "nombre": "IMPULSO DE AGUA", "unidadesCaja": 40, "unidad": "U", "precioMinorista":599, "precioMayorista":354, "categoria": "HELADOS Y POSTRES", "iva": 21.0}, {"codigo": 3305, "nombre": "BOMBON HELADO", "unidadesCaja": 20, "unidad": "U", "precioMinorista":1359, "precioMayorista":848, "categoria": "HELADOS Y POSTRES", "iva": 21.0}, {"codigo": 3306, "nombre": "CROCANTE HELADO", "unidadesCaja": 12, "unidad": "U", "precioMinorista":1859, "precioMayorista":1277, "categoria": "HELADOS Y POSTRES", "iva": 21.0}, {"codigo": 3307, "nombre": "CONO ECCO 4 D.NEVE", "unidadesCaja": 14, "unidad": "U", "precioMinorista":2469, "precioMayorista":1682, "categoria": "HELADOS Y POSTRES", "iva": 21.0}, {"codigo": 3309, "nombre": "ALFAJOR HELADO D.NEVE", "unidadesCaja": 16, "unidad": "U", "precioMinorista":2199, "precioMayorista":1427, "categoria": "HELADOS Y POSTRES", "iva": 21.0}, {"codigo": 3311, "nombre": "BOMBON ESCOCES N X8 784GR", "unidadesCaja": 4, "unidad": "U", "precioMinorista":14690, "precioMayorista":13591, "categoria": "HELADOS Y POSTRES", "iva": 21.0}, {"codigo": 3312, "nombre": "BOMBON ESCOCES B X8 784GR", "unidadesCaja": 4, "unidad": "U", "precioMinorista":14690, "precioMayorista":13591, "categoria": "HELADOS Y POSTRES", "iva": 21.0}, {"codigo": 3313, "nombre": "BOMBON SUIZO X8UN 776G", "unidadesCaja": 4, "unidad": "U", "precioMinorista":14690, "precioMayorista":13591, "categoria": "HELADOS Y POSTRES", "iva": 21.0}, {"codigo": 3314, "nombre": "POTE HELADO SAPE LIMON 500GR", "unidadesCaja": 6, "unidad": "U", "precioMinorista":7490, "precioMayorista":6532, "categoria": "HELADOS Y POSTRES", "iva": 21.0}, {"codigo": 3315, "nombre": "POTE HELADO SAPE FRUTILLA GRANIZADO 500GR", "unidadesCaja": 6, "unidad": "U", "precioMinorista":7490, "precioMayorista":6532, "categoria": "HELADOS Y POSTRES", "iva": 21.0}, {"codigo": 3316, "nombre": "POTE HELADO SAPE CHOCOLATE Y DDL GRANIZADO 500GR", "unidadesCaja": 6, "unidad": "U", "precioMinorista":7490, "precioMayorista":6532, "categoria": "HELADOS Y POSTRES", "iva": 21.0}, {"codigo": 3319, "nombre": "POTE HELADO SAPE 3 CHOCOLATES X 500GR", "unidadesCaja": 6, "unidad": "U", "precioMinorista":8390, "precioMayorista":7053, "categoria": "HELADOS Y POSTRES", "iva": 21.0}, {"codigo": 3320, "nombre": "POTE HELADO SAPE SUPER DDL X 500GR", "unidadesCaja": 6, "unidad": "U", "precioMinorista":8390, "precioMayorista":7053, "categoria": "HELADOS Y POSTRES", "iva": 21.0}, {"codigo": 3328, "nombre": "ARANDANOS BAÑADOS CON CHOC Y DDL", "unidadesCaja": 12, "unidad": "U", "precioMinorista":6990, "precioMayorista":4800, "categoria": "HELADOS Y POSTRES", "iva": 21.0}, {"codigo": 3329, "nombre": "FRUTILLAS MITADES BAÑADAS C/CHOC BLANCO", "unidadesCaja": 12, "unidad": "U", "precioMinorista":6990, "precioMayorista":4681, "categoria": "HELADOS Y POSTRES", "iva": 21.0}, {"codigo": 3330, "nombre": "FRAMBUESAS BAÑADAS C/CHOC BLANCO", "unidadesCaja": 12, "unidad": "U", "precioMinorista":6990, "precioMayorista":5363, "categoria": "HELADOS Y POSTRES", "iva": 21.0}, {"codigo": 3353, "nombre": "PALETA SAPE H. ARTE TRAMONTANA", "unidadesCaja": 25, "unidad": "U", "precioMinorista":2850, "precioMayorista":1877, "categoria": "HELADOS Y POSTRES", "iva": 21.0}, {"codigo": 3354, "nombre": "PALETA SAPE H. ARTE MULTIFRUTA", "unidadesCaja": 25, "unidad": "U", "precioMinorista":2850, "precioMayorista":1877, "categoria": "HELADOS Y POSTRES", "iva": 21.0}, {"codigo": 3355, "nombre": "PALETA SAPE H. ARTE MELON", "unidadesCaja": 25, "unidad": "U", "precioMinorista":2850, "precioMayorista":1877, "categoria": "HELADOS Y POSTRES", "iva": 21.0}, {"codigo": 3356, "nombre": "PALETA SAPE H. ARTE FRUTILLA", "unidadesCaja": 25, "unidad": "U", "precioMinorista":2850, "precioMayorista":1877, "categoria": "HELADOS Y POSTRES", "iva": 21.0}, {"codigo": 3357, "nombre": "PALETA SAPE H. ARTE DUL. D LECHE", "unidadesCaja": 25, "unidad": "U", "precioMinorista":2850, "precioMayorista":1877, "categoria": "HELADOS Y POSTRES", "iva": 21.0}, {"codigo": 3358, "nombre": "PALETA SAPE H. ARTE CHOC. DDL.", "unidadesCaja": 25, "unidad": "U", "precioMinorista":2850, "precioMayorista":1877, "categoria": "HELADOS Y POSTRES", "iva": 21.0}, {"codigo": 3359, "nombre": "PALETA SAPE H. ARTE COOKIES", "unidadesCaja": 25, "unidad": "U", "precioMinorista":2850, "precioMayorista":1877, "categoria": "HELADOS Y POSTRES", "iva": 21.0}, {"codigo": 3360, "nombre": "PALETA SAPE CHOC DUBAI C/ PISTACHO", "unidadesCaja": 25, "unidad": "U", "precioMinorista":2850, "precioMayorista":1877, "categoria": "HELADOS Y POSTRES", "iva": 21.0}, {"codigo": 3377, "nombre": "POTE LMTVDA S.FLAN X300GR", "unidadesCaja": 6, "unidad": "U", "precioMinorista":5490, "precioMayorista":4055, "categoria": "HELADOS Y POSTRES", "iva": 21.0}, {"codigo": 3378, "nombre": "POTE LMTVDA D.LECH X300GR", "unidadesCaja": 6, "unidad": "U", "precioMinorista":5490, "precioMayorista":4055, "categoria": "HELADOS Y POSTRES", "iva": 21.0}, {"codigo": 3379, "nombre": "POTE LMTVDA ALPINO X300GR", "unidadesCaja": 6, "unidad": "U", "precioMinorista":5490, "precioMayorista":4055, "categoria": "HELADOS Y POSTRES", "iva": 21.0}, {"codigo": 3381, "nombre": "POTE LMTVD CHOCOL. S/AZUCAR 210GR", "unidadesCaja": 6, "unidad": "U", "precioMinorista":6450, "precioMayorista":5174, "categoria": "HELADOS Y POSTRES", "iva": 21.0}, {"codigo": 3383, "nombre": "POTE LMTVDA D.LECH B.SPLIT S/AZUCAR 210GR", "unidadesCaja": 6, "unidad": "U", "precioMinorista":6450, "precioMayorista":5174, "categoria": "HELADOS Y POSTRES", "iva": 21.0}, {"codigo": 3384, "nombre": "TORTA FRUTOS DEL BOSQUE", "unidadesCaja": 4, "unidad": "U", "precioMinorista":17490, "precioMayorista":14387, "categoria": "HELADOS Y POSTRES", "iva": 21.0}, {"codigo": 3385, "nombre": "TORTA BOMBA DULCE DE LECHE", "unidadesCaja": 4, "unidad": "U", "precioMinorista":17490, "precioMayorista":14387, "categoria": "HELADOS Y POSTRES", "iva": 21.0}, {"codigo": 3391, "nombre": "HELADO QUEEN AM FR DL FLA", "unidadesCaja": 3, "unidad": "U", "precioMinorista":15490, "precioMayorista":13455, "categoria": "HELADOS Y POSTRES", "iva": 21.0}, {"codigo": 3392, "nombre": "HELADO QUEEN CH DL BA GR", "unidadesCaja": 3, "unidad": "U", "precioMinorista":15490, "precioMayorista":13455, "categoria": "HELADOS Y POSTRES", "iva": 21.0}, {"codigo": 3393, "nombre": "HELADO ACAPULCO 3L 4 GUS", "unidadesCaja": 3, "unidad": "U", "precioMinorista":13990, "precioMayorista":11032, "categoria": "HELADOS Y POSTRES", "iva": 21.0}, {"codigo": 1505, "nombre": "MEDALLONES FRIAR 2X110G", "unidadesCaja": 20, "unidad": "U", "precioMinorista":2999, "precioMayorista":2307, "categoria": "HAMBURGUESAS Y MEDALLONES", "iva": 21.0}, {"codigo": 1506, "nombre": "HAMB. FRIAR GIGANTE 2X110", "unidadesCaja": 20, "unidad": "U", "precioMinorista":4369, "precioMayorista":4100, "categoria": "HAMBURGUESAS Y MEDALLONES", "iva": 21.0}, {"codigo": 1520, "nombre": "MEDALLONES CARRIBAR 2X55G", "unidadesCaja": 36, "unidad": "U", "precioMinorista":1359, "precioMayorista":1132, "categoria": "HAMBURGUESAS Y MEDALLONES", "iva": 21.0}, {"codigo": 1521, "nombre": "MEDALLONES CARRIBAR 2X80G", "unidadesCaja": 24, "unidad": "U", "precioMinorista":1799, "precioMayorista":1601, "categoria": "HAMBURGUESAS Y MEDALLONES", "iva": 21.0}, {"codigo": 1548, "nombre": "HAMBURGUESA SWIFT 2X80G", "unidadesCaja": 30, "unidad": "U", "precioMinorista":3799, "precioMayorista":3032, "categoria": "HAMBURGUESAS Y MEDALLONES", "iva": 21.0}, {"codigo": 1550, "nombre": "HAMB. TIPO CASERA 2X120G", "unidadesCaja": 24, "unidad": "U", "precioMinorista":6650, "precioMayorista":5679, "categoria": "HAMBURGUESAS Y MEDALLONES", "iva": 21.0}, {"codigo": 1564, "nombre": "CAJA HAMB. SWIFT 12X80G", "unidadesCaja": 8, "unidad": "U", "precioMinorista":23490, "precioMayorista":20950, "categoria": "HAMBURGUESAS Y MEDALLONES", "iva": 21.0}, {"codigo": 3440, "nombre": "HAMBURGUESAS BURGUIS 2X80G", "unidadesCaja": 24, "unidad": "U", "precioMinorista":3239, "precioMayorista":2803, "categoria": "HAMBURGUESAS Y MEDALLONES", "iva": 21.0}, {"codigo": 3554, "nombre": "HAMBURGUESAS NATURAL DE PACU", "unidadesCaja": 45, "unidad": "U", "precioMinorista": 5390, "precioMayorista": 3948, "categoria": "HAMBURGUESAS Y MEDALLONES", "iva": 21.0}, {"codigo": 3600, "nombre": "PAQ. 4 MED. POLLO ESPINACA Y QUESO X320GR", "unidadesCaja": 15, "unidad": "U", "precioMinorista":5920, "precioMayorista":4220, "categoria": "HAMBURGUESAS Y MEDALLONES", "iva": 21.0}, {"codigo": 3601, "nombre": "PAQ. 4 MED. POLLO JAMON Y QUESO X320GR", "unidadesCaja": 15, "unidad": "U", "precioMinorista":5920, "precioMayorista":4220, "categoria": "HAMBURGUESAS Y MEDALLONES", "iva": 21.0}, {"codigo": 3607, "nombre": "MED. POLLO REB. X4 X320GR", "unidadesCaja": 15, "unidad": "U", "precioMinorista":3999, "precioMayorista":3314, "categoria": "HAMBURGUESAS Y MEDALLONES", "iva": 21.0}, {"codigo": 3609, "nombre": "MED. POLLO S/R X4 X320GR", "unidadesCaja": 15, "unidad": "U", "precioMinorista":6590, "precioMayorista":4719, "categoria": "HAMBURGUESAS Y MEDALLONES", "iva": 21.0}, {"codigo": 2670, "nombre": "GUISO DE LENTEJA X 700GR", "unidadesCaja": 8, "unidad": "U", "precioMinorista":5890, "precioMayorista":4851, "categoria": "COMIDAS LISTAS", "iva": 21.0}, {"codigo": 2671, "nombre": "LASAGNA DE CARNE X700GR", "unidadesCaja": 8, "unidad": "U", "precioMinorista":7990, "precioMayorista":6787, "categoria": "COMIDAS LISTAS", "iva": 21.0}, {"codigo": 2672, "nombre": "LASAGNA DE POLLO x700GR", "unidadesCaja": 8, "unidad": "U", "precioMinorista":6990, "precioMayorista":5652, "categoria": "COMIDAS LISTAS", "iva": 21.0}, {"codigo": 2673, "nombre": "LASAGNA DE VERDURA X700GR", "unidadesCaja": 8, "unidad": "U", "precioMinorista":6990, "precioMayorista":5974, "categoria": "COMIDAS LISTAS", "iva": 21.0}, {"codigo": 2449, "nombre": "PIZZA XG MUZZARELLA X690GR", "unidadesCaja": 10, "unidad": "U", "precioMinorista":8150, "precioMayorista":7249, "categoria": "PIZZAS", "iva": 21.0}, {"codigo": 2443, "nombre": "CARNE X4 U EMPANADAS", "unidadesCaja": 15, "unidad": "U", "precioMinorista":5399, "precioMayorista":4722, "categoria": "EMPANADAS", "iva": 21.0}, {"codigo": 2444, "nombre": "JAMON Y QUESO X4U EMP.", "unidadesCaja": 15, "unidad": "U", "precioMinorista":5399, "precioMayorista":4722, "categoria": "EMPANADAS", "iva": 21.0}, {"codigo": 2445, "nombre": "VERDURA X4U EMP", "unidadesCaja": 15, "unidad": "U", "precioMinorista":5399, "precioMayorista":4722, "categoria": "EMPANADAS", "iva": 21.0}, {"codigo": 2446, "nombre": "POLLO X4U EMP", "unidadesCaja": 15, "unidad": "U", "precioMinorista":5399, "precioMayorista":4722, "categoria": "EMPANADAS", "iva": 21.0}, {"codigo": 2433, "nombre": "TORTILLA DE PAPA X 300GR", "unidadesCaja": 12, "unidad": "U", "precioMinorista":4390, "precioMayorista":3721, "categoria": "TARTAS Y TORTILLAS", "iva": 21.0}, {"codigo": 2434, "nombre": "TORTILLA DE VERDURA X 300GR", "unidadesCaja": 12, "unidad": "U", "precioMinorista":5199, "precioMayorista":3728, "categoria": "TARTAS Y TORTILLAS", "iva": 21.0}, {"codigo": 2439, "nombre": "TARTA DE VERDURA", "unidadesCaja": 16, "unidad": "U", "precioMinorista":5099, "precioMayorista":4171, "categoria": "TARTAS Y TORTILLAS", "iva": 21.0}, {"codigo": 2440, "nombre": "TARTA DE CALABAZA", "unidadesCaja": 16, "unidad": "U", "precioMinorista":5099, "precioMayorista":4171, "categoria": "TARTAS Y TORTILLAS", "iva": 21.0}, {"codigo": 2441, "nombre": "TARTA DE ZAPALLITO", "unidadesCaja": 16, "unidad": "U", "precioMinorista":5099, "precioMayorista":4171, "categoria": "TARTAS Y TORTILLAS", "iva": 21.0}, {"codigo": 2442, "nombre": "TARTA DE JAMON YQUESO", "unidadesCaja": 16, "unidad": "U", "precioMinorista":5099, "precioMayorista":4171, "categoria": "TARTAS Y TORTILLAS", "iva": 21.0}, {"codigo": 2652, "nombre": "TARTA CASERA VERDURA", "unidadesCaja": 11, "unidad": "U", "precioMinorista":5990, "precioMayorista":4808, "categoria": "TARTAS Y TORTILLAS", "iva": 21.0}, {"codigo": 2653, "nombre": "TARTA CASERA JAMON Y QUESO", "unidadesCaja": 9, "unidad": "U", "precioMinorista":6590, "precioMayorista":5248, "categoria": "TARTAS Y TORTILLAS", "iva": 21.0}, {"codigo": 2654, "nombre": "TARTA CASERA POLLO Y VERDEO", "unidadesCaja": 11, "unidad": "U", "precioMinorista":7990, "precioMayorista":6702, "categoria": "TARTAS Y TORTILLAS", "iva": 21.0}, {"codigo": 2655, "nombre": "TARTA DE CARNE PANCETA Y CHEDDAR  X 600GR", "unidadesCaja": 11, "unidad": "U", "precioMinorista":9690, "precioMayorista":8560, "categoria": "TARTAS Y TORTILLAS", "iva": 21.0}, {"codigo": 2657, "nombre": "TARTA RICOTA Y CHOCLO", "unidadesCaja": 11, "unidad": "U", "precioMinorista":5690, "precioMayorista":4505, "categoria": "TARTAS Y TORTILLAS", "iva": 21.0}, {"codigo": 1120, "nombre": "COSTELETA DE CERDO", "unidadesCaja": 15, "unidad": "K", "precioMinorista": 9390, "precioMayorista": 8868, "categoria": "CARNES", "iva": 10.5}, {"codigo": 1121, "nombre": "CHORIZO CERDO CRIOLLO", "unidadesCaja": 15, "unidad": "U", "precioMinorista":6360, "precioMayorista":5851, "categoria": "CARNES", "iva": 21.0}, {"codigo": 1122, "nombre": "MORCILLA", "unidadesCaja": 15, "unidad": "U", "precioMinorista":3590, "precioMayorista":2884, "categoria": "CARNES", "iva": 21.0}, {"codigo": 1123, "nombre": "SALCHICHA PARRILLERA", "unidadesCaja": 15, "unidad": "U", "precioMinorista":8290, "precioMayorista":6874, "categoria": "CARNES", "iva": 21.0}, {"codigo": 1124, "nombre": "SOLOMILLO - LOMO DE CERDO", "unidadesCaja": 10, "unidad": "K", "precioMinorista": 11590, "precioMayorista": 10597, "categoria": "CARNES", "iva": 10.5}, {"codigo": 1125, "nombre": "BONDIOLA", "unidadesCaja": 10, "unidad": "K", "precioMinorista":11690, "precioMayorista":10995, "categoria": "CARNES", "iva": 10.5}, {"codigo": 1126, "nombre": "CARRE DESHUESADO DE CERDO", "unidadesCaja": 10, "unidad": "K", "precioMinorista":11299, "precioMayorista":10948, "categoria": "CARNES", "iva": 10.5}, {"codigo": 1134, "nombre": "CARNE PICADA ESPECIAL", "unidadesCaja": 20, "unidad": "K", "precioMinorista":19990, "precioMayorista":16958, "categoria": "CARNES", "iva": 10.5}, {"codigo": 1150, "nombre": "PATA MUSLO X 3KG", "unidadesCaja": 5, "unidad": "U", "precioMinorista":10199, "precioMayorista":9747, "categoria": "CARNES", "iva": 10.5, "consultar": true}, {"codigo": 1152, "nombre": "PATA DESHUESADA X 1.5KG", "unidadesCaja": 10, "unidad": "U", "precioMinorista": 13999, "precioMayorista": 11754, "categoria": "CARNES", "iva": 10.5}, {"codigo": 1154, "nombre": "PECHUGUITAS REBOZADAS X 1KG.", "unidadesCaja": 10, "unidad": "U", "precioMinorista":11690, "precioMayorista":9461, "categoria": "CARNES", "iva": 21.0}, {"codigo": 1156, "nombre": "BIFE DE PECHUGA DE POLLO X 1 KG.", "unidadesCaja": 10, "unidad": "U", "precioMinorista": 11490, "precioMayorista": 9851, "categoria": "CARNES", "iva": 10.5}, {"codigo": 1157, "nombre": "CAJA CUARTOS TRASEROS X 15KG", "unidadesCaja": 1, "unidad": "U", "precioMinorista":47451, "precioMayorista":47451, "categoria": "CARNES", "iva": 10.5, "consultar": true}, {"codigo": 1158, "nombre": "FILET DE PECHUGA x 1KG", "unidadesCaja": 15, "unidad": "U", "precioMinorista":9990, "precioMayorista":9139, "categoria": "CARNES", "iva": 10.5}];
+
+var ped = {}; // {codigo: {cantU, cantC}} cantU=unidades sueltas, cantC=cajas
+var fpago = "";
+
+var CATS_ORDER = [
+  "FRUTAS Y VERDURAS","FRUTAS Y VERDURAS AL POR MAYOR","HAMBURGUESAS Y MEDALLONES",
+  "MILANESAS Y REBOZADOS","EMPANADAS","PIZZAS","TARTAS Y TORTILLAS","PASTAS",
+  "COMIDAS LISTAS","PESCADOS","CARNES","PAPAS","FINGER FOOD","PANIFICACION",
+  "HELADOS Y POSTRES","SALUDABLES","SIN GLUTEN"
+];
+
+var CAT_EMOJI = {
+  "FRUTAS Y VERDURAS":"🥦","FRUTAS Y VERDURAS AL POR MAYOR":"🥦📦",
+  "HAMBURGUESAS Y MEDALLONES":"🍔","MILANESAS Y REBOZADOS":"🍽️",
+  "EMPANADAS":"🥟","PIZZAS":"🍕","TARTAS Y TORTILLAS":"🥧",
+  "PASTAS":"🍝","COMIDAS LISTAS":"🍱","PESCADOS":"🐟","CARNES":"🥩",
+  "PAPAS":"🍟","FINGER FOOD":"🧆","PANIFICACION":"🥖",
+  "HELADOS Y POSTRES":"🍦","SALUDABLES":"🥗","SIN GLUTEN":"🌾"
+};
+
+function fmt(n){return "$"+Math.round(n).toLocaleString("es-AR");}
+
+function buildCats(){
+  var cats={};
+  P.forEach(function(p){
+    var c=p.categoria||"GENERAL";
+    if(!cats[c]) cats[c]=[];
+    cats[c].push(p);
+  });
+  return cats;
+}
+
+var cats = buildCats();
+var catKeys = CATS_ORDER.filter(function(c){return cats[c];});
+var catExtra = Object.keys(cats).filter(function(c){return catKeys.indexOf(c)===-1;});
+catKeys = catKeys.concat(catExtra);
+
+var catActiva = catKeys[0];
+
+function renderFamilias(){
+  var w=document.getElementById("famWrap");
+  w.innerHTML="";
+  catKeys.forEach(function(c){
+    var b=document.createElement("button");
+    b.className="fam-btn"+(c===catActiva?" active":"");
+    b.textContent=(CAT_EMOJI[c]||"📦")+" "+c.split(" ").slice(0,3).join(" ");
+    b.onclick=function(){catActiva=c;renderFamilias();renderCatalogo();};
+    w.appendChild(b);
+  });
+}
+
+function renderCatalogo(){
+  var el=document.getElementById("catalogo");
+  el.innerHTML="";
+  var prods=cats[catActiva]||[];
+  var sec=document.createElement("div");
+  sec.innerHTML='<div class="cat-titulo">'+(CAT_EMOJI[catActiva]||"")+" "+catActiva+'</div>';
+  prods.forEach(function(p){
+    var e=ped[p.codigo]||{cantU:0,cantC:0};
+    var esK=(p.unidad==="K");
+    var unidLbl=esK?"kg":"c/u";
+    var cajasLbl=esK?(p.unidadesCaja)+"kg":"x"+p.unidadesCaja+"u";
+    var pCaja=p.precioMinorista*p.unidadesCaja;
+
+    var card=document.createElement("div");
+    card.className="prod-card";
+    card.id="card-"+p.codigo;
+    card.innerHTML=
+      '<div class="prod-nombre">'+p.nombre+'</div>'+
+      '<div class="precio-row">'+
+        '<button class="precio-btn btn-unit'+(e.cantU>0?" activo":"")+'\" id="btu-'+p.codigo+'" onclick="toggleUnit('+p.codigo+')">'+
+          '<span class="cant-badge'+(e.cantU>0?" on":"")+'" id="badu-'+p.codigo+'">'+e.cantU+'</span>'+
+          '<span class="pb-label">Unitario</span>'+
+          '<span class="pb-precio">'+fmt(p.precioMinorista)+'</span>'+
+          '<span class="pb-detalle">'+unidLbl+'</span>'+
+        '</button>'+
+        '<button class="precio-btn btn-caja'+(e.cantC>0?" activo":"")+'\" id="btc-'+p.codigo+'" onclick="toggleCaja('+p.codigo+')">'+
+          '<span class="cant-badge'+(e.cantC>0?" on":"")+'" id="badc-'+p.codigo+'">'+e.cantC+'</span>'+
+          '<span class="pb-label">Caja cerrada</span>'+
+          '<span class="pb-precio">'+fmt(pCaja)+'</span>'+
+          '<span class="pb-detalle">'+cajasLbl+'</span>'+
+        '</button>'+
+      '</div>'+
+      '<div class="ctrl-row">'+
+        '<div class="ctrl-box'+(e.cantU===0?" oculto":"")+'" id="ctru-'+p.codigo+'">'+
+          '<div class="ctrl-lbl">Unidades</div>'+
+          '<div style="display:flex;align-items:center;gap:4px;">'+
+            '<button class="btn-menos" onclick="cambiarCant('+p.codigo+',-1,\'U\')">−</button>'+
+            '<span class="cant-num" id="cnu-'+p.codigo+'">'+e.cantU+'</span>'+
+            '<button class="btn-mas" onclick="cambiarCant('+p.codigo+',1,\'U\')">+</button>'+
+          '</div>'+
+        '</div>'+
+        '<div class="ctrl-box'+(e.cantC===0?" oculto":"")+'" id="ctrc-'+p.codigo+'">'+
+          '<div class="ctrl-lbl">Cajas</div>'+
+          '<div style="display:flex;align-items:center;gap:4px;">'+
+            '<button class="btn-menos" onclick="cambiarCant('+p.codigo+',-1,\'C\')">−</button>'+
+            '<span class="cant-num" id="cnc-'+p.codigo+'">'+e.cantC+'</span>'+
+            '<button class="btn-mas" onclick="cambiarCant('+p.codigo+',1,\'C\')">+</button>'+
+          '</div>'+
+        '</div>'+
+      '</div>';
+    sec.appendChild(card);
+  });
+  el.appendChild(sec);
+  // scroll top del catálogo
+  window.scrollTo({top:document.getElementById("famWrap").offsetTop-60,behavior:"smooth"});
+}
+
+function getProd(cod){
+  return P.find(function(p){return p.codigo===cod;});
+}
+
+function toggleUnit(cod){
+  if(!ped[cod]) ped[cod]={cantU:0,cantC:0};
+  if(ped[cod].cantU===0){ ped[cod].cantU=1; } else { ped[cod].cantU=0; }
+  updateCard(cod);
+  updTotal();
+}
+
+function toggleCaja(cod){
+  if(!ped[cod]) ped[cod]={cantU:0,cantC:0};
+  if(ped[cod].cantC===0){ ped[cod].cantC=1; } else { ped[cod].cantC=0; }
+  updateCard(cod);
+  updTotal();
+}
+
+function cambiarCant(cod,delta,tipo){
+  if(!ped[cod]) ped[cod]={cantU:0,cantC:0};
+  if(tipo==="U"){
+    ped[cod].cantU=Math.max(0,ped[cod].cantU+delta);
+  } else {
+    ped[cod].cantC=Math.max(0,ped[cod].cantC+delta);
+  }
+  updateCard(cod);
+  updTotal();
+}
+
+function updateCard(cod){
+  var e=ped[cod]||{cantU:0,cantC:0};
+  var btu=document.getElementById("btu-"+cod);
+  var btc=document.getElementById("btc-"+cod);
+  var badu=document.getElementById("badu-"+cod);
+  var badc=document.getElementById("badc-"+cod);
+  var ctru=document.getElementById("ctru-"+cod);
+  var ctrc=document.getElementById("ctrc-"+cod);
+  var cnu=document.getElementById("cnu-"+cod);
+  var cnc=document.getElementById("cnc-"+cod);
+  if(!btu) return;
+  btu.className="precio-btn btn-unit"+(e.cantU>0?" activo":"");
+  btc.className="precio-btn btn-caja"+(e.cantC>0?" activo":"");
+  badu.textContent=e.cantU; badu.className="cant-badge"+(e.cantU>0?" on":"");
+  badc.textContent=e.cantC; badc.className="cant-badge"+(e.cantC>0?" on":"");
+  ctru.className="ctrl-box"+(e.cantU===0?" oculto":"");
+  ctrc.className="ctrl-box"+(e.cantC===0?" oculto":"");
+  if(cnu) cnu.textContent=e.cantU;
+  if(cnc) cnc.textContent=e.cantC;
+}
+
+function calcTotal(){
+  var t=0,items=0;
+  P.forEach(function(p){
+    var e=ped[p.codigo];
+    if(!e) return;
+    if(e.cantU>0){ t+=p.precioMinorista*e.cantU; items+=e.cantU; }
+    if(e.cantC>0){ t+=p.precioMinorista*p.unidadesCaja*e.cantC; items+=e.cantC; }
+  });
+  return {t:t,items:items};
+}
+
+function selFpago(v){
+  fpago=v;
+  document.getElementById("fpEfectivo").className="fpago-btn"+(v==="efectivo"?" sel":"");
+  document.getElementById("fpTransf").className="fpago-btn"+(v==="transferencia"?" sel":"");
+  updTotal();
+}
+
+function updTotal(){
+  var r=calcTotal();
+  document.getElementById("totalNum").textContent=fmt(r.t);
+  var envioEl=document.getElementById("envioLbl");
+  envioEl.style.display=r.t>=60000?"block":"none";
+  var badge=document.getElementById("badgePed");
+  badge.textContent=r.items+" item"+(r.items!==1?"s":"");
+  badge.className="badge-ped"+(r.items>0?" on":"");
+  var nombre=document.getElementById("inpNombre").value.trim();
+  var dir=document.getElementById("inpDir").value.trim();
+  var ok=r.t>0 && nombre && dir && fpago;
+  document.getElementById("btnEnviar").disabled=!ok;
+}
+
+function limpiarPedido(){
+  ped={};
+  P.forEach(function(p){ updateCard(p.codigo); });
+  updTotal();
+}
+
+function buildMsg(){
+  var nombre=document.getElementById("inpNombre").value.trim();
+  var dir=document.getElementById("inpDir").value.trim();
+  var r=calcTotal();
+  var m="❄️ *PEDIDO FRIOTEKA*\n";
+  m+="📋 "+nombre+"\n";
+  m+="📍 "+dir+"\n";
+  m+="💳 "+fpago.charAt(0).toUpperCase()+fpago.slice(1)+"\n\n";
+  P.forEach(function(p){
+    var e=ped[p.codigo];
+    if(!e) return;
+    var esK=(p.unidad==="K");
+    var unidLbl=esK?"kg":"u";
+    if(e.cantU>0){
+      m+="• "+p.nombre+" x"+e.cantU+unidLbl+" = "+fmt(p.precioMinorista*e.cantU)+"\n";
+    }
+    if(e.cantC>0){
+      var pCaja=p.precioMinorista*p.unidadesCaja;
+      m+="• "+p.nombre+" x"+e.cantC+" caja"+(e.cantC>1?"s":"")+" ("+p.unidadesCaja+unidLbl+"/caja) = "+fmt(pCaja*e.cantC)+"\n";
+    }
+  });
+  m+="\n💰 *TOTAL: "+fmt(r.t)+"*";
+  if(r.t>=60000) m+="\n🚚 Envío gratis";
+  return m;
+}
+
+function enviarWA(){
+  var msg=buildMsg();
+  var url="https://wa.me/?text="+encodeURIComponent(msg);
+  window.open(url,"_blank");
+  limpiarPedido();
+  document.getElementById("inpNombre").value="";
+  document.getElementById("inpDir").value="";
+  fpago="";
+  document.getElementById("fpEfectivo").className="fpago-btn";
+  document.getElementById("fpTransf").className="fpago-btn";
+  updTotal();
+}
+
+// Init
+renderFamilias();
+renderCatalogo();
+updTotal();
+</script>
+</body>
+</html>
