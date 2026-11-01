@@ -202,11 +202,20 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
   </div>
 
   <!-- Tagline -->
-  <div style="font-size:14px;color:rgba(255,255,255,.85);margin-bottom:22px;">Estás a un paso de comer rico. 😊</div>
+  <div style="font-size:14px;color:rgba(255,255,255,.85);margin-bottom:32px;">¿Cómo querés ver los precios?</div>
 
-  <button onclick="document.getElementById('pantallaWelcome').style.display='none';" style="background:#fff;color:var(--rojo);border:none;border-radius:16px;padding:15px 48px;font-size:17px;font-weight:900;cursor:pointer;box-shadow:0 4px 16px rgba(0,0,0,.2);letter-spacing:.3px;">
-    ¡Empezar a pedir! →
+  <!-- Botón Minorista -->
+  <button onclick="elegirModo('minorista')" style="width:100%;max-width:320px;background:#fff;color:var(--rojo);border:none;border-radius:16px;padding:18px 24px;font-size:18px;font-weight:900;cursor:pointer;box-shadow:0 4px 20px rgba(0,0,0,.25);letter-spacing:.3px;margin-bottom:14px;display:flex;align-items:center;justify-content:center;gap:10px;">
+    <span style="font-size:24px;">🛒</span>
+    <span>Soy cliente</span>
   </button>
+
+  <!-- Botón Mayorista -->
+  <button onclick="elegirModo('mayorista')" style="width:100%;max-width:320px;background:rgba(255,255,255,.15);color:#fff;border:2px solid rgba(255,255,255,.6);border-radius:16px;padding:18px 24px;font-size:18px;font-weight:900;cursor:pointer;letter-spacing:.3px;display:flex;align-items:center;justify-content:center;gap:10px;">
+    <span style="font-size:24px;">📦</span>
+    <span>Compro por caja</span>
+  </button>
+  <div style="font-size:11px;color:rgba(255,255,255,.6);margin-top:10px;">Distribuidores · Hoteles · Almacenes · Gastronómicos</div>
 </div>
 
 <div class="hdr"><span style="font-family:'Fredoka One',sans-serif;font-size:17px;color:#fff;letter-spacing:.3px;">Hacemos simples tus comidas</span><div id="badgePed" class="badge-ped">0 items</div></div>
@@ -296,6 +305,13 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
 </div>
 
 <script>
+var MODO="minorista";
+function elegirModo(m){
+  MODO=m;
+  document.getElementById('pantallaWelcome').style.display='none';
+}
+function getPrecio(p){return MODO==="mayorista"?p.precioMayorista:p.precioMinorista;}
+
 var OFERTAS=[1521,3041,3311,3312,3313,3607,3706,3522,3620,1121,1126,3826,3820,1714,1719,
   1807,1802,1809,1811,1812,1810,3411,3419,3412,1829,1506,1564,3512,3520,2433,
   3314,3315,3316,3391,3392,3319,3320,3052,3049,3525];
@@ -310,7 +326,7 @@ function renderOfertas(){
     var unidLbl=(p.unidad==="K")?"por kg":"c/u";
     html+='<div class="oferta-card" onclick="irAProducto('+p.codigo+')">'+
       '<div class="oferta-flame">🔥 OFERTA</div>'+
-      '<div class="oferta-precio">'+fmt(p.precioMinorista)+'</div>'+
+      '<div class="oferta-precio">'+fmt(getPrecio(p))+'</div>'+
       '<div class="oferta-unid">'+unidLbl+'</div>'+
       '<div class="oferta-nombre">'+p.nombre+'</div>'+
     '</div>';
@@ -454,7 +470,7 @@ function renderCatalogo(){
     var esK=(p.unidad==="K");
     var unidLbl=esK?"kg":"c/u";
     var cajasLbl=esK?(p.unidadesCaja)+"kg":"x"+p.unidadesCaja+"u";
-    var pCaja=p.precioMinorista*p.unidadesCaja;
+    var pCaja=getPrecio(p)*p.unidadesCaja;
 
     var card=document.createElement("div");
     card.className="prod-card";
@@ -466,7 +482,7 @@ function renderCatalogo(){
         '<button class="precio-btn btn-unit'+(e.cantU>0?" activo":"")+'\" id="btu-'+p.codigo+'" onclick="toggleUnit('+p.codigo+')">'+
           '<span class="cant-badge'+(e.cantU>0?" on":"")+'" id="badu-'+p.codigo+'">'+e.cantU+'</span>'+
           '<span class="pb-label">Unitario</span>'+
-          '<span class="pb-precio">'+fmt(p.precioMinorista)+'</span>'+
+          '<span class="pb-precio">'+fmt(getPrecio(p))+'</span>'+
           '<span class="pb-detalle">'+unidLbl+'</span>'+
         '</button>'+
         '<button class="precio-btn btn-caja'+(e.cantC>0?" activo":"")+'\" id="btc-'+p.codigo+'" onclick="toggleCaja('+p.codigo+')">'+
@@ -556,8 +572,8 @@ function calcTotal(){
   P.forEach(function(p){
     var e=ped[p.codigo];
     if(!e) return;
-    if(e.cantU>0){ t+=p.precioMinorista*e.cantU; items+=e.cantU; }
-    if(e.cantC>0){ t+=p.precioMinorista*p.unidadesCaja*e.cantC; items+=e.cantC; }
+    if(e.cantU>0){ t+=getPrecio(p)*e.cantU; items+=e.cantU; }
+    if(e.cantC>0){ t+=getPrecio(p)*p.unidadesCaja*e.cantC; items+=e.cantC; }
   });
   return {t:t,items:items};
 }
@@ -615,10 +631,10 @@ function renderDrawer(){
     var e=ped[p.codigo];
     if(!e) return;
     if(e.cantU>0){
-      html+='<div class="drawer-item"><div><div class="drawer-item-nom">'+p.nombre+'</div><div class="drawer-item-det">'+e.cantU+' u. × '+fmt(p.precioMinorista)+'</div></div><div class="drawer-item-precio">'+fmt(p.precioMinorista*e.cantU)+'</div></div>';
+      html+='<div class="drawer-item"><div><div class="drawer-item-nom">'+p.nombre+'</div><div class="drawer-item-det">'+e.cantU+' u. × '+fmt(getPrecio(p))+'</div></div><div class="drawer-item-precio">'+fmt(getPrecio(p)*e.cantU)+'</div></div>';
     }
     if(e.cantC>0){
-      html+='<div class="drawer-item"><div><div class="drawer-item-nom">'+p.nombre+'</div><div class="drawer-item-det">'+e.cantC+' caja'+( e.cantC>1?"s":"")+" × "+fmt(p.precioMinorista*p.unidadesCaja)+'</div></div><div class="drawer-item-precio">'+fmt(p.precioMinorista*p.unidadesCaja*e.cantC)+'</div></div>';
+      html+='<div class="drawer-item"><div><div class="drawer-item-nom">'+p.nombre+'</div><div class="drawer-item-det">'+e.cantC+' caja'+( e.cantC>1?"s":"")+" × "+fmt(getPrecio(p)*p.unidadesCaja)+'</div></div><div class="drawer-item-precio">'+fmt(getPrecio(p)*p.unidadesCaja*e.cantC)+'</div></div>';
     }
   });
   document.getElementById("drawerItems").innerHTML=html||'<div style="color:#aaa;font-size:13px;padding:8px 0;">No hay productos todavía.</div>';
@@ -660,10 +676,10 @@ function buildMsg(){
     var esK=(p.unidad==="K");
     var unidLbl=esK?"kg":"u";
     if(e.cantU>0){
-      m+="• "+p.nombre+" x"+e.cantU+unidLbl+" = "+fmt(p.precioMinorista*e.cantU)+"\n";
+      m+="• "+p.nombre+" x"+e.cantU+unidLbl+" = "+fmt(getPrecio(p)*e.cantU)+"\n";
     }
     if(e.cantC>0){
-      var pCaja=p.precioMinorista*p.unidadesCaja;
+      var pCaja=getPrecio(p)*p.unidadesCaja;
       m+="• "+p.nombre+" x"+e.cantC+" caja"+(e.cantC>1?"s":"")+" ("+p.unidadesCaja+unidLbl+"/caja) = "+fmt(pCaja*e.cantC)+"\n";
     }
   });
@@ -683,8 +699,8 @@ function enviarWA(){
     if(!e) return;
     var esK=(p.unidad==="K");
     var unidLbl=esK?"kg":"u";
-    if(e.cantU>0) items.push({cod:p.codigo,nom:p.nombre,cant:e.cantU,unid:unidLbl,precio:p.precioMinorista,subtotal:p.precioMinorista*e.cantU});
-    if(e.cantC>0) items.push({cod:p.codigo,nom:p.nombre,cant:e.cantC,unid:"caja",precio:p.precioMinorista*p.unidadesCaja,subtotal:p.precioMinorista*p.unidadesCaja*e.cantC});
+    if(e.cantU>0) items.push({cod:p.codigo,nom:p.nombre,cant:e.cantU,unid:unidLbl,precio:getPrecio(p),subtotal:getPrecio(p)*e.cantU});
+    if(e.cantC>0) items.push({cod:p.codigo,nom:p.nombre,cant:e.cantC,unid:"caja",precio:getPrecio(p)*p.unidadesCaja,subtotal:getPrecio(p)*p.unidadesCaja*e.cantC});
   });
   // Guardar en Firebase como pendiente
   var pend={
