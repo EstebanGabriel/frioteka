@@ -114,6 +114,28 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
 .btn-ver-pedido{flex:1;padding:13px;border:none;border-radius:12px;background:var(--rojo);color:#fff;font-size:15px;font-weight:800;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;}
 .btn-ver-pedido:disabled{background:#ccc;cursor:default;}
 
+/* PANTALLA DE CONFIRMACIÓN */
+.confirm-screen{
+  position:fixed;inset:0;z-index:80;
+  background:linear-gradient(160deg,#e0040b 0%,#9b0007 100%);
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  padding:32px 24px;text-align:center;
+  opacity:0;pointer-events:none;
+  transition:opacity .4s ease;
+}
+.confirm-screen.on{opacity:1;pointer-events:all;}
+.confirm-check{font-size:72px;margin-bottom:16px;animation:popIn .5s ease forwards;}
+@keyframes popIn{0%{transform:scale(0)}70%{transform:scale(1.15)}100%{transform:scale(1)}}
+.confirm-titulo{font-family:'Fredoka One',cursive;font-size:28px;color:#fff;margin-bottom:8px;}
+.confirm-sub{font-size:15px;color:rgba(255,255,255,.85);line-height:1.5;margin-bottom:24px;}
+.confirm-nombre{font-size:18px;color:#fff;font-weight:800;margin-bottom:4px;}
+.confirm-total{font-size:14px;color:rgba(255,255,255,.8);margin-bottom:28px;}
+.confirm-card{background:rgba(255,255,255,.15);border-radius:14px;padding:16px 20px;margin-bottom:28px;width:100%;max-width:320px;}
+.confirm-card p{font-size:13px;color:rgba(255,255,255,.9);line-height:1.6;}
+.confirm-card strong{color:#fff;}
+.btn-confirm-ok{background:#fff;color:var(--rojo);border:none;border-radius:14px;padding:15px 32px;font-size:16px;font-weight:800;cursor:pointer;width:100%;max-width:320px;}
+.btn-confirm-ok:active{transform:scale(.97);}
+
 /* DRAWER DE PEDIDO */
 .drawer-overlay{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:50;opacity:0;pointer-events:none;transition:opacity .3s;}
 .drawer-overlay.on{opacity:1;pointer-events:all;}
@@ -189,6 +211,19 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
 <div id="catalogo"></div>
 
 
+
+<!-- PANTALLA CONFIRMACIÓN -->
+<div class="confirm-screen" id="confirmScreen">
+  <div class="confirm-check">🎉</div>
+  <div class="confirm-titulo">¡Pedido enviado!</div>
+  <div class="confirm-nombre" id="confirmNombre"></div>
+  <div class="confirm-total" id="confirmTotal"></div>
+  <div class="confirm-card">
+    <p>📦 Enseguida un asesor de <strong>FRIOTEKA</strong> se va a poner en contacto con vos para coordinar la entrega.</p>
+  </div>
+  <div class="confirm-sub">¡Gracias por elegirnos! ❄️</div>
+  <button class="btn-confirm-ok" onclick="cerrarConfirmacion()">Volver al catálogo</button>
+</div>
 
 <!-- DRAWER OVERLAY -->
 <div class="drawer-overlay" id="drawerOverlay" onclick="cerrarDrawer()"></div>
@@ -582,6 +617,10 @@ function enviarWA(){
   var msg=buildMsg();
   var url="https://wa.me/?text="+encodeURIComponent(msg);
   window.open(url,"_blank");
+  // Mostrar pantalla de confirmación
+  document.getElementById("confirmNombre").textContent="Hola, "+nombre+" 👋";
+  document.getElementById("confirmTotal").textContent="Total del pedido: "+fmt(r.t);
+  document.getElementById("confirmScreen").classList.add("on");
   // Cerrar drawer y limpiar
   cerrarDrawer();
   limpiarPedido();
@@ -591,6 +630,10 @@ function enviarWA(){
   document.getElementById("fpEfectivo").className="fpago-btn";
   document.getElementById("fpTransf").className="fpago-btn";
   updTotal();
+}
+
+function cerrarConfirmacion(){
+  document.getElementById("confirmScreen").classList.remove("on");
 }
 
 // Init
