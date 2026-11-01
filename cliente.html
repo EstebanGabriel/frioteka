@@ -319,6 +319,7 @@ var OFERTAS=[1521,3041,3311,3312,3313,3607,3706,3522,3620,1121,1126,3826,3820,17
 function renderOfertas(){
   var sec=document.getElementById("ofertasSection");
   if(!sec) return;
+  if(MODO==="mayorista"){sec.style.display="none";return;}
   var prods=OFERTAS.map(function(cod){return P.find(function(p){return p.codigo===cod;});}).filter(Boolean);
   if(!prods.length){sec.style.display="none";return;}
   var html='<div class="ofertas-header"><span style="font-size:20px;">🔥</span><span class="ofertas-titulo">OFERTAS DEL MES</span></div><div class="ofertas-scroll">';
