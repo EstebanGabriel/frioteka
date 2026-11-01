@@ -479,18 +479,21 @@ function renderCatalogo(){
     card.innerHTML=
       '<div class="prod-nombre">'+p.nombre+(esOferta?'<span class="badge-oferta">🔥 OFERTA</span>':'')+'</div>'+
       '<div class="precio-row">'+
-        '<button class="precio-btn btn-unit'+(e.cantU>0?" activo":"")+'\" id="btu-'+p.codigo+'" onclick="toggleUnit('+p.codigo+')">'+
-          '<span class="cant-badge'+(e.cantU>0?" on":"")+'" id="badu-'+p.codigo+'">'+e.cantU+'</span>'+
-          '<span class="pb-label">Unitario</span>'+
-          '<span class="pb-precio">'+fmt(getPrecio(p))+'</span>'+
-          '<span class="pb-detalle">'+unidLbl+'</span>'+
-        '</button>'+
-        '<button class="precio-btn btn-caja'+(e.cantC>0?" activo":"")+'\" id="btc-'+p.codigo+'" onclick="toggleCaja('+p.codigo+')">'+
-          '<span class="cant-badge'+(e.cantC>0?" on":"")+'" id="badc-'+p.codigo+'">'+e.cantC+'</span>'+
-          '<span class="pb-label">Caja cerrada</span>'+
-          '<span class="pb-precio">'+fmt(pCaja)+'</span>'+
-          '<span class="pb-detalle">'+cajasLbl+'</span>'+
-        '</button>'+
+        (MODO==="minorista"?
+          '<button class="precio-btn btn-unit'+(e.cantU>0?" activo":"")+'\" id="btu-'+p.codigo+'" onclick="toggleUnit('+p.codigo+')">'+
+            '<span class="cant-badge'+(e.cantU>0?" on":"")+'" id="badu-'+p.codigo+'">'+e.cantU+'</span>'+
+            '<span class="pb-label">Unitario</span>'+
+            '<span class="pb-precio">'+fmt(getPrecio(p))+'</span>'+
+            '<span class="pb-detalle">'+unidLbl+'</span>'+
+          '</button>'
+        :
+          '<button class="precio-btn btn-caja'+(e.cantC>0?" activo":"")+'\" id="btc-'+p.codigo+'" onclick="toggleCaja('+p.codigo+')">'+
+            '<span class="cant-badge'+(e.cantC>0?" on":"")+'" id="badc-'+p.codigo+'">'+e.cantC+'</span>'+
+            '<span class="pb-label">Caja cerrada</span>'+
+            '<span class="pb-precio">'+fmt(pCaja)+'</span>'+
+            '<span class="pb-detalle">'+cajasLbl+'</span>'+
+          '</button>'
+        )+
       '</div>'+
       '<div class="ctrl-row">'+
         '<div class="ctrl-box'+(e.cantU===0?" oculto":"")+'" id="ctru-'+p.codigo+'">'+
