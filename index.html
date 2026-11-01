@@ -1416,7 +1416,7 @@ function marcarPendienteProcessado(){
 
 function renderGestion(){
   var nPend=pendientes.filter(function(p){return p.estado==="pendiente";}).length;
-  var tabs=[["pendientes","⏳ Pendientes"+(nPend>0?" ("+nPend+")":"")],["panel","Panel"],["ventas","Ventas"],["pasadas","✓ Sistema"],["clientes","Clientes"],["cc","Cta. Cte."],["prev","Preventistas"],["nv","+ Venta"]];
+  var tabs=[["pendientes","⏳ Pendientes"+(nPend>0?" ("+nPend+")":"")],["panel","Panel"],["ventas","Ventas"],["pasadas","✓ Sistema"],["clientes","Clientes"],["cc","Cta. Cte."],["prev","Preventistas"],["listas","📋 Listas"],["nv","+ Venta"]];
   $("gtabs").innerHTML=tabs.map(function(t){return '<button data-t="'+t[0]+'" class="'+(gTab===t[0]?"on":"")+(t[0]==="pendientes"&&nPend>0?" tab-alert":"")+'">'+t[1]+'</button>';}).join("");
   $("gtabs").querySelectorAll("button").forEach(function(b){b.onclick=function(){gTab=this.dataset.t;renderGestion();};});
   var c=$("gcont");c.innerHTML="";
@@ -1427,6 +1427,7 @@ function renderGestion(){
   else if(gTab==="clientes") renderClientes(c);
   else if(gTab==="cc") renderCC(c);
   else if(gTab==="prev") renderPreventistas(c);
+  else if(gTab==="listas") renderListas(c);
   else renderNuevaVenta(c);
 }
 
@@ -3563,6 +3564,115 @@ function ejecutarExport(){
   toast("Excel descargado ✓");
 }
 
+/* ─── PESTAÑA LISTAS DE PRECIOS ─── */
+function renderListas(c){
+  c.innerHTML='<div class="card">'
+    +'<div class="form-tit">📋 Listas de precios</div>'
+    +'<p style="font-size:13px;color:#666;margin:0 0 20px;">Generá y descargá la lista actualizada para compartir o imprimir.</p>'
+    +'<div style="display:flex;flex-direction:column;gap:12px;">'
+    +'<button onclick="exportListaCongelados(\'minorista\')" style="display:flex;align-items:center;gap:14px;padding:16px 18px;border:none;border-radius:14px;background:linear-gradient(135deg,#e3f0ff,#cce0ff);cursor:pointer;text-align:left;">'
+      +'<span style="font-size:28px;">🏷️</span>'
+      +'<div><div style="font-size:15px;font-weight:700;color:#1a3a6b;">Lista Minorista — Congelados</div>'
+      +'<div style="font-size:12px;color:#555;margin-top:2px;">Precios al público · todos los productos</div></div>'
+    +'</button>'
+    +'<button onclick="exportListaCongelados(\'mayorista\')" style="display:flex;align-items:center;gap:14px;padding:16px 18px;border:none;border-radius:14px;background:linear-gradient(135deg,#fff3e0,#ffe0b2);cursor:pointer;text-align:left;">'
+      +'<span style="font-size:28px;">⭐</span>'
+      +'<div><div style="font-size:15px;font-weight:700;color:#7b3a00;">Lista Mayorista — Congelados</div>'
+      +'<div style="font-size:12px;color:#555;margin-top:2px;">Precios VIP · todos los productos</div></div>'
+    +'</button>'
+    +'<button onclick="exportListaSantaMaria()" style="display:flex;align-items:center;gap:14px;padding:16px 18px;border:none;border-radius:14px;background:linear-gradient(135deg,#e8f5e9,#c8e6c9);cursor:pointer;text-align:left;">'
+      +'<span style="font-size:28px;">🧀</span>'
+      +'<div><div style="font-size:15px;font-weight:700;color:#1b5e20;">Lista Santa María — Lácteos</div>'
+      +'<div style="font-size:12px;color:#555;margin-top:2px;">Precios mayoristas por producto</div></div>'
+    +'</button>'
+    +'</div>'
+  +'</div>';
+}
+
+function _listaHtml(titulo,subtitulo,filas){
+  var fecha=new Date().toLocaleDateString("es-AR",{day:"2-digit",month:"long",year:"numeric"});
+  var css=''
+    +'*{margin:0;padding:0;box-sizing:border-box;}'
+    +'body{font-family:"Helvetica Neue",Arial,sans-serif;background:#f7f7f7;padding:32px 24px;color:#222;}'
+    +'.page{background:#fff;max-width:720px;margin:0 auto;border-radius:16px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,.10);}'
+    +'.header{background:#c0392b;padding:28px 32px 22px;display:flex;justify-content:space-between;align-items:flex-end;}'
+    +'.header-left .brand{font-size:26px;font-weight:900;color:#fff;letter-spacing:1px;}'
+    +'.header-left .sub{font-size:13px;color:rgba(255,255,255,.82);margin-top:4px;}'
+    +'.header-right{text-align:right;}'
+    +'.header-right .lista-titulo{font-size:17px;font-weight:700;color:#fff;}'
+    +'.header-right .lista-fecha{font-size:12px;color:rgba(255,255,255,.75);margin-top:4px;}'
+    +'.body{padding:24px 32px 32px;}'
+    +'table{width:100%;border-collapse:collapse;margin-top:0;}'
+    +'.cat-row td{background:#f0f0f0;font-size:11px;font-weight:700;color:#555;text-transform:uppercase;letter-spacing:.8px;padding:7px 10px;border-top:2px solid #e0e0e0;}'
+    +'tr.prod-row td{padding:7px 10px;border-bottom:1px solid #f0f0f0;font-size:13px;vertical-align:middle;}'
+    +'tr.prod-row:last-of-type td{border-bottom:none;}'
+    +'.nombre{color:#222;}'
+    +'.precio{text-align:right;font-weight:700;color:#c0392b;font-size:14px;white-space:nowrap;}'
+    +'.footer{text-align:center;font-size:11px;color:#aaa;padding:16px 0 8px;border-top:1px solid #f0f0f0;margin-top:8px;}'
+    +'@media print{body{background:#fff;padding:0;}  .page{box-shadow:none;border-radius:0;} .no-print{display:none!important;}'
+    +'  @page{margin:16mm 12mm;}}'
+    +'.print-btn{display:block;width:100%;padding:12px;margin:20px 0 0;border:none;border-radius:10px;background:#c0392b;color:#fff;font-size:14px;font-weight:700;cursor:pointer;letter-spacing:.3px;}';
+
+  var html='<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8">'
+    +'<meta name="viewport" content="width=device-width,initial-scale=1">'
+    +'<title>'+titulo+'</title>'
+    +'<style>'+css+'</style>'
+    +'</head><body>'
+    +'<div class="page">'
+    +'<div class="header">'
+      +'<div class="header-left"><div class="brand">❄ FRIOTEKA</div><div class="sub">Villa Carlos Paz · Congelados de calidad</div></div>'
+      +'<div class="header-right"><div class="lista-titulo">'+titulo+'</div><div class="lista-fecha">'+subtitulo+' · '+fecha+'</div></div>'
+    +'</div>'
+    +'<div class="body">'
+    +'<button class="print-btn no-print" onclick="window.print()">🖨️ Imprimir / Guardar PDF</button>'
+    +'<table>'+filas+'</table>'
+    +'<div class="footer">Precios en pesos argentinos · vigentes al '+fecha+' · sujetos a cambio sin previo aviso</div>'
+    +'</div>'
+    +'</div>'
+    +'</body></html>';
+  return html;
+}
+
+function exportListaCongelados(tipo){
+  var esMay=(tipo==="mayorista");
+  // Agrupar por categoría
+  var cats={};
+  P.forEach(function(p){
+    var cat=p.categoria||"GENERAL";
+    if(!cats[cat]) cats[cat]=[];
+    cats[cat].push(p);
+  });
+  var filas="";
+  Object.keys(cats).forEach(function(cat){
+    filas+='<tr class="cat-row"><td colspan="2">'+cat+'</td></tr>';
+    cats[cat].forEach(function(p){
+      var pr=esMay?p.precioMayorista:p.precioMinorista;
+      var unidad=p.unidad==="K"?" / kg":" c/u";
+      filas+='<tr class="prod-row">'
+        +'<td class="nombre">'+p.nombre+'</td>'
+        +'<td class="precio">$'+pr.toLocaleString("es-AR")+unidad+'</td>'
+        +'</tr>';
+    });
+  });
+  var titulo=esMay?"Lista Mayorista":"Lista Minorista";
+  var sub=esMay?"Precios VIP":"Precios al público";
+  var w=window.open("","_blank");
+  w.document.write(_listaHtml(titulo,sub,filas));
+  w.document.close();
+}
+
+function exportListaSantaMaria(){
+  var filas='<tr class="cat-row"><td colspan="2">LÁCTEOS SANTA MARÍA</td></tr>';
+  LAC.forEach(function(p){
+    filas+='<tr class="prod-row">'
+      +'<td class="nombre">'+p.nombre+(p.detalle?' <span style="font-size:11px;color:#999;">'+p.detalle+'</span>':'')+'</td>'
+      +'<td class="precio">$'+p.precioMay.toLocaleString("es-AR")+' c/u</td>'
+      +'</tr>';
+  });
+  var w=window.open("","_blank");
+  w.document.write(_listaHtml("Lista Santa María","Precios mayoristas",filas));
+  w.document.close();
+}
 
 </script>
 </body>
