@@ -260,14 +260,56 @@ body{font-family:-apple-system,BlinkMacSystemFont,sans-serif;background:var(--bg
 /* GESTIÓN */
 .page-hdr{background:var(--rojo);color:white;padding:14px 16px;display:flex;align-items:center;gap:12px;position:sticky;top:0;z-index:10;}
 .page-hdr h2{font-size:18px;flex:1;}
-.gtabs{display:flex;background:white;border-bottom:2px solid var(--borde);overflow-x:auto;}
-.gtabs button{flex:1;min-width:72px;padding:11px 8px;border:none;background:none;font-size:13px;font-weight:600;color:var(--gris);border-bottom:3px solid transparent;cursor:pointer;white-space:nowrap;}
-.gtabs button.on{color:var(--rojo);border-bottom-color:var(--rojo);}
+.gtabs{display:flex;background:#fff;border-bottom:2px solid var(--borde);overflow-x:auto;overflow-y:visible;scrollbar-width:none;gap:2px;padding:0 4px;}
+.gtabs::-webkit-scrollbar{display:none;}
+.gtabs button{
+  flex:0 0 auto;
+  min-width:80px;
+  padding:10px 10px 8px;
+  border:none;
+  background:none;
+  font-size:12px;
+  font-weight:700;
+  color:#999;
+  border-bottom:3px solid transparent;
+  cursor:pointer;
+  white-space:nowrap;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  gap:3px;
+  border-radius:10px 10px 0 0;
+  transition:background .18s,color .18s,transform .12s;
+  position:relative;
+}
+.gtabs button:active{transform:scale(.94);}
+.gtabs button:hover:not(.on){background:#fafafa;color:#555;}
+.gtabs button .gt-ico{font-size:18px;line-height:1;}
+.gtabs button .gt-lbl{font-size:11px;}
+.gtabs button.on{
+  color:var(--rojo);
+  border-bottom-color:var(--rojo);
+  background:linear-gradient(to bottom,#fff5f5,#fff);
+}
+.gtabs button.tab-alert .gt-ico::after{
+  content:"";
+  position:absolute;
+  top:8px;right:10px;
+  width:8px;height:8px;
+  background:#f44336;
+  border-radius:50%;
+  border:1.5px solid #fff;
+}
 .gcont{padding:12px 16px 80px;}
 .stat-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px;}
-.stat-card{background:white;border-radius:12px;padding:14px;text-align:center;box-shadow:0 1px 4px rgba(0,0,0,.08);}
+.stat-card{
+  background:white;border-radius:14px;padding:16px 12px;text-align:center;
+  box-shadow:0 2px 8px rgba(0,0,0,.07);
+  transition:transform .15s,box-shadow .15s;
+}
+.stat-card:active{transform:scale(.97);}
 .stat-val{font-size:22px;font-weight:800;color:var(--rojo);}
-.stat-lbl{font-size:11px;color:var(--gris);margin-top:4px;}
+.stat-lbl{font-size:11px;color:var(--gris);margin-top:4px;font-weight:600;}
 .card{background:white;border-radius:12px;padding:14px;margin-bottom:10px;box-shadow:0 1px 4px rgba(0,0,0,.08);}
 .card-nom{font-size:15px;font-weight:700;}
 .card-det{font-size:12px;color:var(--gris);margin-top:3px;}
@@ -1416,8 +1458,20 @@ function marcarPendienteProcessado(){
 
 function renderGestion(){
   var nPend=pendientes.filter(function(p){return p.estado==="pendiente";}).length;
-  var tabs=[["pendientes","⏳ Pendientes"+(nPend>0?" ("+nPend+")":"")],["panel","Panel"],["ventas","Ventas"],["pasadas","✓ Sistema"],["clientes","Clientes"],["cc","Cta. Cte."],["prev","Preventistas"],["listas","📋 Listas"],["nv","+ Venta"]];
-  $("gtabs").innerHTML=tabs.map(function(t){return '<button data-t="'+t[0]+'" class="'+(gTab===t[0]?"on":"")+(t[0]==="pendientes"&&nPend>0?" tab-alert":"")+'">'+t[1]+'</button>';}).join("");
+  var tabDefs=[
+    ["pendientes","⏳","Pendientes"+(nPend>0?" ("+nPend+")":"")],
+    ["panel","📊","Panel"],
+    ["ventas","💰","Ventas"],
+    ["pasadas","✅","Sistema"],
+    ["clientes","👥","Clientes"],
+    ["cc","📒","Cta. Cte."],
+    ["prev","🛵","Preventistas"],
+    ["listas","📋","Listas"],
+    ["nv","➕","Nueva venta"]
+  ];
+  $("gtabs").innerHTML=tabDefs.map(function(t){
+    return '<button data-t="'+t[0]+'" class="'+(gTab===t[0]?"on":"")+(t[0]==="pendientes"&&nPend>0?" tab-alert":"")+'"><span class="gt-ico">'+t[1]+'</span><span class="gt-lbl">'+t[2]+'</span></button>';
+  }).join("");
   $("gtabs").querySelectorAll("button").forEach(function(b){b.onclick=function(){gTab=this.dataset.t;renderGestion();};});
   var c=$("gcont");c.innerHTML="";
   if(gTab==="pendientes") renderPendientes(c);
