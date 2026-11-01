@@ -22,12 +22,22 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
 /* ENVÍO GRATIS BANNER */
 .banner-envio{background:#1B7D33;color:#fff;text-align:center;font-size:12px;font-weight:700;padding:6px 16px;letter-spacing:.3px;}
 .banner-envio span{font-weight:400;opacity:.9;}
+.prog-wrap{background:#fff;padding:8px 14px 10px;border-bottom:1px solid var(--borde);}
+.prog-bar{height:6px;background:#f0f0f0;border-radius:4px;overflow:hidden;margin-bottom:5px;}
+.prog-fill{height:100%;border-radius:4px;background:linear-gradient(to right,#f5a623,#27ae60);transition:width .45s ease;}
+.prog-txt{font-size:11px;color:#555;font-weight:600;text-align:center;}
+.prog-txt.ok{color:#1B7D33;}
 
 /* FAMILIAS */
-.fam-wrap{background:#fff;padding:10px 12px 8px;border-bottom:1px solid var(--borde);display:flex;flex-wrap:wrap;gap:8px;}
-.fam-btn{display:inline-flex;flex-direction:column;align-items:center;justify-content:center;padding:8px 14px;min-height:52px;border-radius:14px;border:1.5px solid var(--borde);background:#fff;font-size:12px;font-weight:700;color:#555;cursor:pointer;transition:all .15s;line-height:1.3;}
-.fam-btn .fam-emoji{font-size:20px;margin-bottom:2px;}
+.fam-wrap{background:#fff;padding:10px 0 10px;border-bottom:1px solid var(--borde);display:flex;overflow-x:auto;overflow-y:visible;scroll-snap-type:x mandatory;-webkit-overflow-scrolling:touch;scrollbar-width:none;gap:0;align-items:center;}
+.fam-wrap::-webkit-scrollbar{display:none;}
+/* espaciadores para centrar el primer y último ítem */
+.fam-wrap::before,.fam-wrap::after{content:"";flex:0 0 calc(50% - 56px);}
+.fam-btn{flex:0 0 auto;display:inline-flex;flex-direction:column;align-items:center;justify-content:center;padding:8px 14px;min-height:52px;width:112px;border-radius:14px;border:1.5px solid var(--borde);background:#fff;font-size:11px;font-weight:700;color:#555;cursor:pointer;scroll-snap-align:center;transition:transform .2s ease,background .15s,color .15s,border-color .15s,opacity .2s;transform:scale(.82);opacity:.6;line-height:1.3;margin:0 4px;}
+.fam-btn .fam-emoji{font-size:18px;margin-bottom:2px;}
+.fam-btn.center{transform:scale(1);opacity:1;}
 .fam-btn.active{background:var(--rojo);color:#fff;border-color:var(--rojo);}
+.fam-btn.center.active{transform:scale(1);}
 
 /* CATALOGO */
 .cat-titulo{font-size:11px;font-weight:800;color:#888;text-transform:uppercase;letter-spacing:.8px;padding:12px 16px 6px;}
@@ -130,6 +140,10 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
 </div>
 
 <div class="banner-envio">🚚 Envío GRATIS <span>en compras mayores a $60.000</span></div>
+<div class="prog-wrap" id="progWrap" style="display:none;">
+  <div class="prog-bar"><div class="prog-fill" id="progFill" style="width:0%"></div></div>
+  <div class="prog-txt" id="progTxt"></div>
+</div>
 
 <div class="fam-wrap" id="famWrap"></div>
 
@@ -218,11 +232,24 @@ function renderFamilias(){
     var b=document.createElement("button");
     b.className="fam-btn"+(c===catActiva?" active":"");
     var emoji=CAT_EMOJI[c]||"📦";
-    var lbl=c.split(" ").slice(0,3).join(" ");
+    var lbl=c.split(" ").slice(0,2).join(" ");
     b.innerHTML='<span class="fam-emoji">'+emoji+'</span>'+lbl;
     b.onclick=function(){catActiva=c;renderFamilias();renderCatalogo();};
     w.appendChild(b);
   });
+  // Scroll snap center effect via IntersectionObserver
+  var io=new IntersectionObserver(function(entries){
+    entries.forEach(function(e){
+      if(e.intersectionRatio>0.85) e.target.classList.add("center");
+      else e.target.classList.remove("center");
+    });
+  },{root:w,threshold:0.85});
+  w.querySelectorAll(".fam-btn").forEach(function(b){io.observe(b);});
+  // Scroll activo al centro al renderizar
+  setTimeout(function(){
+    var act=w.querySelector(".fam-btn.active");
+    if(act) act.scrollIntoView({inline:"center",block:"nearest",behavior:"instant"});
+  },0);
 }
 
 function renderCatalogo(){
@@ -358,6 +385,26 @@ function updTotal(){
   var badge=document.getElementById("badgePed");
   badge.textContent=r.items+" item"+(r.items!==1?"s":"");
   badge.className="badge-ped"+(r.items>0?" on":"");
+  // Barra de progreso hacia envío gratis
+  var ENV_MIN=60000;
+  var pw=document.getElementById("progWrap");
+  var pf=document.getElementById("progFill");
+  var pt=document.getElementById("progTxt");
+  if(r.items>0){
+    pw.style.display="block";
+    var pct=Math.min(100,Math.round(r.t/ENV_MIN*100));
+    pf.style.width=pct+"%";
+    if(r.t>=ENV_MIN){
+      pt.textContent="🚚 ¡Envío gratis desbloqueado!";
+      pt.className="prog-txt ok";
+    } else {
+      var falta=ENV_MIN-r.t;
+      pt.textContent="Te faltan "+fmt(falta)+" para envío gratis ("+pct+"%)";
+      pt.className="prog-txt";
+    }
+  } else {
+    pw.style.display="none";
+  }
   var nombre=document.getElementById("inpNombre").value.trim();
   var dir=document.getElementById("inpDir").value.trim();
   var ok=r.t>0 && nombre && dir && fpago;
