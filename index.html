@@ -3589,12 +3589,13 @@ function renderListas(c){
   +'</div>';
 }
 
-function _listaHtml(titulo,subtitulo,filas){
+function _listaHtml(titulo,subtitulo,filas,maxW){
+  maxW=maxW||720;
   var fecha=new Date().toLocaleDateString("es-AR",{day:"2-digit",month:"long",year:"numeric"});
   var css=''
     +'*{margin:0;padding:0;box-sizing:border-box;}'
     +'body{font-family:"Helvetica Neue",Arial,sans-serif;background:#f7f7f7;padding:32px 24px;color:#222;}'
-    +'.page{background:#fff;max-width:720px;margin:0 auto;border-radius:16px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,.10);}'
+    +'.page{background:#fff;max-width:'+maxW+'px;margin:0 auto;border-radius:16px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,.10);}'
     +'.header{background:#c0392b;padding:28px 32px 22px;display:flex;justify-content:space-between;align-items:flex-end;}'
     +'.header-left .brand{font-size:26px;font-weight:900;color:#fff;letter-spacing:1px;}'
     +'.header-left .sub{font-size:13px;color:rgba(255,255,255,.82);margin-top:4px;}'
@@ -3608,6 +3609,9 @@ function _listaHtml(titulo,subtitulo,filas){
     +'tr.prod-row:last-of-type td{border-bottom:none;}'
     +'.nombre{color:#222;}'
     +'.precio{text-align:right;font-weight:700;color:#c0392b;font-size:14px;white-space:nowrap;}'
+    +'.num{text-align:right;white-space:nowrap;font-size:13px;}'
+    +'.th-row th{padding:7px 10px;font-size:11px;font-weight:700;color:#888;text-align:right;border-bottom:2px solid #e8e8e8;}'
+    +'.th-row th:first-child{text-align:left;}'
     +'.footer{text-align:center;font-size:11px;color:#aaa;padding:16px 0 8px;border-top:1px solid #f0f0f0;margin-top:8px;}'
     +'@media print{body{background:#fff;padding:0;}  .page{box-shadow:none;border-radius:0;} .no-print{display:none!important;}'
     +'  @page{margin:16mm 12mm;}}'
@@ -3643,21 +3647,47 @@ function exportListaCongelados(tipo){
     cats[cat].push(p);
   });
   var filas="";
+  var colspan=esMay?5:2;
+  // Encabezado de columnas para mayorista
+  if(esMay){
+    filas+='<tr class="th-row">'
+      +'<th>Producto</th>'
+      +'<th>P. unitario</th>'
+      +'<th>Bulto</th>'
+      +'<th>P. bulto</th>'
+      +'<th>Kg / bulto</th>'
+      +'</tr>';
+  }
   Object.keys(cats).forEach(function(cat){
-    filas+='<tr class="cat-row"><td colspan="2">'+cat+'</td></tr>';
+    filas+='<tr class="cat-row"><td colspan="'+colspan+'">'+cat+'</td></tr>';
     cats[cat].forEach(function(p){
       var pr=esMay?p.precioMayorista:p.precioMinorista;
-      var unidad=p.unidad==="K"?" / kg":" c/u";
-      filas+='<tr class="prod-row">'
-        +'<td class="nombre"><span style="font-size:11px;color:#999;margin-right:6px;">['+p.codigo+']</span>'+p.nombre+'</td>'
-        +'<td class="precio">$'+pr.toLocaleString("es-AR")+unidad+'</td>'
-        +'</tr>';
+      var esK=(p.unidad==="K");
+      var unidLabel=esK?" / kg":" c/u";
+      if(esMay){
+        var unidBulto=p.unidadesCaja||1;
+        var precioBulto=pr*unidBulto;
+        var kgBulto=esK?unidBulto+"kg":"—";
+        var bultoLabel=esK?unidBulto+"kg":unidBulto+"u";
+        filas+='<tr class="prod-row">'
+          +'<td class="nombre"><span style="font-size:11px;color:#999;margin-right:6px;">['+p.codigo+']</span>'+p.nombre+'</td>'
+          +'<td class="precio">$'+pr.toLocaleString("es-AR")+unidLabel+'</td>'
+          +'<td class="num" style="color:#555;">'+bultoLabel+'</td>'
+          +'<td class="precio">$'+precioBulto.toLocaleString("es-AR")+'</td>'
+          +'<td class="num" style="color:#888;">'+kgBulto+'</td>'
+          +'</tr>';
+      } else {
+        filas+='<tr class="prod-row">'
+          +'<td class="nombre"><span style="font-size:11px;color:#999;margin-right:6px;">['+p.codigo+']</span>'+p.nombre+'</td>'
+          +'<td class="precio">$'+pr.toLocaleString("es-AR")+unidLabel+'</td>'
+          +'</tr>';
+      }
     });
   });
   var titulo=esMay?"Lista Mayorista":"Lista Minorista";
   var sub=esMay?"Precios VIP":"Precios al público";
   var w=window.open("","_blank");
-  w.document.write(_listaHtml(titulo,sub,filas));
+  w.document.write(_listaHtml(titulo,sub,filas,esMay?900:720));
   w.document.close();
 }
 
