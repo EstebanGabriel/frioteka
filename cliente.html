@@ -6,6 +6,29 @@
 <title>❄ FRIOTEKA — Hacé tu pedido</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Fredoka+One&display=swap" rel="stylesheet">
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+import { getFirestore, doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+const firebaseConfig = {
+  apiKey: "AIzaSyC5voDKO_imN8QqRRpjMQdwV7QILrJw40g",
+  authDomain: "frioteka-preventista.firebaseapp.com",
+  projectId: "frioteka-preventista",
+  storageBucket: "frioteka-preventista.firebasestorage.app",
+  messagingSenderId: "212598423220",
+  appId: "1:212598423220:web:aee51bc39626b3c08621e1"
+};
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
+window._guardarPendienteCliente = async function(pend){
+  try {
+    const snap = await getDoc(doc(db,"datos","pendientes"));
+    var lista = snap.exists() ? snap.data().lista : [];
+    lista.unshift(pend);
+    if(lista.length>200) lista=lista.slice(0,200);
+    await setDoc(doc(db,"datos","pendientes"),{lista:lista});
+  } catch(e){ console.warn("Firebase error:",e); }
+};
+</script>
 <style>
 :root{--rojo:#e0040b;--bg:#F2F2F2;--card:#fff;--borde:#E0E0E0;--verde:#1B7D33;--txt:#222;}
 *{box-sizing:border-box;margin:0;padding:0;}
@@ -528,9 +551,39 @@ function buildMsg(){
 }
 
 function enviarWA(){
+  var nombre=document.getElementById("inpNombre").value.trim();
+  var dir=document.getElementById("inpDir").value.trim();
+  var r=calcTotal();
+  // Armar items para el pendiente
+  var items=[];
+  P.forEach(function(p){
+    var e=ped[p.codigo];
+    if(!e) return;
+    var esK=(p.unidad==="K");
+    var unidLbl=esK?"kg":"u";
+    if(e.cantU>0) items.push({cod:p.codigo,nom:p.nombre,cant:e.cantU,unid:unidLbl,precio:p.precioMinorista,subtotal:p.precioMinorista*e.cantU});
+    if(e.cantC>0) items.push({cod:p.codigo,nom:p.nombre,cant:e.cantC,unid:"caja",precio:p.precioMinorista*p.unidadesCaja,subtotal:p.precioMinorista*p.unidadesCaja*e.cantC});
+  });
+  // Guardar en Firebase como pendiente
+  var pend={
+    id:Date.now(),
+    origen:"cliente-web",
+    fecha:new Date().toLocaleDateString("es-AR",{day:"2-digit",month:"2-digit",year:"numeric"}),
+    hora:new Date().toLocaleTimeString("es-AR",{hour:"2-digit",minute:"2-digit"}),
+    cliente:nombre,
+    dir:dir,
+    fpago:fpago,
+    total:r.t,
+    items:items,
+    estado:"pendiente"
+  };
+  if(window._guardarPendienteCliente) window._guardarPendienteCliente(pend);
+  // Abrir WhatsApp
   var msg=buildMsg();
   var url="https://wa.me/?text="+encodeURIComponent(msg);
   window.open(url,"_blank");
+  // Cerrar drawer y limpiar
+  cerrarDrawer();
   limpiarPedido();
   document.getElementById("inpNombre").value="";
   document.getElementById("inpDir").value="";
