@@ -227,6 +227,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
 
 <div class="banner-envio">🚚 Envío GRATIS <span>en compras mayores a $60.000</span></div>
 <div class="ofertas-section" id="ofertasSection"></div>
+<div class="ofertas-section" id="destacadosSection"></div>
 <div class="prog-wrap" id="progWrap" style="display:none;">
   <div class="prog-bar"><div class="prog-fill" id="progFill" style="width:0%"></div></div>
   <div class="prog-txt" id="progTxt"></div>
@@ -315,6 +316,28 @@ function getPrecio(p){return MODO==="mayorista"?p.precioMayorista:p.precioMinori
 var OFERTAS=[1521,3041,3311,3312,3313,3607,3706,3522,3620,1121,1126,3826,3820,1714,1719,
   1807,1802,1809,1811,1812,1810,3411,3419,3412,1829,1506,1564,3512,3520,2433,
   3314,3315,3316,3391,3392,3319,3320,3052,3049,3525];
+
+var DESTACADOS_MAY=[3047,1557,3525,3044];
+
+function renderDestacados(){
+  var sec=document.getElementById("destacadosSection");
+  if(!sec) return;
+  if(MODO!=="mayorista"){sec.style.display="none";return;}
+  var prods=DESTACADOS_MAY.map(function(cod){return P.find(function(p){return p.codigo===cod;});}).filter(Boolean);
+  if(!prods.length){sec.style.display="none";return;}
+  var html='<div class="ofertas-header"><span style="font-size:20px;">🥔</span><span class="ofertas-titulo">NUEVAS PAPAS · DESTACADOS</span></div><div class="ofertas-scroll">';
+  prods.forEach(function(p){
+    var pCaja=getPrecio(p)*p.unidadesCaja;
+    html+='<div class="oferta-card" onclick="irAProducto('+p.codigo+')">'+
+      '<div class="oferta-flame" style="background:#E65100;">📦 CAJA</div>'+
+      '<div class="oferta-precio">'+fmt(pCaja)+'</div>'+
+      '<div class="oferta-unid">x'+p.unidadesCaja+' u.</div>'+
+      '<div class="oferta-nombre">'+p.nombre+'</div>'+
+    '</div>';
+  });
+  html+='</div>';
+  sec.innerHTML=html;
+}
 
 function renderOfertas(){
   var sec=document.getElementById("ofertasSection");
@@ -745,6 +768,7 @@ function cerrarConfirmacion(){
 
 // Init
 renderOfertas();
+renderDestacados();
 renderFamilias();
 renderCatalogo();
 updTotal();
