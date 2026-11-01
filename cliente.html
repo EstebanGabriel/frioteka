@@ -331,6 +331,9 @@ var MODO="minorista";
 function elegirModo(m){
   MODO=m;
   document.getElementById('pantallaWelcome').style.display='none';
+  renderOfertas();
+  renderDestacados();
+  renderCatalogo();
 }
 function getPrecio(p){return MODO==="mayorista"?p.precioMayorista:p.precioMinorista;}
 
