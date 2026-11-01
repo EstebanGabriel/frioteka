@@ -211,11 +211,80 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
   </button>
 
   <!-- Botón Mayorista -->
-  <button onclick="elegirModo('mayorista')" style="width:100%;max-width:320px;background:rgba(255,255,255,.15);color:#fff;border:2px solid rgba(255,255,255,.6);border-radius:16px;padding:18px 24px;font-size:18px;font-weight:900;cursor:pointer;letter-spacing:.3px;display:flex;align-items:center;justify-content:center;gap:10px;">
+  <button onclick="abrirMayorista()" style="width:100%;max-width:320px;background:rgba(255,255,255,.15);color:#fff;border:2px solid rgba(255,255,255,.6);border-radius:16px;padding:18px 24px;font-size:18px;font-weight:900;cursor:pointer;letter-spacing:.3px;display:flex;align-items:center;justify-content:center;gap:10px;">
     <span style="font-size:24px;">📦</span>
     <span>Compro por caja</span>
   </button>
   <div style="font-size:11px;color:rgba(255,255,255,.6);margin-top:10px;">Distribuidores · Hoteles · Almacenes · Gastronómicos</div>
+</div>
+
+<!-- PANTALLA MAYORISTA B2B -->
+<div id="pantallaMayorista" style="display:none;position:fixed;inset:0;background:#0d1b2a;z-index:99;overflow-y:auto;">
+  <div style="max-width:480px;margin:0 auto;padding:24px 20px 60px;">
+
+    <!-- Header -->
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:28px;">
+      <div>
+        <div style="font-family:'Fredoka One',cursive;font-size:26px;color:#fff;line-height:1;">❄ FRIOTEKA</div>
+        <div style="font-size:11px;color:rgba(255,255,255,.5);letter-spacing:.5px;margin-top:2px;">CANAL MAYORISTA</div>
+      </div>
+      <button onclick="document.getElementById('pantallaMayorista').style.display='none'" style="background:rgba(255,255,255,.1);border:none;color:rgba(255,255,255,.7);font-size:20px;width:38px;height:38px;border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center;">✕</button>
+    </div>
+
+    <!-- Titular -->
+    <div style="background:linear-gradient(135deg,#1a3a5c,#0d2137);border:1px solid rgba(255,255,255,.1);border-radius:20px;padding:24px 20px;margin-bottom:20px;text-align:center;">
+      <div style="font-size:32px;margin-bottom:10px;">🧊</div>
+      <div style="font-family:'Fredoka One',cursive;font-size:22px;color:#fff;line-height:1.2;margin-bottom:8px;">Especialistas en congelados</div>
+      <div style="font-size:14px;color:rgba(255,255,255,.65);line-height:1.5;">Distribuidores, hoteles, almacenes y gastronómicos<br>confían en Frioteka para abastecer su negocio.</div>
+    </div>
+
+    <!-- Highlights -->
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:20px;">
+      <div style="background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);border-radius:14px;padding:16px 14px;text-align:center;">
+        <div style="font-size:26px;margin-bottom:6px;">🥔</div>
+        <div style="font-size:12px;font-weight:800;color:#fff;margin-bottom:3px;">PAPAS</div>
+        <div style="font-size:11px;color:rgba(255,255,255,.55);">Mejor precio del mercado en papas fritas congeladas</div>
+      </div>
+      <div style="background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);border-radius:14px;padding:16px 14px;text-align:center;">
+        <div style="font-size:26px;margin-bottom:6px;">🍗</div>
+        <div style="font-size:12px;font-weight:800;color:#fff;margin-bottom:3px;">POLLO</div>
+        <div style="font-size:11px;color:rgba(255,255,255,.55);">Pechuga, pata muslo, rebozados — siempre en stock</div>
+      </div>
+      <div style="background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);border-radius:14px;padding:16px 14px;text-align:center;">
+        <div style="font-size:26px;margin-bottom:6px;">🍔</div>
+        <div style="font-size:12px;font-weight:800;color:#fff;margin-bottom:3px;">HAMBUR­GUESAS</div>
+        <div style="font-size:11px;color:rgba(255,255,255,.55);">Las mejores marcas a precio mayorista</div>
+      </div>
+      <div style="background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);border-radius:14px;padding:16px 14px;text-align:center;">
+        <div style="font-size:26px;margin-bottom:6px;">🚚</div>
+        <div style="font-size:12px;font-weight:800;color:#fff;margin-bottom:3px;">ENTREGA</div>
+        <div style="font-size:11px;color:rgba(255,255,255,.55);">Distribución a domicilio, rápida y confiable</div>
+      </div>
+    </div>
+
+    <!-- Formulario -->
+    <div style="background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.12);border-radius:20px;padding:22px 18px;margin-bottom:16px;">
+      <div style="font-family:'Fredoka One',cursive;font-size:17px;color:#fff;margin-bottom:4px;">¿Querés precio por caja?</div>
+      <div style="font-size:13px;color:rgba(255,255,255,.5);margin-bottom:18px;">Dejanos tus datos y te contactamos hoy.</div>
+
+      <div style="margin-bottom:12px;">
+        <input id="may-nombre" type="text" placeholder="Tu nombre" style="width:100%;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.2);border-radius:10px;padding:13px 14px;color:#fff;font-size:15px;outline:none;" />
+      </div>
+      <div style="margin-bottom:12px;">
+        <input id="may-negocio" type="text" placeholder="Nombre del negocio (almacén, hotel, restaurante...)" style="width:100%;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.2);border-radius:10px;padding:13px 14px;color:#fff;font-size:15px;outline:none;" />
+      </div>
+      <div style="margin-bottom:18px;">
+        <input id="may-tel" type="tel" placeholder="Teléfono / WhatsApp" style="width:100%;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.2);border-radius:10px;padding:13px 14px;color:#fff;font-size:15px;outline:none;" />
+      </div>
+
+      <button onclick="enviarConsultaMayorista()" style="width:100%;background:#25D366;color:#fff;border:none;border-radius:14px;padding:16px;font-size:16px;font-weight:900;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:10px;letter-spacing:.3px;">
+        <span style="font-size:20px;">💬</span>
+        Enviar consulta por WhatsApp
+      </button>
+    </div>
+
+    <div style="text-align:center;font-size:11px;color:rgba(255,255,255,.35);">Te respondemos a la brevedad · Lun a Sáb</div>
+  </div>
 </div>
 
 <div class="hdr"><span style="font-family:'Fredoka One',sans-serif;font-size:17px;color:#fff;letter-spacing:.3px;">Hacemos simples tus comidas</span><div id="badgePed" class="badge-ped">0 items</div></div>
@@ -306,6 +375,23 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
 
 <script>
 var MODO="minorista";
+function abrirMayorista(){
+  document.getElementById('pantallaWelcome').style.display='none';
+  document.getElementById('pantallaMayorista').style.display='block';
+}
+function enviarConsultaMayorista(){
+  var nombre=(document.getElementById('may-nombre').value||'').trim();
+  var negocio=(document.getElementById('may-negocio').value||'').trim();
+  var tel=(document.getElementById('may-tel').value||'').trim();
+  if(!nombre||!tel){alert('Por favor completá tu nombre y teléfono.');return;}
+  var msg='🏢 *CONSULTA MAYORISTA - FRIOTEKA*\n\n';
+  msg+='👤 Nombre: '+nombre+'\n';
+  if(negocio) msg+='🏪 Negocio: '+negocio+'\n';
+  msg+='📱 Teléfono: '+tel+'\n\n';
+  msg+='Quiero recibir precios por caja cerrada.';
+  var url='https://wa.me/?text='+encodeURIComponent(msg);
+  window.open(url,'_blank');
+}
 function elegirModo(m){
   MODO=m;
   document.getElementById('pantallaWelcome').style.display='none';
