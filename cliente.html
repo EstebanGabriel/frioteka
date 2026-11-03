@@ -640,14 +640,14 @@ function getProd(cod){
 
 function toggleUnit(cod){
   if(!ped[cod]) ped[cod]={cantU:0,cantC:0};
-  if(ped[cod].cantU===0){ ped[cod].cantU=1; } else { ped[cod].cantU=0; }
+  ped[cod].cantU=ped[cod].cantU+1;
   updateCard(cod);
   updTotal();
 }
 
 function toggleCaja(cod){
   if(!ped[cod]) ped[cod]={cantU:0,cantC:0};
-  if(ped[cod].cantC===0){ ped[cod].cantC=1; } else { ped[cod].cantC=0; }
+  ped[cod].cantC=ped[cod].cantC+1;
   updateCard(cod);
   updTotal();
 }
