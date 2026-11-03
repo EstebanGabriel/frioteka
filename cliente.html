@@ -675,11 +675,11 @@ function updateCard(cod){
   var cnc=document.getElementById("cnc-"+cod);
   if(!btu) return;
   btu.className="precio-btn btn-unit"+(e.cantU>0?" activo":"");
-  btc.className="precio-btn btn-caja"+(e.cantC>0?" activo":"");
-  badu.textContent=e.cantU; badu.className="cant-badge"+(e.cantU>0?" on":"");
-  badc.textContent=e.cantC; badc.className="cant-badge"+(e.cantC>0?" on":"");
-  ctru.className="ctrl-box"+(e.cantU===0?" oculto":"");
-  ctrc.className="ctrl-box"+(e.cantC===0?" oculto":"");
+  if(btc) btc.className="precio-btn btn-caja"+(e.cantC>0?" activo":"");
+  if(badu){ badu.textContent=e.cantU; badu.className="cant-badge"+(e.cantU>0?" on":""); }
+  if(badc){ badc.textContent=e.cantC; badc.className="cant-badge"+(e.cantC>0?" on":""); }
+  if(ctru) ctru.className="ctrl-box"+(e.cantU===0?" oculto":"");
+  if(ctrc) ctrc.className="ctrl-box"+(e.cantC===0?" oculto":"");
   if(cnu) cnu.textContent=e.cantU;
   if(cnc) cnc.textContent=e.cantC;
 }
