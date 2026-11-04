@@ -595,7 +595,7 @@ function renderFamilias(){
     var emoji=CAT_EMOJI[c]||"📦";
     var lbl=c.split(" ").slice(0,2).join(" ");
     b.innerHTML='<span class="fam-emoji">'+emoji+'</span>'+lbl;
-    b.onclick=function(){catActiva=c;renderFamilias();renderCatalogo();};
+    b.onclick=function(){catActiva=c;renderFamilias();renderCatalogo(true);};
     w.appendChild(b);
   });
   // Scroll snap center effect — distancia al centro del contenedor
@@ -625,7 +625,7 @@ function renderFamilias(){
   },30);
 }
 
-function renderCatalogo(){
+function renderCatalogo(scrollAlCat){
   var el=document.getElementById("catalogo");
   el.innerHTML="";
   var prods=cats[catActiva]||[];
@@ -682,9 +682,11 @@ function renderCatalogo(){
     sec.appendChild(card);
   });
   el.appendChild(sec);
-  // scroll top del catálogo
-  var fw=document.getElementById("famWrap");
-  if(fw) fw.scrollIntoView({behavior:"smooth",block:"start"});
+  // scroll al catálogo solo cuando el usuario elige una familia manualmente
+  if(scrollAlCat){
+    var fw=document.getElementById("famWrap");
+    if(fw) fw.scrollIntoView({behavior:"smooth",block:"start"});
+  }
 }
 
 function getProd(cod){
