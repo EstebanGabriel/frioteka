@@ -643,8 +643,11 @@ function fjTol(id,lun,rows){const ini=fjInicio(),hoy=lunes(HOY)>=lun?HOY:addD(lu
 function fjMes(id,lun){const M=addD(lun,3).slice(0,7),ini=fjInicio();let rows=[];
   for(let w=lunes(M+"-01");w<=lun;w=addD(w,7))rows=rows.concat(fjCruce(id,w));
   rows=rows.filter(r=>r.f.startsWith(M)&&r.f>=ini&&r.f<=HOY);const has=(r,k)=>r.est.some(e=>e[0].startsWith(k));
-  return{M,tarde:rows.filter(r=>has(r,"Tarde")).length,tol3:rows.filter(r=>r.tol3).length,tol:rows.filter(r=>r.est.some(e=>e[0].includes("(en tolerancia)"))).length,
+  const masMes=rows.reduce((a,r)=>a+fjMas(r),0);
+  return{M,masMes,tarde:rows.filter(r=>has(r,"Tarde")).length,tol3:rows.filter(r=>r.tol3).length,tol:rows.filter(r=>r.est.some(e=>e[0].includes("(en tolerancia)"))).length,
     graves:rows.filter(r=>has(r,"Grave")).length,faltas:rows.filter(r=>r.est.some(e=>e[0]==="Falta")).length}}
+// Minutos de más (vino antes + se quedó): solo para control y algún bono; no se pagan
+function fjMas(r){if(r.fuera||r.man||r.a==null)return 0;let m=0;if(r.ent!=null&&r.ent<r.a)m+=r.a-r.ent;if(r.sal!=null&&r.sal>r.b)m+=Math.max(0,r.sal-r.b-(DB.fj.aprob[r.key]||0));return m}
 function fjCruceBase(id,lun){
   fjAseg();const out=[];const ahora=tzParts(new Date());
   const mis=(FJC.marcas||[]).filter(m=>m.emp===id&&m.t).map(m=>({...m,...tzParts(m.t)})).sort((a,b)=>a.t-b.t);
@@ -676,12 +679,12 @@ function fjFila(id,f,ti,loc,a,b,x,ahora){
   else if(ent==null&&sal==null){if(pasado){est.push(["Falta","bad"]);est.push(["Sin aviso es falta grave","mut"]);acc={a:"nov",nov:"Falta",t:"Pasar a novedades"}}else est.push(["Todavía no","mut"])}
   else{
     if(ent!=null){const d=ent-a;if(d>FJTOL){est.push([`Tarde +${d} min`,"warn"]);acc={a:"nov",nov:"Tarde",min:d,t:"Pasar a novedades"};
-      if(d>=30)est.push(["Grave: 30 min o más tarde (si no avisó)","bad"]);else if(fjAbre(f,loc,a))est.push(["Grave: llegó tarde y le tocaba abrir","bad"])}else if(d>0)est.push([`+${d} min (en tolerancia)`,"mut"]);else if(d<0)est.push([`Entró ${-d} min antes`,"mut"]);else est.push(["A horario","ok"])}
+      if(d>=30)est.push(["Grave: 30 min o más tarde (si no avisó)","bad"]);else if(fjAbre(f,loc,a))est.push(["Grave: llegó tarde y le tocaba abrir","bad"])}else if(d>0)est.push([`+${d} min (en tolerancia)`,"mut"]);else if(d<0)est.push([`Entró ${-d} min antes (no se paga)`,"mut"]);else est.push(["A horario","ok"])}
     else est.push(["No fichó la entrada","bad"]);
     if(sal==null){if(terminado){est.push(["No fichó la salida","bad"]);acc={a:"corr",t:"Corregir salida"}}else est.push(["Trabajando","ok"])}
     else{if(corr)est.push([`Salida corregida ${corr}`,"info"]);const d=sal-b;
       if(d<-5){est.push([`Salió ${-d} min antes`,"warn"]);if(!acc)acc={a:"nov",nov:"Otro",obs:`Salió ${-d} min antes`,t:"Pasar a novedades"}}
-      else if(d>5){est.push([`Se quedó ${d} min`,"info"]);if(!DB.fj.aprob[key]&&!acc)acc={a:"apr",min:d,t:`Aprobar ${d} min`}}}
+      else if(d>5)est.push([`Se quedó ${d} min (no se paga)`,"info"])}
     if(ent!=null&&sal!=null){const ini=ed.ent?ent:Math.max(ent,a),fin=ed.sal?sal:Math.min(sal,b);cuenta=Math.max(0,fin-ini)+(ed.sal?0:(DB.fj.aprob[key]||0))}} // si Banchi editó la entrada o la salida, cuenta la hora que puso
   if(DB.fj.aprob[key])est.push([`Aprobado +${DB.fj.aprob[key]} min`,"ok"]);
   const ms=[x&&x.ent,x&&x.sal].filter(Boolean);
@@ -935,7 +938,8 @@ function vFichaje(){
     if(e&&e.hsSemana){const falta=e.hsSemana*60-real;meta=falta>0?`debe ${fhm(falta)} sobre ${e.hsSemana} h`:`cumple las ${e.hsSemana} h`}
     const ms=fjMes(id,lun),MES=["enero","febrero","marzo","abril","mayo","junio","julio","agosto","septiembre","octubre","noviembre","diciembre"][+ms.M.slice(5)-1];
     const lt=ms.tarde+ms.tol3,mesTxt=(lt||ms.tol||ms.graves||ms.faltas)?`<div class="muted" style="font-size:12px;margin-top:3px">En ${MES}: <b>${lt} llegada${lt===1?"":"s"} tarde</b>${ms.tol3?` (${ms.tol3} por 3 tolerancias)`:""} · ${ms.tol} tolerancia${ms.tol===1?"":"s"}${ms.graves?` · <b style="color:var(--bad)">${ms.graves} grave${ms.graves===1?"":"s"}</b>`:""}${ms.faltas?` · ${ms.faltas} falta${ms.faltas===1?"":"s"}`:""}</div>`:"";
-    h+=R(`<b>${id}</b> <span class="muted">· ${meta}</span><br>${tags}${mesTxt}`,`<b>${fhm(real)}</b>`)});
+    const masS=filas[id].reduce((a,r)=>a+fjMas(r),0);const masTxt=(masS||ms.masMes)?`<div class="muted" style="font-size:12px;margin-top:3px">Minutos de más (no se pagan): <b>${masS} min</b> esta semana · ${ms.masMes} min en ${MES}</div>`:"";
+    h+=R(`<b>${id}</b> <span class="muted">· ${meta}</span><br>${tags}${mesTxt}${masTxt}`,`<b>${fhm(real)}</b>`)});
   h+=`<button class="btn sec full" style="margin-top:10px" onclick="fjAplicar()">Usar estas horas en la liquidación</button><div class="muted" style="margin-top:6px">Pasa las horas que cuentan a la ficha de cada uno (menos Gonzalo, que cobra el recibo). Revisá antes las faltas y salidas sin fichar.</div></div>`;
   const ver=st.fjEmp==="todos"?emps:[st.fjEmp];
   h+=`<div class="card" style="margin-bottom:8px"><h2 style="margin:0">Turno por turno</h2><div class="muted" style="margin-top:4px">Un recuadro por empleado. Tocá el nombre para abrir o cerrar sus turnos.</div></div>`;
@@ -945,7 +949,7 @@ function vFichaje(){
     const abierto=st.fjEmp!=="todos"||st.fjAb[id]||(st.fjEd&&st.fjEd.startsWith(id+"|"));
     const tg=[pend&&`<span class="tag warn">${pend} para revisar</span>`,n("Tarde")&&`<span class="tag warn">${n("Tarde")} tarde</span>`,n("Falta")&&`<span class="tag bad">${n("Falta")} falta</span>`,n("No fichó")&&`<span class="tag bad">${n("No fichó")} sin fichar</span>`].filter(Boolean).join(" ")||`<span class="tag ok">Todo en orden</span>`;
     h+=`<div class="card" style="padding:0;overflow:hidden;border-left:5px solid var(--pri)"><div onclick="st.fjAb['${id}']=!(${abierto?"true":"false"});if(!st.fjAb['${id}']&&st.fjEd&&st.fjEd.startsWith('${id}|'))st.fjEd=null;render()" style="cursor:pointer;padding:12px 14px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;background:var(--pri-l)">
-      <b style="font-size:16px">${id}</b><span class="muted">${fhm(real)} que cuentan</span><span style="flex:1">${tg}</span><b style="color:var(--pri)">${abierto?"▲ Cerrar":"▼ Ver turnos"}</b></div>`;
+      <b style="font-size:16px">${id}</b><span class="muted">${fhm(real)} que cuentan${FF.reduce((a,r)=>a+fjMas(r),0)?` · +${FF.reduce((a,r)=>a+fjMas(r),0)} min de más (no se pagan)`:""}</span><span style="flex:1">${tg}</span><b style="color:var(--pri)">${abierto?"▲ Cerrar":"▼ Ver turnos"}</b></div>`;
     if(abierto){h+=regimen(id,lun)==="semanal"?pgPanel(id,lun):`<div style="padding:10px 10px 0;display:flex;gap:8px;flex-wrap:wrap"><button class="btn sec sm" onclick="fjExport('${id}','pdf')">Resumen de pago de ${id} (PDF)</button><button class="btn sec sm" onclick="fjExport('${id}','xlsx')">Excel</button><button class="btn ghost sm" onclick="fjPrevio('${id}','liq')">Pasar horas de ${id} a la liquidación</button></div>${fjPrevioCard(id)}`;
     h+=`<div class="scroll" style="padding:0 10px 10px"><table><tr><th>Día</th><th>Local</th><th>Horario</th><th>Entró</th><th>Salió</th><th>Cuenta</th><th>Qué pasó</th><th></th></tr>`;
     FF.forEach((r,ix)=>{
@@ -977,7 +981,7 @@ function vFichaje(){
       h+=`<tr style="background:var(--pri-l)"><td colspan="5" style="text-align:right"><b>Total ${DIAS[D(r.f).getDay()]} ${dm(r.f)}</b></td><td class="num"><b>${tot?fhm(tot):"—"}</b></td><td colspan="2"></td></tr>`}});
     h+=`</table></div>`}
     h+=`</div>`});
-  h+=`<div class="card"><div class="muted">Cuenta desde la hora de entrada del horario hasta la de salida. Llegar antes no suma; quedarse de más suma solo si lo aprobás. Hasta ${FJTOL} min tarde no es llegada tarde, pero igual se descuenta. Según el reglamento: 3 tolerancias en el mes cuentan como una llegada tarde; 30 min o más tarde sin aviso, llegar tarde cuando le toca abrir o faltar sin aviso es falta grave.</div></div>`;
+  h+=`<div class="card"><div class="muted">Cuenta desde la hora de entrada del horario hasta la de salida. Llegar antes o quedarse de más no se paga: se suma aparte como minutos de más, para control o algún bono. Hasta ${FJTOL} min tarde no es llegada tarde, pero igual se descuenta. Según el reglamento: 3 tolerancias en el mes cuentan como una llegada tarde; 30 min o más tarde sin aviso, llegar tarde cuando le toca abrir o faltar sin aviso es falta grave.</div></div>`;
   {const dd=[0,1,2,3,4,5,6].map(i=>addD(lun,i)),e0=st.fjEmp==="todos"?emps[0]:st.fjEmp;
    h+=`<div class="card"><h2>Agregar un turno a mano</h2><div class="muted">Para un turno que no estaba en el horario y no se fichó (ej: Ramiro volvió de 18 a 21). Cuenta las horas que pongas.</div>
    <div class="f"><div class="two"><div><label>Empleado</label><select id="amE">${emps.map(e=>`<option ${e===e0?"selected":""}>${e}</option>`).join("")}</select></div>
