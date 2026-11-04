@@ -1406,11 +1406,13 @@ function procesarPendiente(pendIdx){
   nvFpago=pend.fpago||"Efectivo";
 
   pend.items.forEach(function(it){
-    if(String(it.codigo).indexOf("LAC-")===0){
-      var li=parseInt(String(it.codigo).replace("LAC-",""));
-      nvPedLac["lac-"+li]={cant:it.cant,precioReal:it.precioUnit*it.cant};
-    } else {
-      nvPed[String(it.codigo)]={cant:it.cant,modo:it.modo||"mayorista"};
+    var codVal=String(it.codigo||it.cod||"");
+    var precioUnit=it.precioUnit||it.precio||0;
+    if(codVal.indexOf("LAC-")===0){
+      var li=parseInt(codVal.replace("LAC-",""));
+      nvPedLac["lac-"+li]={cant:it.cant,precioReal:precioUnit*it.cant};
+    } else if(codVal){
+      nvPed[codVal]={cant:it.cant,modo:it.modo||"minorista"};
     }
   });
 
