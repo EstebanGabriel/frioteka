@@ -165,6 +165,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
 .oferta-card:active{transform:scale(.96);}
 .oferta-flame{font-family:'Fredoka One',cursive;font-size:12px;background:var(--rojo);color:#fff;font-weight:400;padding:3px 9px;border-radius:20px;display:inline-block;margin-bottom:10px;letter-spacing:.5px;}
 .oferta-precio{font-family:'Fredoka One',cursive;font-size:34px;color:#fff;line-height:1;margin-bottom:3px;}
+.promo5x4-precio-orig{font-size:13px;color:rgba(255,255,255,0.75);margin-bottom:2px;}
 .oferta-unid{font-size:11px;color:#aaa;margin-bottom:8px;}
 .oferta-nombre{font-family:'Fredoka One',cursive;font-size:12px;font-weight:400;color:#ddd;line-height:1.3;letter-spacing:.3px;}
 /* Badge en catálogo */
@@ -466,10 +467,13 @@ function renderPromo5x4(){
   sec.style.display="";
   var html='<div class="ofertas-header" style="background:#1a3a7c;"><span style="font-size:20px;">🍦</span><span class="ofertas-titulo">5 LLEVÁS · 4 PAGÁS</span></div><div class="ofertas-scroll">';
   prods.forEach(function(p){
+    var precioNormal=getPrecio(p);
+    var precioPromo=Math.round(precioNormal*0.8);
     html+='<div class="oferta-card" onclick="irAProducto('+p.codigo+')">'+
       '<div class="oferta-flame" style="background:#1a3a7c;">🍦 PROMO</div>'+
-      '<div class="oferta-precio">'+fmt(getPrecio(p))+'</div>'+
-      '<div class="oferta-unid">c/u</div>'+
+      '<div class="promo5x4-precio-orig"><s>'+fmt(precioNormal)+'</s> x1</div>'+
+      '<div class="oferta-precio">'+fmt(precioPromo)+'</div>'+
+      '<div class="oferta-unid">llevando 5 unidades</div>'+
       '<div class="oferta-nombre">'+p.nombre+'</div>'+
     '</div>';
   });
