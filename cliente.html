@@ -465,7 +465,7 @@ function renderPromo5x4(){
   var prods=PROMO_5X4.map(function(cod){return P.find(function(p){return p.codigo===cod;});}).filter(Boolean);
   if(!prods.length){sec.style.display="none";return;}
   sec.style.display="";
-  var html='<div class="ofertas-header" style="background:#1a3a7c;"><span style="font-size:20px;">🍦</span><span class="ofertas-titulo">5 LLEVÁS · 4 PAGÁS</span></div><div class="ofertas-scroll">';
+  var html='<div class="ofertas-header" style="background:#1a3a7c;"><span style="font-size:20px;">🍦</span><span class="ofertas-titulo">PROMO HELADOS</span></div><div class="ofertas-scroll">';
   prods.forEach(function(p){
     var precioNormal=getPrecio(p);
     var precioPromo=Math.round(precioNormal*0.8);
