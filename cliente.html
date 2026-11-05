@@ -354,6 +354,10 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
       <input type="text" id="inpDir" placeholder="Calle y número" oninput="updTotal()">
     </div>
     <div class="form-group">
+      <label>Teléfono *</label>
+      <input type="tel" id="inpTel" placeholder="Tu número de WhatsApp" oninput="updTotal()">
+    </div>
+    <div class="form-group">
       <label>Forma de pago *</label>
       <div class="fpago-row">
         <button class="fpago-btn" id="fpEfectivo" onclick="selFpago('efectivo')">💵 Efectivo</button>
@@ -400,7 +404,7 @@ function enviarConsultaMayorista(){
   if(negocio) msg+='🏪 Negocio: '+negocio+'\n';
   msg+='📱 Teléfono: '+tel+'\n\n';
   msg+='Quiero recibir precios por caja cerrada.';
-  var url='https://wa.me/?text='+encodeURIComponent(msg);
+  var url='https://wa.me/5493541613373?text='+encodeURIComponent(msg);
   window.open(url,'_blank');
 }
 function elegirModo(m){
@@ -852,9 +856,11 @@ function buildMsg(){
   var nombre=document.getElementById("inpNombre").value.trim();
   var dir=document.getElementById("inpDir").value.trim();
   var r=calcTotal();
+  var tel=document.getElementById("inpTel").value.trim();
   var m="❄️ *PEDIDO FRIOTEKA*\n";
   m+="📋 "+nombre+"\n";
   m+="📍 "+dir+"\n";
+  if(tel) m+="📱 "+tel+"\n";
   m+="💳 "+fpago.charAt(0).toUpperCase()+fpago.slice(1)+"\n\n";
   P.forEach(function(p){
     var e=ped[p.codigo];
@@ -904,7 +910,7 @@ function enviarWA(){
   if(window._guardarPendienteCliente) window._guardarPendienteCliente(pend);
   // Abrir WhatsApp
   var msg=buildMsg();
-  var url="https://wa.me/?text="+encodeURIComponent(msg);
+  var url="https://wa.me/5493541613373?text="+encodeURIComponent(msg);
   window.open(url,"_blank");
   // Mostrar pantalla de confirmación
   document.getElementById("confirmNombre").textContent="Hola, "+nombre+" 👋";
@@ -915,6 +921,7 @@ function enviarWA(){
   limpiarPedido();
   document.getElementById("inpNombre").value="";
   document.getElementById("inpDir").value="";
+  document.getElementById("inpTel").value="";
   fpago="";
   document.getElementById("fpEfectivo").className="fpago-btn";
   document.getElementById("fpTransf").className="fpago-btn";
