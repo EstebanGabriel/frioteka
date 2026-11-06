@@ -3236,12 +3236,18 @@ function abrirVistaRemito(){
   var hora=hoy.toLocaleTimeString("es-AR",{hour:"2-digit",minute:"2-digit"});
   var nRem="R-"+hoy.getFullYear()+(hoy.getMonth()+1<10?"0":"")+(hoy.getMonth()+1)+(hoy.getDate()<10?"0":"")+hoy.getDate()+"-"+Math.floor(Math.random()*100);
   var filas=items.map(function(e){
+    var cod=e[0];
     var it=e[1];
+    var prod=P.find(function(p){return String(p.codigo)===String(cod);});
+    var uCaja=prod?prod.unidadesCaja:0;
     var detalle="";
-    if(it.cajas>0&&it.unidades>0) detalle=it.cajas+" cajas + "+it.unidades+" unid.";
-    else if(it.cajas>0) detalle=it.cajas+" cajas";
+    if(it.cajas>0&&it.unidades>0) detalle=it.cajas+" caja"+(it.cajas>1?"s":"")+(uCaja?" ("+it.cajas*uCaja+"u)":"")+" + "+it.unidades+" unid.";
+    else if(it.cajas>0) detalle=it.cajas+" caja"+(it.cajas>1?"s":"")+(uCaja?" ("+it.cajas*uCaja+"u)":"");
     else detalle=it.unidades+" unid.";
-    return '<tr><td style="padding:6px 8px;border-bottom:1px solid #eee;">'+it.nombre+'</td><td style="padding:6px 8px;border-bottom:1px solid #eee;text-align:center;font-weight:700;">'+detalle+'</td></tr>';
+    return '<tr>'
+      +'<td style="padding:6px 8px;border-bottom:1px solid #eee;"><span style="font-size:11px;color:#999;font-weight:600;">#'+cod+'</span><br>'+it.nombre+'</td>'
+      +'<td style="padding:6px 8px;border-bottom:1px solid #eee;text-align:center;font-weight:700;">'+detalle+'</td>'
+      +'</tr>';
   }).join("");
   var totalCajas=items.reduce(function(s,e){return s+e[1].cajas;},0);
   var totalUnid=items.reduce(function(s,e){return s+e[1].unidades;},0);
@@ -3292,11 +3298,14 @@ function compartirRemitoWA(nRem,fecha){
   txt+="🏪 Origen: Cárcano → San Martín\n\n";
   items.forEach(function(e){
     var it=e[1];
+    var cod=e[0];
+    var prod=P.find(function(p){return String(p.codigo)===String(cod);});
+    var uCaja=prod?prod.unidadesCaja:0;
     var detalle="";
-    if(it.cajas>0&&it.unidades>0) detalle=it.cajas+" cajas + "+it.unidades+" unid.";
-    else if(it.cajas>0) detalle=it.cajas+" cajas";
+    if(it.cajas>0&&it.unidades>0) detalle=it.cajas+" caja"+(it.cajas>1?"s":"")+(uCaja?" ("+it.cajas*uCaja+"u)":"")+" + "+it.unidades+" unid.";
+    else if(it.cajas>0) detalle=it.cajas+" caja"+(it.cajas>1?"s":"")+(uCaja?" ("+it.cajas*uCaja+"u)":"");
     else detalle=it.unidades+" unid.";
-    txt+="• "+it.nombre+": *"+detalle+"*\n";
+    txt+="• #"+cod+" "+it.nombre+": *"+detalle+"*\n";
   });
   var totalCajas=items.reduce(function(s,e){return s+e[1].cajas;},0);
   var totalUnid=items.reduce(function(s,e){return s+e[1].unidades;},0);
