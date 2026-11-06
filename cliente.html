@@ -225,26 +225,31 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
 </div>
 
 <!-- PANTALLA MAYORISTA B2B -->
-<div id="pantallaMayorista" style="display:none;position:fixed;inset:0;z-index:99;overflow-y:auto;background:#001f5c;">
+<div id="pantallaMayorista" style="display:none;position:fixed;inset:0;z-index:99;overflow-y:auto;background:#0a1628;">
 <div style="position:relative;z-index:1;padding-bottom:120px;">
 
   <!-- Header mayorista -->
-  <div style="background:#001f5c;position:sticky;top:0;z-index:10;padding:14px 16px 10px;box-shadow:0 2px 8px rgba(0,0,0,.4);">
+  <div style="background:#0a1628;position:sticky;top:0;z-index:10;padding:14px 16px 10px;box-shadow:0 2px 12px rgba(0,0,0,.6);">
     <div style="display:flex;align-items:center;justify-content:space-between;">
       <div>
         <div style="font-family:'Fredoka One',cursive;font-size:20px;color:#fff;line-height:1;">❄ FRIOTEKA</div>
-        <div style="font-size:10px;color:rgba(255,255,255,.5);letter-spacing:.6px;margin-top:1px;">CANAL MAYORISTA · CAJAS CERRADAS</div>
+        <div style="font-size:10px;color:rgba(255,255,255,.45);letter-spacing:.6px;margin-top:1px;">CANAL MAYORISTA · CAJAS CERRADAS</div>
       </div>
       <div style="display:flex;align-items:center;gap:10px;">
-        <div id="badgeMay" style="display:none;background:#fff;color:#001f5c;font-size:12px;font-weight:800;padding:4px 10px;border-radius:20px;">0 items</div>
-        <button onclick="cerrarMayorista()" style="background:rgba(255,255,255,.1);border:none;color:rgba(255,255,255,.7);font-size:20px;width:36px;height:36px;border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center;">✕</button>
+        <div id="badgeMay" style="display:none;background:#1a4a8a;color:#fff;font-size:12px;font-weight:800;padding:4px 10px;border-radius:20px;">0 items</div>
+        <button onclick="cerrarMayorista()" style="background:rgba(255,255,255,.08);border:none;color:rgba(255,255,255,.6);font-size:20px;width:36px;height:36px;border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center;">✕</button>
       </div>
     </div>
   </div>
 
+  <!-- Banner imagen papas mayorista -->
+  <div style="margin:0;overflow:hidden;max-height:200px;">
+    <img src="img-mayorista-papas.jpg" alt="Papas mayorista FRIOTEKA" style="width:100%;object-fit:cover;object-position:center top;display:block;">
+  </div>
+
   <!-- Banner envío gratis -->
-  <div style="background:#0d3d8c;color:#fff;text-align:center;padding:14px 16px;border-bottom:1px solid rgba(255,255,255,.1);">
-    <div style="font-size:15px;font-weight:900;letter-spacing:.3px;">🚚 ENVÍO GRATIS en compras mayores a $100.000</div>
+  <div style="background:#1a4a8a;color:#fff;text-align:center;padding:12px 16px;border-bottom:1px solid rgba(255,255,255,.08);">
+    <div style="font-size:14px;font-weight:900;letter-spacing:.3px;">🚚 ENVÍO GRATIS en compras mayores a $100.000</div>
   </div>
 
   <!-- Barra progreso mayorista -->
@@ -257,7 +262,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
 
   <!-- Destacados mayoristas -->
   <div style="padding:16px 14px 8px;">
-    <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px;">
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px;border-bottom:1px solid rgba(255,255,255,.1);padding-bottom:10px;">
       <span style="font-size:18px;">📦</span>
       <span style="font-size:14px;font-weight:900;color:#fff;letter-spacing:.5px;">DESTACADOS · PRECIO POR CAJA</span>
     </div>
@@ -265,14 +270,14 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
   </div>
 
   <!-- Barra inferior mayorista -->
-  <div style="position:fixed;bottom:0;left:0;right:0;z-index:20;background:#fff;border-top:2px solid #e0e0e0;padding:12px 16px 16px;">
+  <div style="position:fixed;bottom:0;left:0;right:0;z-index:20;background:#0a1628;border-top:2px solid rgba(255,255,255,.1);padding:12px 16px 16px;">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
       <div>
-        <div style="font-size:11px;color:#888;font-weight:600;">Total del pedido</div>
-        <div id="totalMay" style="font-size:22px;font-weight:900;color:#001f5c;">$0</div>
-        <div id="envioLblMay" style="display:none;font-size:11px;color:#1B7D33;font-weight:700;margin-top:2px;">✓ Envío gratis incluido</div>
+        <div style="font-size:11px;color:rgba(255,255,255,.5);font-weight:600;">Total del pedido</div>
+        <div id="totalMay" style="font-size:22px;font-weight:900;color:#fff;">$0</div>
+        <div id="envioLblMay" style="display:none;font-size:11px;color:#5de87a;font-weight:700;margin-top:2px;">✓ Envío gratis incluido</div>
       </div>
-      <button id="btnVerPedidoMay" onclick="abrirDrawerMay()" disabled style="background:#001f5c;color:#fff;border:none;border-radius:12px;padding:12px 20px;font-size:14px;font-weight:800;cursor:pointer;opacity:.4;">Ver pedido →</button>
+      <button id="btnVerPedidoMay" onclick="abrirDrawerMay()" disabled style="background:#1a4a8a;color:#fff;border:none;border-radius:12px;padding:12px 20px;font-size:14px;font-weight:800;cursor:pointer;opacity:.4;">Ver pedido →</button>
     </div>
   </div>
 
@@ -285,11 +290,11 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
 <!-- DRAWER PEDIDO MAYORISTA -->
 <div id="drawerMay" style="position:fixed;bottom:-100%;left:0;right:0;z-index:201;background:#fff;border-radius:20px 20px 0 0;max-height:92vh;overflow-y:auto;transition:bottom .3s;padding:0 0 20px;">
   <div style="width:40px;height:4px;background:#ddd;border-radius:2px;margin:12px auto 0;"></div>
-  <div style="font-size:17px;font-weight:900;color:#001f5c;padding:14px 16px 10px;">📦 Tu pedido mayorista</div>
+  <div style="font-size:17px;font-weight:900;color:#0a1628;padding:14px 16px 10px;">📦 Tu pedido mayorista</div>
   <div id="drawerItemsMay" style="padding:0 16px;"></div>
   <div style="display:flex;justify-content:space-between;padding:12px 16px;border-top:1px solid #eee;margin-top:8px;">
     <span style="font-weight:700;color:#333;">Total</span>
-    <span id="drawerTotalMay" style="font-weight:900;color:#001f5c;font-size:17px;">$0</span>
+    <span id="drawerTotalMay" style="font-weight:900;color:#0a1628;font-size:17px;">$0</span>
   </div>
   <div id="drawerEnvioMay" style="display:none;text-align:center;font-size:12px;color:#1B7D33;font-weight:700;padding:0 16px 8px;">✓ Envío gratis incluido</div>
 
@@ -447,15 +452,15 @@ function renderCatMayorista(){
       '<div style="font-size:10px;color:rgba(255,255,255,.45);font-weight:700;">Cód. '+p.codigo+'</div>'+
       '<div style="font-size:13px;font-weight:800;color:#fff;line-height:1.3;">'+p.nombre+'</div>'+
       '<div style="background:rgba(255,255,255,.12);border-radius:8px;padding:8px 10px;margin-top:4px;">'+
-        '<div style="font-size:18px;font-weight:900;color:#fff;">'+fmt(pCaja)+'</div>'+
-        '<div style="font-size:11px;color:rgba(255,255,255,.6);margin-top:1px;">caja x'+p.unidadesCaja+unidLbl+' · '+fmt(pUnit)+'/'+unidLbl+'</div>'+
+        '<div style="font-size:20px;font-weight:900;color:#fff;">'+fmt(pCaja)+'</div>'+
+        '<div style="font-size:11px;color:rgba(255,255,255,.55);margin-top:2px;">caja x'+p.unidadesCaja+unidLbl+' · '+fmt(pUnit)+'/'+unidLbl+'</div>'+
       '</div>'+
       '<div id="maycnt-'+p.codigo+'" style="'+(cnt===0?'display:none':'')+'display:flex;align-items:center;justify-content:space-between;background:rgba(255,255,255,.15);border-radius:8px;padding:6px 10px;margin-top:2px;">'+
         '<button onclick="cambCantMay('+p.codigo+',-1)" style="background:none;border:none;color:#fff;font-size:20px;font-weight:900;cursor:pointer;padding:0 6px;">−</button>'+
         '<span id="maycn-'+p.codigo+'" style="font-size:15px;font-weight:900;color:#fff;">'+cnt+'</span>'+
         '<button onclick="cambCantMay('+p.codigo+',1)" style="background:none;border:none;color:#fff;font-size:20px;font-weight:900;cursor:pointer;padding:0 6px;">+</button>'+
       '</div>'+
-      '<button id="mayadd-'+p.codigo+'" onclick="agregarMay('+p.codigo+')" style="'+(cnt>0?'display:none':'')+'width:100%;background:#fff;color:#001f5c;border:none;border-radius:8px;padding:9px;font-size:13px;font-weight:900;cursor:pointer;margin-top:4px;">+ Agregar caja</button>'+
+      '<button id="mayadd-'+p.codigo+'" onclick="agregarMay('+p.codigo+')" style="'+(cnt>0?'display:none':'')+'width:100%;background:#1a4a8a;color:#fff;border:none;border-radius:8px;padding:9px;font-size:13px;font-weight:900;cursor:pointer;margin-top:4px;">+ Agregar caja</button>'+
     '</div>';
   });
   cont.innerHTML=html;
@@ -526,12 +531,12 @@ function updTotalMay(){
 
 function selFpagoMay(v){
   fpagoMay=v;
-  document.getElementById("mayFpEfectivo").style.background=v==="efectivo"?"#001f5c":"#f5f5f5";
+  document.getElementById("mayFpEfectivo").style.background=v==="efectivo"?"#0a1628":"#f5f5f5";
   document.getElementById("mayFpEfectivo").style.color=v==="efectivo"?"#fff":"#333";
-  document.getElementById("mayFpEfectivo").style.borderColor=v==="efectivo"?"#001f5c":"#ddd";
-  document.getElementById("mayFpTransf").style.background=v==="transferencia"?"#001f5c":"#f5f5f5";
+  document.getElementById("mayFpEfectivo").style.borderColor=v==="efectivo"?"#0a1628":"#ddd";
+  document.getElementById("mayFpTransf").style.background=v==="transferencia"?"#0a1628":"#f5f5f5";
   document.getElementById("mayFpTransf").style.color=v==="transferencia"?"#fff":"#333";
-  document.getElementById("mayFpTransf").style.borderColor=v==="transferencia"?"#001f5c":"#ddd";
+  document.getElementById("mayFpTransf").style.borderColor=v==="transferencia"?"#0a1628":"#ddd";
   updTotalMay();
 }
 
@@ -545,7 +550,7 @@ function renderDrawerMay(){
     html+='<div style="display:flex;justify-content:space-between;align-items:flex-start;padding:10px 0;border-bottom:1px solid #f0f0f0;">'+
       '<div><div style="font-size:13px;font-weight:700;color:#222;">'+p.nombre+'</div>'+
       '<div style="font-size:12px;color:#888;margin-top:2px;">'+c+' caja'+(c>1?"s":"")+" × "+fmt(p.precioMayorista*p.unidadesCaja)+' ('+p.unidadesCaja+unidLbl+'/caja)</div></div>'+
-      '<div style="font-size:14px;font-weight:900;color:#001f5c;">'+fmt(p.precioMayorista*p.unidadesCaja*c)+'</div></div>';
+      '<div style="font-size:14px;font-weight:900;color:#0a1628;">'+fmt(p.precioMayorista*p.unidadesCaja*c)+'</div></div>';
   });
   document.getElementById("drawerItemsMay").innerHTML=html||'<div style="color:#aaa;font-size:13px;padding:8px 0;">No hay productos.</div>';
   document.getElementById("drawerTotalMay").textContent=fmt(r.t);
