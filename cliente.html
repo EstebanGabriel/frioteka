@@ -225,75 +225,104 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
 </div>
 
 <!-- PANTALLA MAYORISTA B2B -->
-<div id="pantallaMayorista" style="display:none;position:fixed;inset:0;z-index:99;overflow-y:auto;background:#0055A4;background-image:url('https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=800&q=80');background-size:cover;background-position:center;">
-<div style="position:absolute;inset:0;background:rgba(0,70,140,0.88);pointer-events:none;min-height:100%;"></div>
-<div style="position:relative;z-index:1;">
-  <div style="max-width:480px;margin:0 auto;padding:24px 20px 60px;">
+<div id="pantallaMayorista" style="display:none;position:fixed;inset:0;z-index:99;overflow-y:auto;background:#001f5c;">
+<div style="position:relative;z-index:1;padding-bottom:120px;">
 
-    <!-- Header -->
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:28px;">
+  <!-- Header mayorista -->
+  <div style="background:#001f5c;position:sticky;top:0;z-index:10;padding:14px 16px 10px;box-shadow:0 2px 8px rgba(0,0,0,.4);">
+    <div style="display:flex;align-items:center;justify-content:space-between;">
       <div>
-        <div style="font-family:'Fredoka One',cursive;font-size:26px;color:#fff;line-height:1;">❄ FRIOTEKA</div>
-        <div style="font-size:11px;color:rgba(255,255,255,.5);letter-spacing:.5px;margin-top:2px;">CANAL MAYORISTA</div>
+        <div style="font-family:'Fredoka One',cursive;font-size:20px;color:#fff;line-height:1;">❄ FRIOTEKA</div>
+        <div style="font-size:10px;color:rgba(255,255,255,.5);letter-spacing:.6px;margin-top:1px;">CANAL MAYORISTA · CAJAS CERRADAS</div>
       </div>
-      <button onclick="document.getElementById('pantallaMayorista').style.display='none'" style="background:rgba(255,255,255,.1);border:none;color:rgba(255,255,255,.7);font-size:20px;width:38px;height:38px;border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center;">✕</button>
-    </div>
-
-    <!-- Titular -->
-    <div style="background:linear-gradient(135deg,#003d8f,#0047a8);border:1px solid rgba(255,255,255,.2);border-radius:20px;padding:24px 20px;margin-bottom:20px;text-align:center;">
-      <div style="font-size:32px;margin-bottom:10px;">🧊</div>
-      <div style="font-family:'Fredoka One',cursive;font-size:22px;color:#fff;line-height:1.2;margin-bottom:8px;">Especialistas en congelados</div>
-      <div style="font-size:14px;color:rgba(255,255,255,.65);line-height:1.5;">Distribuidores, hoteles, almacenes y gastronómicos<br>confían en Frioteka para abastecer su negocio.</div>
-    </div>
-
-    <!-- Highlights -->
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:20px;">
-      <div style="background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.25);border-radius:14px;padding:16px 14px;text-align:center;">
-        <div style="font-size:26px;margin-bottom:6px;">🥔</div>
-        <div style="font-size:12px;font-weight:800;color:#fff;margin-bottom:3px;">PAPAS</div>
-        <div style="font-size:11px;color:rgba(255,255,255,.75);">Mejor precio del mercado en papas fritas congeladas</div>
-      </div>
-      <div style="background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.25);border-radius:14px;padding:16px 14px;text-align:center;">
-        <div style="font-size:26px;margin-bottom:6px;">🍗</div>
-        <div style="font-size:12px;font-weight:800;color:#fff;margin-bottom:3px;">POLLO</div>
-        <div style="font-size:11px;color:rgba(255,255,255,.75);">Pechuga, pata muslo, rebozados — siempre en stock</div>
-      </div>
-      <div style="background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.25);border-radius:14px;padding:16px 14px;text-align:center;">
-        <div style="font-size:26px;margin-bottom:6px;">🍔</div>
-        <div style="font-size:12px;font-weight:800;color:#fff;margin-bottom:3px;">HAMBUR­GUESAS</div>
-        <div style="font-size:11px;color:rgba(255,255,255,.75);">Las mejores marcas a precio mayorista</div>
-      </div>
-      <div style="background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.25);border-radius:14px;padding:16px 14px;text-align:center;">
-        <div style="font-size:26px;margin-bottom:6px;">🚚</div>
-        <div style="font-size:12px;font-weight:800;color:#fff;margin-bottom:3px;">ENTREGA</div>
-        <div style="font-size:11px;color:rgba(255,255,255,.75);">Distribución a domicilio, rápida y confiable</div>
+      <div style="display:flex;align-items:center;gap:10px;">
+        <div id="badgeMay" style="display:none;background:#fff;color:#001f5c;font-size:12px;font-weight:800;padding:4px 10px;border-radius:20px;">0 items</div>
+        <button onclick="cerrarMayorista()" style="background:rgba(255,255,255,.1);border:none;color:rgba(255,255,255,.7);font-size:20px;width:36px;height:36px;border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center;">✕</button>
       </div>
     </div>
-
-    <!-- Formulario -->
-    <div style="background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.25);border-radius:20px;padding:22px 18px;margin-bottom:16px;">
-      <div style="font-family:'Fredoka One',cursive;font-size:17px;color:#fff;margin-bottom:4px;">¿Querés precio por caja?</div>
-      <div style="font-size:13px;color:rgba(255,255,255,.5);margin-bottom:18px;">Dejanos tus datos y te contactamos hoy.</div>
-
-      <div style="margin-bottom:12px;">
-        <input id="may-nombre" type="text" placeholder="Tu nombre" style="width:100%;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.2);border-radius:10px;padding:13px 14px;color:#fff;font-size:15px;outline:none;" />
-      </div>
-      <div style="margin-bottom:12px;">
-        <input id="may-negocio" type="text" placeholder="Nombre del negocio (almacén, hotel, restaurante...)" style="width:100%;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.2);border-radius:10px;padding:13px 14px;color:#fff;font-size:15px;outline:none;" />
-      </div>
-      <div style="margin-bottom:18px;">
-        <input id="may-tel" type="tel" placeholder="Teléfono / WhatsApp" style="width:100%;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.2);border-radius:10px;padding:13px 14px;color:#fff;font-size:15px;outline:none;" />
-      </div>
-
-      <button onclick="enviarConsultaMayorista()" style="width:100%;background:#25D366;color:#fff;border:none;border-radius:14px;padding:16px;font-size:16px;font-weight:900;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:10px;letter-spacing:.3px;">
-        <span style="font-size:20px;">💬</span>
-        Enviar consulta por WhatsApp
-      </button>
-    </div>
-
-    <div style="text-align:center;font-size:11px;color:rgba(255,255,255,.35);">Te respondemos a la brevedad · Lun a Sáb</div>
   </div>
+
+  <!-- Banner envío gratis -->
+  <div style="background:#0d3d8c;color:#fff;text-align:center;padding:14px 16px;border-bottom:1px solid rgba(255,255,255,.1);">
+    <div style="font-size:15px;font-weight:900;letter-spacing:.3px;">🚚 ENVÍO GRATIS en compras mayores a $100.000</div>
+  </div>
+
+  <!-- Barra progreso mayorista -->
+  <div id="progWrapMay" style="display:none;background:#fff;padding:8px 14px 10px;border-bottom:1px solid #e0e0e0;">
+    <div style="height:6px;background:#f0f0f0;border-radius:4px;overflow:hidden;margin-bottom:5px;">
+      <div id="progFillMay" style="height:100%;background:#0d3d8c;border-radius:4px;transition:width .3s;width:0%"></div>
+    </div>
+    <div id="progTxtMay" style="font-size:12px;color:#555;"></div>
+  </div>
+
+  <!-- Destacados mayoristas -->
+  <div style="padding:16px 14px 8px;">
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px;">
+      <span style="font-size:18px;">📦</span>
+      <span style="font-size:14px;font-weight:900;color:#fff;letter-spacing:.5px;">DESTACADOS · PRECIO POR CAJA</span>
+    </div>
+    <div id="catMayorista" style="display:grid;grid-template-columns:1fr 1fr;gap:12px;"></div>
+  </div>
+
+  <!-- Barra inferior mayorista -->
+  <div style="position:fixed;bottom:0;left:0;right:0;z-index:20;background:#fff;border-top:2px solid #e0e0e0;padding:12px 16px 16px;">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+      <div>
+        <div style="font-size:11px;color:#888;font-weight:600;">Total del pedido</div>
+        <div id="totalMay" style="font-size:22px;font-weight:900;color:#001f5c;">$0</div>
+        <div id="envioLblMay" style="display:none;font-size:11px;color:#1B7D33;font-weight:700;margin-top:2px;">✓ Envío gratis incluido</div>
+      </div>
+      <button id="btnVerPedidoMay" onclick="abrirDrawerMay()" disabled style="background:#001f5c;color:#fff;border:none;border-radius:12px;padding:12px 20px;font-size:14px;font-weight:800;cursor:pointer;opacity:.4;">Ver pedido →</button>
+    </div>
+  </div>
+
 </div>
+</div>
+
+<!-- DRAWER OVERLAY MAYORISTA -->
+<div id="drawerOverlayMay" onclick="cerrarDrawerMay()" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:200;"></div>
+
+<!-- DRAWER PEDIDO MAYORISTA -->
+<div id="drawerMay" style="position:fixed;bottom:-100%;left:0;right:0;z-index:201;background:#fff;border-radius:20px 20px 0 0;max-height:92vh;overflow-y:auto;transition:bottom .3s;padding:0 0 20px;">
+  <div style="width:40px;height:4px;background:#ddd;border-radius:2px;margin:12px auto 0;"></div>
+  <div style="font-size:17px;font-weight:900;color:#001f5c;padding:14px 16px 10px;">📦 Tu pedido mayorista</div>
+  <div id="drawerItemsMay" style="padding:0 16px;"></div>
+  <div style="display:flex;justify-content:space-between;padding:12px 16px;border-top:1px solid #eee;margin-top:8px;">
+    <span style="font-weight:700;color:#333;">Total</span>
+    <span id="drawerTotalMay" style="font-weight:900;color:#001f5c;font-size:17px;">$0</span>
+  </div>
+  <div id="drawerEnvioMay" style="display:none;text-align:center;font-size:12px;color:#1B7D33;font-weight:700;padding:0 16px 8px;">✓ Envío gratis incluido</div>
+
+  <!-- Formulario mayorista -->
+  <div style="padding:0 16px;">
+    <div style="margin-bottom:10px;">
+      <label style="font-size:12px;font-weight:700;color:#555;display:block;margin-bottom:4px;">Nombre *</label>
+      <input type="text" id="mayInpNombre" placeholder="Tu nombre completo" oninput="updTotalMay()" style="width:100%;border:1px solid #ddd;border-radius:10px;padding:11px 12px;font-size:15px;outline:none;">
+    </div>
+    <div style="margin-bottom:10px;">
+      <label style="font-size:12px;font-weight:700;color:#555;display:block;margin-bottom:4px;">Negocio</label>
+      <input type="text" id="mayInpNegocio" placeholder="Nombre del negocio (opcional)" oninput="updTotalMay()" style="width:100%;border:1px solid #ddd;border-radius:10px;padding:11px 12px;font-size:15px;outline:none;">
+    </div>
+    <div style="margin-bottom:10px;">
+      <label style="font-size:12px;font-weight:700;color:#555;display:block;margin-bottom:4px;">Dirección *</label>
+      <input type="text" id="mayInpDir" placeholder="Calle y número" oninput="updTotalMay()" style="width:100%;border:1px solid #ddd;border-radius:10px;padding:11px 12px;font-size:15px;outline:none;">
+    </div>
+    <div style="margin-bottom:10px;">
+      <label style="font-size:12px;font-weight:700;color:#555;display:block;margin-bottom:4px;">Teléfono *</label>
+      <input type="tel" id="mayInpTel" placeholder="Tu número de WhatsApp" oninput="updTotalMay()" style="width:100%;border:1px solid #ddd;border-radius:10px;padding:11px 12px;font-size:15px;outline:none;">
+    </div>
+    <div style="margin-bottom:14px;">
+      <label style="font-size:12px;font-weight:700;color:#555;display:block;margin-bottom:6px;">Forma de pago *</label>
+      <div style="display:flex;gap:8px;">
+        <button id="mayFpEfectivo" onclick="selFpagoMay('efectivo')" style="flex:1;background:#f5f5f5;border:2px solid #ddd;border-radius:10px;padding:11px 8px;font-size:13px;font-weight:700;cursor:pointer;">💵 Efectivo</button>
+        <button id="mayFpTransf" onclick="selFpagoMay('transferencia')" style="flex:1;background:#f5f5f5;border:2px solid #ddd;border-radius:10px;padding:11px 8px;font-size:13px;font-weight:700;cursor:pointer;">🏦 Transferencia</button>
+      </div>
+    </div>
+    <button id="btnEnviarMay" onclick="enviarWAMay()" disabled style="width:100%;background:#25D366;color:#fff;border:none;border-radius:14px;padding:16px;font-size:16px;font-weight:900;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:10px;opacity:.5;">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="white"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
+      Enviar pedido por WhatsApp
+    </button>
+  </div>
 </div>
 
 <div class="hdr"><span style="font-family:'Fredoka One',sans-serif;font-size:17px;color:#fff;letter-spacing:.3px;">Hacemos simples tus comidas</span><div id="badgePed" class="badge-ped">0 items</div></div>
@@ -390,22 +419,201 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
 
 <script>
 var MODO="minorista";
+var pedM={};
+var fpagoMay="";
+
 function abrirMayorista(){
   document.getElementById('pantallaWelcome').style.display='none';
   document.getElementById('pantallaMayorista').style.display='block';
+  renderCatMayorista();
 }
-function enviarConsultaMayorista(){
-  var nombre=(document.getElementById('may-nombre').value||'').trim();
-  var negocio=(document.getElementById('may-negocio').value||'').trim();
-  var tel=(document.getElementById('may-tel').value||'').trim();
-  if(!nombre||!tel){alert('Por favor completá tu nombre y teléfono.');return;}
-  var msg='🏢 *CONSULTA MAYORISTA - FRIOTEKA*\n\n';
-  msg+='👤 Nombre: '+nombre+'\n';
-  if(negocio) msg+='🏪 Negocio: '+negocio+'\n';
-  msg+='📱 Teléfono: '+tel+'\n\n';
-  msg+='Quiero recibir precios por caja cerrada.';
-  var url='https://wa.me/5493541613373?text='+encodeURIComponent(msg);
-  window.open(url,'_blank');
+
+function cerrarMayorista(){
+  document.getElementById('pantallaMayorista').style.display='none';
+  document.getElementById('pantallaWelcome').style.display='flex';
+}
+
+function renderCatMayorista(){
+  var cont=document.getElementById("catMayorista");
+  if(!cont) return;
+  var prods=DESTACADOS_MAY.map(function(cod){return P.find(function(p){return p.codigo===cod;});}).filter(Boolean);
+  var html="";
+  prods.forEach(function(p){
+    var pUnit=p.precioMayorista;
+    var pCaja=pUnit*p.unidadesCaja;
+    var unidLbl=p.unidad==="K"?"kg":"u";
+    var cnt=(pedM[p.codigo]||0);
+    html+='<div style="background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.18);border-radius:14px;padding:14px 12px;display:flex;flex-direction:column;gap:6px;" id="maycardwrap-'+p.codigo+'">'+
+      '<div style="font-size:10px;color:rgba(255,255,255,.45);font-weight:700;">Cód. '+p.codigo+'</div>'+
+      '<div style="font-size:13px;font-weight:800;color:#fff;line-height:1.3;">'+p.nombre+'</div>'+
+      '<div style="background:rgba(255,255,255,.12);border-radius:8px;padding:8px 10px;margin-top:4px;">'+
+        '<div style="font-size:18px;font-weight:900;color:#fff;">'+fmt(pCaja)+'</div>'+
+        '<div style="font-size:11px;color:rgba(255,255,255,.6);margin-top:1px;">caja x'+p.unidadesCaja+unidLbl+' · '+fmt(pUnit)+'/'+unidLbl+'</div>'+
+      '</div>'+
+      '<div id="maycnt-'+p.codigo+'" style="'+(cnt===0?'display:none':'')+'display:flex;align-items:center;justify-content:space-between;background:rgba(255,255,255,.15);border-radius:8px;padding:6px 10px;margin-top:2px;">'+
+        '<button onclick="cambCantMay('+p.codigo+',-1)" style="background:none;border:none;color:#fff;font-size:20px;font-weight:900;cursor:pointer;padding:0 6px;">−</button>'+
+        '<span id="maycn-'+p.codigo+'" style="font-size:15px;font-weight:900;color:#fff;">'+cnt+'</span>'+
+        '<button onclick="cambCantMay('+p.codigo+',1)" style="background:none;border:none;color:#fff;font-size:20px;font-weight:900;cursor:pointer;padding:0 6px;">+</button>'+
+      '</div>'+
+      '<button id="mayadd-'+p.codigo+'" onclick="agregarMay('+p.codigo+')" style="'+(cnt>0?'display:none':'')+'width:100%;background:#fff;color:#001f5c;border:none;border-radius:8px;padding:9px;font-size:13px;font-weight:900;cursor:pointer;margin-top:4px;">+ Agregar caja</button>'+
+    '</div>';
+  });
+  cont.innerHTML=html;
+}
+
+function agregarMay(cod){
+  pedM[cod]=(pedM[cod]||0)+1;
+  updateCardMay(cod);
+  updTotalMay();
+}
+
+function cambCantMay(cod,delta){
+  pedM[cod]=Math.max(0,(pedM[cod]||0)+delta);
+  updateCardMay(cod);
+  updTotalMay();
+}
+
+function updateCardMay(cod){
+  var cnt=pedM[cod]||0;
+  var addBtn=document.getElementById("mayadd-"+cod);
+  var cntRow=document.getElementById("maycnt-"+cod);
+  var cnEl=document.getElementById("maycn-"+cod);
+  if(addBtn) addBtn.style.display=cnt>0?"none":"block";
+  if(cntRow) cntRow.style.display=cnt>0?"flex":"none";
+  if(cnEl) cnEl.textContent=cnt;
+}
+
+function calcTotalMay(){
+  var t=0,items=0;
+  P.forEach(function(p){
+    var c=pedM[p.codigo]||0;
+    if(c>0){t+=p.precioMayorista*p.unidadesCaja*c;items+=c;}
+  });
+  return {t:t,items:items};
+}
+
+function updTotalMay(){
+  var r=calcTotalMay();
+  var ENV_MIN=100000;
+  document.getElementById("totalMay").textContent=fmt(r.t);
+  document.getElementById("envioLblMay").style.display=r.t>=ENV_MIN?"block":"none";
+  var badge=document.getElementById("badgeMay");
+  if(badge){badge.textContent=r.items+" caja"+(r.items!==1?"s":"");badge.style.display=r.items>0?"block":"none";}
+  var pw=document.getElementById("progWrapMay");
+  var pf=document.getElementById("progFillMay");
+  var pt=document.getElementById("progTxtMay");
+  if(r.items>0){
+    pw.style.display="block";
+    var pct=Math.min(100,Math.round(r.t/ENV_MIN*100));
+    pf.style.width=pct+"%";
+    if(r.t>=ENV_MIN){pt.textContent="🚚 ¡Envío gratis desbloqueado!";pt.style.color="#1B7D33";}
+    else{pt.textContent="Te faltan "+fmt(ENV_MIN-r.t)+" para envío gratis ("+pct+"%)";pt.style.color="#555";}
+  } else {
+    pw.style.display="none";
+  }
+  var btnVer=document.getElementById("btnVerPedidoMay");
+  if(btnVer){btnVer.disabled=r.items===0;btnVer.style.opacity=r.items>0?"1":".4";}
+  // habilitar enviar
+  var nombre=(document.getElementById("mayInpNombre")||{}).value||"";
+  var dir=(document.getElementById("mayInpDir")||{}).value||"";
+  var tel=(document.getElementById("mayInpTel")||{}).value||"";
+  var ok=r.t>0 && nombre.trim() && dir.trim() && tel.trim() && fpagoMay;
+  var btnEnv=document.getElementById("btnEnviarMay");
+  if(btnEnv){btnEnv.disabled=!ok;btnEnv.style.opacity=ok?"1":".5";}
+  // actualizar drawer si está abierto
+  if(document.getElementById("drawerMay").style.bottom==="0px") renderDrawerMay();
+}
+
+function selFpagoMay(v){
+  fpagoMay=v;
+  document.getElementById("mayFpEfectivo").style.background=v==="efectivo"?"#001f5c":"#f5f5f5";
+  document.getElementById("mayFpEfectivo").style.color=v==="efectivo"?"#fff":"#333";
+  document.getElementById("mayFpEfectivo").style.borderColor=v==="efectivo"?"#001f5c":"#ddd";
+  document.getElementById("mayFpTransf").style.background=v==="transferencia"?"#001f5c":"#f5f5f5";
+  document.getElementById("mayFpTransf").style.color=v==="transferencia"?"#fff":"#333";
+  document.getElementById("mayFpTransf").style.borderColor=v==="transferencia"?"#001f5c":"#ddd";
+  updTotalMay();
+}
+
+function renderDrawerMay(){
+  var r=calcTotalMay();
+  var html="";
+  P.forEach(function(p){
+    var c=pedM[p.codigo]||0;
+    if(!c) return;
+    var unidLbl=p.unidad==="K"?"kg":"u";
+    html+='<div style="display:flex;justify-content:space-between;align-items:flex-start;padding:10px 0;border-bottom:1px solid #f0f0f0;">'+
+      '<div><div style="font-size:13px;font-weight:700;color:#222;">'+p.nombre+'</div>'+
+      '<div style="font-size:12px;color:#888;margin-top:2px;">'+c+' caja'+(c>1?"s":"")+" × "+fmt(p.precioMayorista*p.unidadesCaja)+' ('+p.unidadesCaja+unidLbl+'/caja)</div></div>'+
+      '<div style="font-size:14px;font-weight:900;color:#001f5c;">'+fmt(p.precioMayorista*p.unidadesCaja*c)+'</div></div>';
+  });
+  document.getElementById("drawerItemsMay").innerHTML=html||'<div style="color:#aaa;font-size:13px;padding:8px 0;">No hay productos.</div>';
+  document.getElementById("drawerTotalMay").textContent=fmt(r.t);
+  document.getElementById("drawerEnvioMay").style.display=r.t>=100000?"block":"none";
+}
+
+function abrirDrawerMay(){
+  renderDrawerMay();
+  document.getElementById("drawerMay").style.bottom="0px";
+  document.getElementById("drawerOverlayMay").style.display="block";
+  document.body.style.overflow="hidden";
+}
+
+function cerrarDrawerMay(){
+  document.getElementById("drawerMay").style.bottom="-100%";
+  document.getElementById("drawerOverlayMay").style.display="none";
+  document.body.style.overflow="";
+}
+
+function buildMsgMay(){
+  var nombre=document.getElementById("mayInpNombre").value.trim();
+  var negocio=document.getElementById("mayInpNegocio").value.trim();
+  var dir=document.getElementById("mayInpDir").value.trim();
+  var tel=document.getElementById("mayInpTel").value.trim();
+  var r=calcTotalMay();
+  var m="📦 *PEDIDO MAYORISTA FRIOTEKA*\n";
+  m+="👤 "+nombre+"\n";
+  if(negocio) m+="🏪 "+negocio+"\n";
+  m+="📍 "+dir+"\n";
+  m+="📱 "+tel+"\n";
+  m+="💳 "+fpagoMay.charAt(0).toUpperCase()+fpagoMay.slice(1)+"\n\n";
+  P.forEach(function(p){
+    var c=pedM[p.codigo]||0;
+    if(!c) return;
+    var unidLbl=p.unidad==="K"?"kg":"u";
+    m+="• "+p.nombre+" x"+c+" caja"+(c>1?"s":"")+" ("+p.unidadesCaja+unidLbl+"/caja) = "+fmt(p.precioMayorista*p.unidadesCaja*c)+"\n";
+  });
+  m+="\n💰 *TOTAL: "+fmt(r.t)+"*";
+  if(r.t>=100000) m+="\n🚚 Envío gratis";
+  return m;
+}
+
+function enviarWAMay(){
+  var nombre=document.getElementById("mayInpNombre").value.trim();
+  var negocio=document.getElementById("mayInpNegocio").value.trim();
+  var dir=document.getElementById("mayInpDir").value.trim();
+  var tel=document.getElementById("mayInpTel").value.trim();
+  var r=calcTotalMay();
+  var items=[];
+  P.forEach(function(p){
+    var c=pedM[p.codigo]||0;
+    if(!c) return;
+    items.push({cod:p.codigo,nom:p.nombre,cant:c,unid:"caja",precio:p.precioMayorista*p.unidadesCaja,subtotal:p.precioMayorista*p.unidadesCaja*c});
+  });
+  var pend={id:Date.now(),origen:"cliente-web-mayorista",fecha:new Date().toLocaleDateString("es-AR",{day:"2-digit",month:"2-digit",year:"numeric"}),hora:new Date().toLocaleTimeString("es-AR",{hour:"2-digit",minute:"2-digit"}),cliente:nombre,negocio:negocio,dir:dir,tel:tel,fpago:fpagoMay,total:r.t,items:items,estado:"pendiente"};
+  if(window._guardarPendienteCliente) window._guardarPendienteCliente(pend);
+  var msg=buildMsgMay();
+  var url="https://wa.me/5493541613373?text="+encodeURIComponent(msg);
+  window.open(url,"_blank");
+  cerrarDrawerMay();
+  pedM={};
+  fpagoMay="";
+  document.getElementById("mayInpNombre").value="";
+  document.getElementById("mayInpNegocio").value="";
+  document.getElementById("mayInpDir").value="";
+  document.getElementById("mayInpTel").value="";
+  renderCatMayorista();
+  updTotalMay();
 }
 function elegirModo(m){
   MODO=m;
