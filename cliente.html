@@ -242,14 +242,14 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
     </div>
   </div>
 
-  <!-- Banner imagen papas mayorista -->
-  <div style="margin:0;overflow:hidden;max-height:200px;">
-    <img src="img-mayorista-papas.jpg" alt="Papas mayorista FRIOTEKA" style="width:100%;object-fit:cover;object-position:center top;display:block;">
-  </div>
-
-  <!-- Banner envío gratis -->
-  <div style="background:#1a4a8a;color:#fff;text-align:center;padding:12px 16px;border-bottom:1px solid rgba(255,255,255,.08);">
-    <div style="font-size:14px;font-weight:900;letter-spacing:.3px;">🚚 ENVÍO GRATIS en compras mayores a $100.000</div>
+  <!-- Banner mayorista -->
+  <div style="margin:0;background:#0d1f3c;padding:18px 16px 16px;display:flex;align-items:center;gap:14px;border-bottom:2px solid rgba(255,255,255,.08);">
+    <img src="img-mayorista-papas.jpg" alt="Papas FRIOTEKA" style="width:80px;height:80px;object-fit:cover;border-radius:12px;flex-shrink:0;border:2px solid rgba(255,255,255,.15);">
+    <div>
+      <div style="font-size:16px;font-weight:900;color:#fff;line-height:1.3;">Ahorrá comprando<br>por caja cerrada</div>
+      <div style="font-size:12px;color:rgba(255,255,255,.55);margin-top:4px;">Distribuidores · Almacenes · Gastronómicos</div>
+      <div style="margin-top:8px;background:#1a4a8a;color:#fff;font-size:11px;font-weight:800;padding:4px 10px;border-radius:20px;display:inline-block;">🚚 Envío gratis desde $100.000</div>
+    </div>
   </div>
 
   <!-- Barra progreso mayorista -->
@@ -452,32 +452,42 @@ function cerrarMayorista(){
   document.getElementById('pantallaWelcome').style.display='flex';
 }
 
+function buildCardMay(p, suffix){
+  var pUnit=p.precioMayorista;
+  var pCaja=pUnit*p.unidadesCaja;
+  var unidLbl=p.unidad==="K"?"kg":"u";
+  var cnt=(pedM[p.codigo]||0);
+  var imgUrl="https://files-fenovo.sfo3.cdn.digitaloceanspaces.com/imagenes-web/"+p.codigo+"/"+p.codigo+"-o1.jpg";
+  return '<div style="background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.18);border-radius:14px;overflow:hidden;display:flex;flex-direction:column;" id="maycardwrap'+suffix+'-'+p.codigo+'">'+
+    '<div style="position:relative;cursor:pointer;" onclick="agregarMayFoto('+p.codigo+')">'+
+      '<img src="'+imgUrl+'" alt="'+p.nombre+'" loading="lazy" onerror="this.parentElement.style.display=\'none\'" style="width:100%;height:110px;object-fit:cover;display:block;">'+
+      '<div id="maybadgefoto'+suffix+'-'+p.codigo+'" style="display:'+(cnt>0?'flex':'none')+';position:absolute;top:6px;right:6px;background:#1a4a8a;color:#fff;font-size:12px;font-weight:900;width:24px;height:24px;border-radius:50%;align-items:center;justify-content:center;">'+cnt+'</div>'+
+    '</div>'+
+    '<div style="padding:10px 10px 12px;display:flex;flex-direction:column;gap:5px;flex:1;">'+
+      '<div style="font-size:11px;font-weight:800;color:#fff;line-height:1.3;">'+p.nombre+'</div>'+
+      '<div style="background:rgba(255,255,255,.12);border-radius:8px;padding:7px 9px;margin-top:2px;">'+
+        '<div style="font-size:17px;font-weight:900;color:#fff;">'+fmt(pCaja)+'</div>'+
+        '<div style="font-size:10px;color:rgba(255,255,255,.55);margin-top:1px;">caja x'+p.unidadesCaja+unidLbl+' · '+fmt(pUnit)+'/'+unidLbl+'</div>'+
+      '</div>'+
+      '<div id="maycnt'+suffix+'-'+p.codigo+'" style="'+(cnt===0?'display:none;':'')+'display:flex;align-items:center;justify-content:space-between;background:rgba(255,255,255,.15);border-radius:8px;padding:5px 8px;">'+
+        '<button onclick="cambCantMay('+p.codigo+',-1)" style="background:none;border:none;color:#fff;font-size:20px;font-weight:900;cursor:pointer;padding:0 4px;">−</button>'+
+        '<span id="maycn'+suffix+'-'+p.codigo+'" style="font-size:14px;font-weight:900;color:#fff;">'+cnt+'</span>'+
+        '<button onclick="cambCantMay('+p.codigo+',1)" style="background:none;border:none;color:#fff;font-size:20px;font-weight:900;cursor:pointer;padding:0 4px;">+</button>'+
+      '</div>'+
+      '<button id="mayadd'+suffix+'-'+p.codigo+'" onclick="agregarMay('+p.codigo+')" style="'+(cnt>0?'display:none;':'')+'width:100%;background:#1a4a8a;color:#fff;border:none;border-radius:8px;padding:8px;font-size:12px;font-weight:900;cursor:pointer;">+ Agregar caja</button>'+
+    '</div>'+
+  '</div>';
+}
+
+function agregarMayFoto(cod){
+  if((pedM[cod]||0)===0){ agregarMay(cod); }
+}
+
 function renderCatMayorista(){
   var cont=document.getElementById("catMayorista");
   if(!cont) return;
   var prods=DESTACADOS_MAY.map(function(cod){return P.find(function(p){return p.codigo===cod;});}).filter(Boolean);
-  var html="";
-  prods.forEach(function(p){
-    var pUnit=p.precioMayorista;
-    var pCaja=pUnit*p.unidadesCaja;
-    var unidLbl=p.unidad==="K"?"kg":"u";
-    var cnt=(pedM[p.codigo]||0);
-    html+='<div style="background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.18);border-radius:14px;padding:14px 12px;display:flex;flex-direction:column;gap:6px;" id="maycardwrap-'+p.codigo+'">'+
-      '<div style="font-size:10px;color:rgba(255,255,255,.45);font-weight:700;">Cód. '+p.codigo+'</div>'+
-      '<div style="font-size:13px;font-weight:800;color:#fff;line-height:1.3;">'+p.nombre+'</div>'+
-      '<div style="background:rgba(255,255,255,.12);border-radius:8px;padding:8px 10px;margin-top:4px;">'+
-        '<div style="font-size:20px;font-weight:900;color:#fff;">'+fmt(pCaja)+'</div>'+
-        '<div style="font-size:11px;color:rgba(255,255,255,.55);margin-top:2px;">caja x'+p.unidadesCaja+unidLbl+' · '+fmt(pUnit)+'/'+unidLbl+'</div>'+
-      '</div>'+
-      '<div id="maycnt-'+p.codigo+'" style="'+(cnt===0?'display:none':'')+'display:flex;align-items:center;justify-content:space-between;background:rgba(255,255,255,.15);border-radius:8px;padding:6px 10px;margin-top:2px;">'+
-        '<button onclick="cambCantMay('+p.codigo+',-1)" style="background:none;border:none;color:#fff;font-size:20px;font-weight:900;cursor:pointer;padding:0 6px;">−</button>'+
-        '<span id="maycn-'+p.codigo+'" style="font-size:15px;font-weight:900;color:#fff;">'+cnt+'</span>'+
-        '<button onclick="cambCantMay('+p.codigo+',1)" style="background:none;border:none;color:#fff;font-size:20px;font-weight:900;cursor:pointer;padding:0 6px;">+</button>'+
-      '</div>'+
-      '<button id="mayadd-'+p.codigo+'" onclick="agregarMay('+p.codigo+')" style="'+(cnt>0?'display:none':'')+'width:100%;background:#1a4a8a;color:#fff;border:none;border-radius:8px;padding:9px;font-size:13px;font-weight:900;cursor:pointer;margin-top:4px;">+ Agregar caja</button>'+
-    '</div>';
-  });
-  cont.innerHTML=html;
+  cont.innerHTML=prods.map(function(p){return buildCardMay(p,"-dest");}).join("");
 }
 
 // --- Catálogo completo mayorista ---
@@ -521,28 +531,7 @@ function renderCatalogoCompletoMay(){
     }
   });
   var prods=catsMay[catActivaMay]||[];
-  var html="";
-  prods.forEach(function(p){
-    var pUnit=p.precioMayorista;
-    var pCaja=pUnit*p.unidadesCaja;
-    var unidLbl=p.unidad==="K"?"kg":"u";
-    var cnt=(pedM[p.codigo]||0);
-    html+='<div style="background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.18);border-radius:14px;padding:14px 12px;display:flex;flex-direction:column;gap:6px;" id="maycardwrap2-'+p.codigo+'">'+
-      '<div style="font-size:10px;color:rgba(255,255,255,.45);font-weight:700;">Cód. '+p.codigo+'</div>'+
-      '<div style="font-size:13px;font-weight:800;color:#fff;line-height:1.3;">'+p.nombre+'</div>'+
-      '<div style="background:rgba(255,255,255,.12);border-radius:8px;padding:8px 10px;margin-top:4px;">'+
-        '<div style="font-size:20px;font-weight:900;color:#fff;">'+fmt(pCaja)+'</div>'+
-        '<div style="font-size:11px;color:rgba(255,255,255,.55);margin-top:2px;">caja x'+p.unidadesCaja+unidLbl+' · '+fmt(pUnit)+'/'+unidLbl+'</div>'+
-      '</div>'+
-      '<div id="maycnt2-'+p.codigo+'" style="'+(cnt===0?'display:none;':'')+'display:flex;align-items:center;justify-content:space-between;background:rgba(255,255,255,.15);border-radius:8px;padding:6px 10px;margin-top:2px;">'+
-        '<button onclick="cambCantMay('+p.codigo+',-1)" style="background:none;border:none;color:#fff;font-size:20px;font-weight:900;cursor:pointer;padding:0 6px;">−</button>'+
-        '<span id="maycn2-'+p.codigo+'" style="font-size:15px;font-weight:900;color:#fff;">'+cnt+'</span>'+
-        '<button onclick="cambCantMay('+p.codigo+',1)" style="background:none;border:none;color:#fff;font-size:20px;font-weight:900;cursor:pointer;padding:0 6px;">+</button>'+
-      '</div>'+
-      '<button id="mayadd2-'+p.codigo+'" onclick="agregarMay('+p.codigo+')" style="'+(cnt>0?'display:none;':'')+'width:100%;background:#1a4a8a;color:#fff;border:none;border-radius:8px;padding:9px;font-size:13px;font-weight:900;cursor:pointer;margin-top:4px;">+ Agregar caja</button>'+
-    '</div>';
-  });
-  el.innerHTML=html;
+  el.innerHTML=prods.map(function(p){return buildCardMay(p,"-cat");}).join("");
 }
 
 function agregarMay(cod){
@@ -559,20 +548,16 @@ function cambCantMay(cod,delta){
 
 function updateCardMay(cod){
   var cnt=pedM[cod]||0;
-  // Destacados
-  var addBtn=document.getElementById("mayadd-"+cod);
-  var cntRow=document.getElementById("maycnt-"+cod);
-  var cnEl=document.getElementById("maycn-"+cod);
-  if(addBtn) addBtn.style.display=cnt>0?"none":"block";
-  if(cntRow) cntRow.style.display=cnt>0?"flex":"none";
-  if(cnEl) cnEl.textContent=cnt;
-  // Catálogo completo
-  var addBtn2=document.getElementById("mayadd2-"+cod);
-  var cntRow2=document.getElementById("maycnt2-"+cod);
-  var cnEl2=document.getElementById("maycn2-"+cod);
-  if(addBtn2) addBtn2.style.display=cnt>0?"none":"block";
-  if(cntRow2) cntRow2.style.display=cnt>0?"flex":"none";
-  if(cnEl2) cnEl2.textContent=cnt;
+  ["-dest","-cat"].forEach(function(sfx){
+    var addBtn=document.getElementById("mayadd"+sfx+"-"+cod);
+    var cntRow=document.getElementById("maycnt"+sfx+"-"+cod);
+    var cnEl=document.getElementById("maycn"+sfx+"-"+cod);
+    var badge=document.getElementById("maybadgefoto"+sfx+"-"+cod);
+    if(addBtn) addBtn.style.display=cnt>0?"none":"block";
+    if(cntRow) cntRow.style.display=cnt>0?"flex":"none";
+    if(cnEl) cnEl.textContent=cnt;
+    if(badge){badge.textContent=cnt;badge.style.display=cnt>0?"flex":"none";}
+  });
 }
 
 function calcTotalMay(){
