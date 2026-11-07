@@ -1327,7 +1327,7 @@ function pdfNota(items, ctx){
         d.text(fmt(ctx.total), X + W - 6, B - 45, 13, "F2", "#000000", "r");
         if(ctx.envio) d.text("Envio sin cargo incluido", X + W - 6, B - 29, 8.5, "F2", "#2E7D32", "r");
         if(ctx.obs){
-          d.text("Obs: "+ctx.obs, X + 6, B - 29, 8.5, "F1", "#444444", "l", W * 0.6);
+          d.text("Obs: "+ctx.obs, X + 6, B - 33, 15, "F2", "#000000", "l", W * 0.6);
         }
         d.text("Gracias por su compra  -  FRIOTEKA Especialistas en Congelados", X + W / 2, B - 21, 8.5, "F2", ROJO, "c");
       } else {
