@@ -691,6 +691,7 @@ input:checked+.sw-sl:before{transform:translateX(20px);}
           </select>
         </div>
       </div>
+      <textarea class="campo" id="nvObs" placeholder="📝 Observaciones (opcional)" style="resize:none;height:72px;font-size:14px;margin-top:4px;" rows="3"></textarea>
       <button class="bguardar" id="nvGenerar">🖨️ Generar nota de venta</button>
       <button class="bnuevo" id="nvNuevo" style="margin-top:8px;">✅ Nueva venta</button>
       <button class="bcancel" id="nvCancelar">Cancelar</button>
@@ -1325,6 +1326,9 @@ function pdfNota(items, ctx){
         d.text("TOTAL", X + W - 126, B - 46, 12, "F2", "#000000", "r");
         d.text(fmt(ctx.total), X + W - 6, B - 45, 13, "F2", "#000000", "r");
         if(ctx.envio) d.text("Envio sin cargo incluido", X + W - 6, B - 29, 8.5, "F2", "#2E7D32", "r");
+        if(ctx.obs){
+          d.text("Obs: "+ctx.obs, X + 6, B - 29, 8.5, "F1", "#444444", "l", W * 0.6);
+        }
         d.text("Gracias por su compra  -  FRIOTEKA Especialistas en Congelados", X + W / 2, B - 21, 8.5, "F2", ROJO, "c");
       } else {
         d.rect(X, B - 62, W, 22, "#eeeeee");
@@ -2696,6 +2700,7 @@ function nvNuevoPedido(){
   if($("nvCli")) $("nvCli").value="";
   var selPrevReset=$("nvPreventista");if(selPrevReset)selPrevReset.value="";
   if($("nvDir")) $("nvDir").value="";
+  if($("nvObs")) $("nvObs").value="";
   if($("nvVipBtn")) $("nvVipBtn").className="vipbtn";
   document.querySelectorAll(".fpbtn2").forEach(function(b){b.className="fpbtn2"+(b.dataset.fp==="Efectivo"?" on":"");});
   if($("nvDt0")) $("nvDt0").className="dtbtn on";
@@ -2753,7 +2758,7 @@ $("bvip").onclick=function(){vip=!vip;this.className="vipbtn"+(vip?" on":"");$("
 };
 $("fab").onclick=function(){abrirRes();irA("p2");};
 $("bvolver").onclick=function(){irA("p1");};
-function volverGestion(){nvPed={};nvPedLac={};nvDescEsp=0;nvFpago="Efectivo";nvVip=false;nvEntrega="Local";nvPreventistaVal="";if($("nvCli"))$("nvCli").value="";if($("nvDir"))$("nvDir").value="";if($("nvVipBtn"))$("nvVipBtn").className="vipbtn";irA("p3");renderGestion();}
+function volverGestion(){nvPed={};nvPedLac={};nvDescEsp=0;nvFpago="Efectivo";nvVip=false;nvEntrega="Local";nvPreventistaVal="";if($("nvCli"))$("nvCli").value="";if($("nvDir"))$("nvDir").value="";if($("nvObs"))$("nvObs").value="";if($("nvVipBtn"))$("nvVipBtn").className="vipbtn";irA("p3");renderGestion();}
 $("sbuscar").oninput=function(){render(this.value);};
 $("cliente").oninput=function(){buscarCli(this.value);updWA();};
 $("direccion").oninput=function(){updWA();};
@@ -2876,7 +2881,8 @@ document.addEventListener("DOMContentLoaded", function(){
     if(f.d10&&nvDescEsp>0) descLinea="10% off + "+nvDescEsp+"% especial";
     else if(f.d10) descLinea="10% de descuento";
     else if(nvDescEsp>0) descLinea="Desc. especial "+nvDescEsp+"%";
-    var ctx={cl:cl,dir:dir2,pago:nvFpago,np:nvFmt(nv),fecha:new Date().toLocaleDateString("es-AR"),total:f.final,subtotal:subtotal,bultos:bultos,kg:kg,descLinea:descLinea,envio:tMin>=60000};
+    var obsVal=($("nvObs")?$("nvObs").value:"").trim();
+    var ctx={cl:cl,dir:dir2,pago:nvFpago,np:nvFmt(nv),fecha:new Date().toLocaleDateString("es-AR"),total:f.final,subtotal:subtotal,bultos:bultos,kg:kg,descLinea:descLinea,envio:tMin>=60000,obs:obsVal};
     var ok=await generarPDF(items,ctx);
     if(ok){
       var selPrev=$("nvPreventista");nvPreventistaVal=selPrev?selPrev.value:"";
@@ -2886,7 +2892,7 @@ document.addEventListener("DOMContentLoaded", function(){
       // Buscar tipoCliente del cliente en lista
       var cliObj=clientes.find(function(c){return c.nombre.toLowerCase()===cl.toLowerCase();});
       var tipoCli=cliObj?cliObj.tipoCliente||"sin_clasificar":"sin_clasificar";
-      var rec={nv:nvFmt(nv),fecha:new Date().toLocaleDateString("es-AR"),cliente:cl,dir:dir2,fpago:nvFpago,entrega:nvEntrega,preventista:nvPreventistaVal,total:f.final,costo:costoTotal,margen:f.final-costoTotal,tipoCliente:tipoCli,cobrado:false,fechaCobro:"",fpagoCobro:"",pasadaAlSistema:false,fechaPasada:"",enSistema:false,fechaSistema:"",enviadoWA:_nvWaSent,items:items.map(function(it){return{nombre:it.nombre,cant:it.cantidad,cantNum:it.cantNum||it.cantidad,precio:it.precioUnit,codigo:it.codigo};})};
+      var rec={nv:nvFmt(nv),fecha:new Date().toLocaleDateString("es-AR"),cliente:cl,dir:dir2,fpago:nvFpago,entrega:nvEntrega,preventista:nvPreventistaVal,total:f.final,costo:costoTotal,margen:f.final-costoTotal,tipoCliente:tipoCli,cobrado:false,fechaCobro:"",fpagoCobro:"",pasadaAlSistema:false,fechaPasada:"",enSistema:false,fechaSistema:"",enviadoWA:_nvWaSent,observaciones:obsVal,items:items.map(function(it){return{nombre:it.nombre,cant:it.cantidad,cantNum:it.cantNum||it.cantidad,precio:it.precioUnit,codigo:it.codigo};})};
       _nvWaSent=false;
       pedidos.unshift(rec);if(pedidos.length>500) pedidos=pedidos.slice(0,500);
       window.guardarPedidos();
